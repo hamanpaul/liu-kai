@@ -21,11 +21,29 @@ export ANDROID_HOME=~/Android/Sdk
 2. 在設定頁「匯入字表」選擇自己持有的正版表格檔（例如 `liu_ibus_final.txt`）；匯入後會顯示筆數與雜湊。
 3. 在任何輸入欄位以嘸蝦米字碼輸入；空白上屏首選，點選候選列可直接上屏。
 
-開發者測試：
+支援的匯入組合：`liu_ibus_final.txt`＋`lime_liu7.txt`（以後者切分區段、沿用前者頻率）、單一 CIN／LIME 多區段檔、或 `liu-kai-cli convert` 產生的中性 TSV。只有 IBus 檔時無法切分區段，會拒絕匯入。
+
+輸入操作（實體鍵盤）：字碼後按空白上屏首選；數字鍵選目前頁候選；字碼後加 `v`／`r`／`s`／`f` 選第 2～5 候選；`?`（恰一字根）與 `*`（任意字根）為萬用字元；組字後按 `` ` `` 查首選的讀音與同音字（觸控時長按候選）；單按 Shift 切換中英；Ctrl+J 切換日文。
+
+開發者工具：
 
 ```bash
-./gradlew test               # JVM 單元測試（合成字表）
-scripts/emulator-e2e.sh      # 本機模擬器端對端測試
+./gradlew test                                   # JVM 單元測試（合成字表）
+scripts/emulator-e2e.sh                          # 本機模擬器端對端測試（demo 合成表）
+scripts/emulator-e2e.sh --real ~/prj_pri/liu-kai-data   # 匯入正版字表到模擬器，供驗收
+./gradlew :cli:run --args="stats <liu_ibus_final.txt> <lime_liu7.txt>"   # 桌機核對正版表區段統計
+```
+
+`liu-kai-cli` 指令說明：
+
+```text
+liu-kai-cli <command> [options]
+
+commands:
+  stats   <file>...                         匯入字表並印出各區段統計（不寫檔）
+  convert <file>... --out <tsv>             匯入字表並輸出中性 TSV（請寫到 repo 外）
+  gen-readings --unihan <Unihan_Readings.txt> --out <readings.tsv>
+                                            由 Unihan kMandarin 產生注音讀音表
 ```
 
 ## Version

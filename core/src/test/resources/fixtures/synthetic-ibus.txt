@@ -1,0 +1,47 @@
+### 合成測試字表（非官方資料，字碼為任意指定）
+SCIM_Generic_Table_Phrase_Library_TEXT
+VERSION_1_0
+BEGIN_DEFINITION
+NAME = synthetic
+END_DEFINITION
+BEGIN_TABLE
+a	甲	90
+a	乙	80
+a	丙	70
+a	丁	60
+a	戊	50
+a	己	40
+a	庚	30
+a	辛	20
+a	壬	10
+a	癸	9
+a	子	8
+a	丑	7
+ab	天	100
+Ab	天	120
+abv	地	90
+abc	人	100
+abcd	和	100
+ba	日	100
+ba	月	90
+b	木	100
+c	水	100
+c	火	90
+c	土	80
+vv	風	100
+x,	雲	100
+q	中	100
+q	仲	10
+qa	忠	50
+qq	鐘	40
+rs	雨	60
+sf	雪	60
+a	甲	1
+z	简	1
+a	あ	100
+a	亜	50
+ka	か	100
+ka	蚊	50
+ki	き	100
+kya	きゃ	90
+END_TABLE

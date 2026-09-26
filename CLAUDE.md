@@ -91,5 +91,5 @@ MOC 的**狀態語意對齊**（`moc.map` 上某 stage 宣稱 done 是否真 don
 ## 本專案規範（liu-kai）
 - **正版字表與其衍生物一律不得進 git**：`liu_ibus_final.txt`、`lime_liu7.txt`、`liu70_*`、轉換後的 TSV／二進位字表、含真實字碼的測試輸出與截圖皆屬之。真實字表只放 repo 外（建議 `~/prj_pri/liu-kai-data/`），測試與 CI 只用合成字表（`core/src/test/resources/fixtures/`）。
 - **clean-room**：不得複製 rime-liur、openxiami、OhMyBias 等未授權來源的程式碼或資料；只能以其公開文件描述的行為作為黑箱參考。
-- APK 不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
+- APK（minSdk 28）不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
 - 設計與里程碑見 `docs/plan.md`。

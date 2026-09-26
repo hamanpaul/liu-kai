@@ -1,6 +1,6 @@
 # liu-kai 設計與實作計畫
 
-> 狀態：2026-09-26 定案（路線 B：自製 Kotlin IME）。
+> 狀態：2026-09-26 定案（路線 B：自製 Kotlin IME）。M0–M5 已完成；M6（真實字表驗收）待使用者提供正版字表檔。
 > 來源：ChatGPT 設計討論（2026-09-14～26，見 `docs/research/2026-09-26-chatgpt-discussion.md`）＋ 使用者裁決。
 
 ## 1. 背景與決策
@@ -34,7 +34,7 @@
 
 - repo 與 CI 只能放**合成字表**：`core/src/test/resources/fixtures/`，以及 debug 版內建的 demo 表。
 - 真實字表放在 repo 外（建議 `~/prj_pri/liu-kai-data/`）。轉換產物、含真實字碼的測試輸出與截圖都不得 commit。
-- 讀音資料採 Unicode Unihan `kMandarin`（Unicode License v3，可隨 APK 散布，需附授權聲明），由產生腳本轉成注音後 commit 產物。
+- 讀音資料採 Unicode Unihan `kMandarin`（Unicode License v3，可隨 APK 散布，授權聲明見 `THIRD_PARTY_NOTICES.md`），由 `liu-kai-cli gen-readings` 轉成注音後 commit 產物 `core/src/main/resources/readings.tsv`。
 - APK 不宣告 `INTERNET` 權限；`android:allowBackup="false"`，並以 `dataExtractionRules` 排除字表。
 
 ## 4. 架構
@@ -99,7 +99,10 @@ liu70_jp.* ─────────┘                         └─► neut
   - 組字用 `setComposingText`，上屏用 `commitText`。App 不支援 composing 時，改在候選列顯示組字。
   - 密碼欄（`TYPE_TEXT_VARIATION_PASSWORD` 等）強制英數直出。
   - 處理 `EditorInfo.imeOptions` 的 action（搜尋／送出）。
-- 候選列：自繪 View，每個候選為獨立 hit-rect，並提供 `contentDescription` 與穩定的 view id，供 UiAutomator 定位；點擊判定在 `ACTION_UP`，避免誤判成捲動。
+- 候選列：每個候選是獨立的標準 TextView（`contentDescription` 為 `cand:<索引>:<字>`），可點選、長按，也可被 UiAutomator 定位；候選列置於可橫向捲動的容器內。
+- 實體鍵盤：`onShowInputRequested` 一律接受（預設實作在有實體鍵盤時會拒絕 App 的隱含顯示請求，導致候選列不出現），開始組字而畫面未顯示時呼叫 `requestShowSelf`。
+- 組字區：只有畫面上確實有 liu-kai 的組字區時，組字清空才以 `setComposingText("")` 移除，避免誤刪使用者選取的文字；游標被移出組字區時結束組字。
+- targetSdk 35 的 edge-to-edge：輸入畫面以導覽列 inset 補底部 padding。
 - 鍵盤：自繪 View，字根鍵依字表字元集產生；另有基本數字符號層。
 - 設定頁：
   - 啟用輸入法引導、匯入字表（SAF）、顯示匯入報告與目前字表 manifest、清除字表。
@@ -107,7 +110,7 @@ liu70_jp.* ─────────┘                         └─► neut
 
 ## 8. 讀音資料
 
-- `scripts/gen-readings.py`：下載 Unihan，取 `kMandarin`（有台灣讀音時優先採用第二值），拼音轉注音後輸出 `core/src/main/resources/readings.tsv`，並附 Unicode 授權聲明。
+- `liu-kai-cli gen-readings --unihan Unihan_Readings.txt --out core/src/main/resources/readings.tsv`：取 `kMandarin`（有兩個值時第二個為台灣讀音，列為主要讀音），拼音轉注音（`core` 的 `PinyinZhuyin`）後輸出。目前資料為 Unihan 18.0.0，共 44,353 字。
 - 同音字索引在執行期建立：以字表中存在的繁中單字為範圍，按主要讀音分組。
 - 已知限制：`kMandarin` 只收主要讀音，多音字不完整；需要時改用其他授權相容的資料源。
 
@@ -126,12 +129,12 @@ liu70_jp.* ─────────┘                         └─► neut
 
 | # | 內容 | 完成條件 |
 |---|---|---|
-| M0 | repo 骨架、conventions 1.0.17、本計畫 | policy_check 0 FAIL，PR merge |
-| M1 | Gradle 多模組骨架、Linux SDK、CI | `./gradlew test assembleDebug` 本機與 CI 皆綠 |
-| M2 | core：解析、切分、編譯格式、引擎（第 6 節 #1–#12） | 單元測試涵蓋每條規則，全綠 |
-| M3 | core：萬用字元、讀音／同音、日文模式（#13–#15） | 單元測試全綠；讀音資料產生腳本可重現 |
-| M4 | app：IME、候選列、鍵盤、設定匯入；testhost | 模擬器上以合成字表可打字、點選上屏 |
-| M5 | 模擬器 E2E 自動化 | `scripts/emulator-e2e.sh` 全綠 |
+| M0 ✅ | repo 骨架、conventions 1.0.17、本計畫 | policy_check 0 FAIL，PR merge |
+| M1 ✅ | Gradle 多模組骨架、Linux SDK、CI | `./gradlew test assembleDebug` 本機與 CI 皆綠 |
+| M2 ✅ | core：解析、切分、編譯格式、引擎（第 6 節 #1–#12） | 單元測試涵蓋每條規則，全綠 |
+| M3 ✅ | core：萬用字元、讀音／同音、日文模式（#13–#15） | 單元測試全綠；讀音資料可由 `liu-kai-cli gen-readings` 重現 |
+| M4 ✅ | app：IME、候選列、鍵盤、設定匯入；testhost | 模擬器上以合成字表可打字、點選上屏 |
+| M5 ✅ | 模擬器 E2E 自動化 | `scripts/emulator-e2e.sh` 全綠（15 項） |
 | M6 | 真實字表驗收 | 正版表於模擬器匯入成功；統計符合基準；E2E 以真實字表抽測通過；需實測項目交使用者確認 |
 
 ## 11. 風險與對策
