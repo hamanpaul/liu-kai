@@ -153,8 +153,9 @@ class LiuEngine(
             return EngineResult.PASS
         }
 
+        // 打滿最長碼後再打字根：組字失敗（不自動上屏）
         if (!hasWildcard() && c != config.wildcard && composing.length >= table.maxCodeLength) {
-            return EngineResult.CONSUMED
+            return fail()
         }
         composing += if (c == config.wildcard) c else lower
         refreshCandidates(table)
@@ -199,11 +200,11 @@ class LiuEngine(
         return EngineResult.CONSUMED
     }
 
-    /** 數字鍵 0–9 選目前頁第 1–10 個候選：0 為預設字（即空白上屏的字），1–9 依序為其後候選。 */
+    /** 數字鍵 0–9 選目前頁第 1–10 個候選：0 為預設字（即空白上屏的字），1–9 依序為其後候選；超出候選數為組字失敗。 */
     private fun selectDigit(c: Char): EngineResult {
         val offset = c - '0'
         val index = pageStart + offset
-        return if (offset < config.pageSize && index < candidates.size) commitAt(index) else EngineResult.CONSUMED
+        return if (offset < config.pageSize && index < candidates.size) commitAt(index) else fail()
     }
 
     private fun select(index: Int): EngineResult =

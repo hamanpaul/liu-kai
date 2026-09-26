@@ -1,6 +1,6 @@
 id: hw-digit-select
-name: 數字鍵選字：0 為預設字、超出範圍不動作
-description: c 有 3 個候選（選字標籤 0–2）：0 選預設字「水」、2 選「土」；再次 c 後按 3 超出候選數不動作。
+name: 數字鍵選字：0 為預設字、超出候選數為組字失敗
+description: c 有 3 個候選（選字標籤 0–2）：0 選預設字「水」、2 選「土」；再次 c 後按 3 超出候選數為組字失敗：清除組字、不出字並顯示紅框。
 topology:
   devices:
     EMU:
@@ -41,7 +41,10 @@ steps:
 pass_criteria:
 - field: st.composing
   operator: equals
-  value: c
+  value: ''
+- field: st.failure_hint
+  operator: equals
+  value: true
 - field: read.text
   operator: equals
   value: 水土

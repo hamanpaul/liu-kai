@@ -4,7 +4,7 @@ import pytest
 
 from liu_kai_testpilot.steps import DeviceConfig, StepExecutor, keycode
 
-from .conftest import UI_XML, cand, ime_window_block, state_dump, window_dump
+from .conftest import FOCUS, UI_XML, cand, ime_window_block, state_dump, window_dump
 
 DUMPSYS = "dumpsys activity service"
 UI_DUMP = "uiautomator dump"
@@ -347,3 +347,23 @@ def test_ime_window_visibility_from_window_manager(ex, adb):
     assert run(ex, action="ime_window")["captured"] == {"visible": True}
     assert run(ex, action="ime_window")["output"] == "ime window visible=False"
     assert ex.ime_window_visible() is False
+
+
+def test_tap_text_waits_until_focused_window_accepts_touches(ex, adb):
+    # Activity 剛啟動或剛返回時有轉場期（NOT_VISIBLE），這時的點擊會被丟掉
+    adb.shell_outputs["dumpsys input"] = [window_dump(2200, "NOT_VISIBLE"), window_dump(2200, "NOT_TOUCHABLE"), window_dump(2200)]
+    adb.queue(UI_DUMP, UI_XML.format(plain=""))
+    assert run(ex, action="tap_text", text="清除字表")["success"] is True
+    assert adb.of("tap") == [("tap", 540, 660)]
+    assert [c[1] for c in adb.of("shell")].count("dumpsys input") == 3
+
+
+def test_tap_text_gives_up_when_focused_window_never_accepts_touches(ex, adb):
+    adb.shell_outputs["dumpsys window |"] = ["  mCurrentFocus=null\n"]
+    adb.queue(UI_DUMP, UI_XML.format(plain=""))
+    result = run(ex, action="tap_text", text="清除字表")
+    assert result["success"] is False
+    assert "無法接收觸控" in result["output"]
+    assert adb.of("tap") == []
+    adb.shell_outputs["dumpsys window |"] = [FOCUS.replace("a1b2c3", "ffffff")]
+    assert run(ex, action="tap_text", text="清除字表")["success"] is False

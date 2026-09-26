@@ -83,10 +83,12 @@ class LiuEngineTest {
     }
 
     @Test
-    fun `組字長度不超過最長碼`() {
-        type("abcda")
-        assertEquals("abcd", e.composing)
+    fun `打滿最長碼後再打字根為組字失敗`() {
+        type("abcd")
         assertEquals(listOf("和"), texts())
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('a')))
+        assertEquals("", e.composing)
+        assertTrue(e.failed)
     }
 
     @Test
@@ -252,21 +254,24 @@ class LiuEngineTest {
     }
 
     @Test
-    fun `數字 0 選目前頁預設字、9 選第 10 個候選；超出候選數的數字鍵不動作`() {
+    fun `數字 0 選目前頁預設字、9 選第 10 個候選；超出候選數的數字鍵為組字失敗`() {
         type("a")
         assertEquals(EngineResult(true, "甲"), e.handle(Key('0')))
         type("a")
         assertEquals(EngineResult(true, "癸"), e.handle(Key('9')))
         type("c")
         assertEquals(EngineResult.CONSUMED, e.handle(Key('5')))
-        assertEquals("c", e.composing)
+        assertEquals("", e.composing)
+        assertTrue(e.failed)
     }
 
     @Test
-    fun `自訂每頁 5 個候選時，數字 5 以上不選字`() {
+    fun `自訂每頁 5 個候選時，數字 5 以上不選字（組字失敗）`() {
         val small = LiuEngine(Fixtures.traditional, Readings.EMPTY, EngineConfig(pageSize = 5))
-        "a".forEach { small.handle(Key(it)) }
+        small.handle(Key('a'))
         assertEquals(EngineResult.CONSUMED, small.handle(Key('5')))
+        assertTrue(small.failed)
+        small.handle(Key('a'))
         assertEquals(EngineResult(true, "戊"), small.handle(Key('4')))
     }
 

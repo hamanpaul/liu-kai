@@ -47,9 +47,22 @@ class ImeController(val engine: LiuEngine) {
             consumedKeys += keyCode
             return ImeOutcome(true, ops)
         }
-        // 引擎不處理的鍵：經 InputConnection 轉送，確保排在先前的上屏操作之後
+        val text = passThroughText(action.event)
+        if (text != null) {
+            // 放行的可見字元直接上屏：轉送的按鍵事件會排在 App 輸入佇列中尚未處理完的按鍵之後，
+            // 之後的組字／上屏卻直接執行而先到，造成亂序；上屏與它們同走 InputConnection 的文字通道。
+            consumedKeys += keyCode
+            return ImeOutcome(true, ops + IcOp.Commit(text))
+        }
+        // 控制鍵（Enter、Backspace 等）App 需要按鍵語意：經 InputConnection 轉送按鍵事件
         forwardedKeys += keyCode
         return ImeOutcome(true, ops + IcOp.ForwardKey)
+    }
+
+    private fun passThroughText(event: EngineEvent): String? = when (event) {
+        is ImeEvent.Key -> event.char.toString()
+        ImeEvent.Space -> " "
+        else -> null
     }
 
     fun keyUp(keyCode: Int): ImeOutcome {

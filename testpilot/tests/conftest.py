@@ -22,11 +22,14 @@ def state_dump(**overrides) -> str:
     return f"SERVICE x\n  LIUKAI_STATE {payload}\n"
 
 
-def window_dump(top: int) -> str:
-    """`dumpsys input` 的視窗清單（觸控派送實際使用的 frame）。"""
+FOCUS = "  mCurrentFocus=Window{a1b2c3 u0 com.x/.Host}\n"
+
+
+def window_dump(top: int, host_config: str = "0x0") -> str:
+    """`dumpsys input` 的視窗清單（觸控派送實際使用的 frame 與 inputConfig）。"""
     return (
         "  Windows:\n"
-        "      4: name=a1b2c3 com.x/.Host, id=127, displayId=0, frame=[0,0][1080,2400], touchableRegion=[0,0][1080,2400]\n"
+        f"      4: name=a1b2c3 com.x/.Host, id=127, displayId=0, inputConfig={host_config}, frame=[0,0][1080,2400], touchableRegion=[0,0][1080,2400]\n"
         f"      5: name=18de9a7 InputMethod, id=128, displayId=0, inputConfig=NOT_FOCUSABLE, alpha=1, frame=[0,{top}][1080,2400], touchableRegion=[0,{top}][1080,2400]\n"
         "    535: channelName='18de9a7 InputMethod (server)', status=NORMAL\n"
     )
@@ -137,5 +140,6 @@ class FakeAdb:
 def adb():
     fake = FakeAdb()
     # 預設：輸入法視窗 frame 頂端與 state_dump 的候選列一致（位置已穩定）
+    fake.queue("dumpsys window |", FOCUS)
     fake.queue("dumpsys input", window_dump(2200))
     return fake

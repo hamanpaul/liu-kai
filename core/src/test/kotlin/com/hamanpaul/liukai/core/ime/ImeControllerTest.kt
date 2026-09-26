@@ -51,10 +51,23 @@ class ImeControllerTest {
     }
 
     @Test
-    fun `引擎不處理的鍵經 InputConnection 轉送（與上屏操作同一條有序通道），keyUp 也轉送一次`() {
-        assertEquals(ImeOutcome(true, listOf(IcOp.ForwardKey)), down(space, ' '))
-        assertEquals(ImeOutcome(true, listOf(IcOp.ForwardKey)), c.keyUp(space))
+    fun `引擎放行的可見字元直接上屏（與組字、上屏同走有序的文字通道），keyUp 攔下`() {
+        assertEquals(ImeOutcome(true, listOf(IcOp.Commit(" "))), down(space, ' '))
+        assertEquals(ImeOutcome(true, emptyList()), c.keyUp(space))
         assertEquals(ImeOutcome(false, emptyList()), c.keyUp(space))
+        assertEquals(ImeOutcome(true, listOf(IcOp.Commit("1"))), down(8, '1'))
+        down(shiftLeft)
+        c.keyUp(shiftLeft)
+        assertEquals(InputMode.ENGLISH, c.engine.mode)
+        assertEquals(ImeOutcome(true, listOf(IcOp.Commit("a"))), down(keyA, 'a'))
+    }
+
+    @Test
+    fun `引擎放行的控制鍵（Enter、Backspace 等）經 InputConnection 轉送按鍵事件，keyUp 也轉送一次`() {
+        assertEquals(ImeOutcome(true, listOf(IcOp.ForwardKey)), down(enter, '\n'))
+        assertEquals(ImeOutcome(true, listOf(IcOp.ForwardKey)), c.keyUp(enter))
+        assertEquals(ImeOutcome(true, listOf(IcOp.ForwardKey)), down(del))
+        assertEquals(ImeOutcome(true, listOf(IcOp.ForwardKey)), c.keyUp(del))
     }
 
     @Test

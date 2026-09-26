@@ -34,8 +34,8 @@ sealed interface IcOp {
     data class SendKey(val keyCode: Int) : IcOp
     data class EditorAction(val actionId: Int) : IcOp
     /**
-     * 把目前的實體鍵事件經 InputConnection 轉送給 App。與上屏、組字操作走同一條有序通道，
-     * 避免快速打字時放行的按鍵比先前的上屏先抵達 App 的競態。
+     * 把目前的實體鍵事件（Enter、Backspace 等控制鍵）經 InputConnection 轉送給 App。
+     * 放行的可見字元不用這個操作，改以 Commit 上屏，避免與組字、上屏操作亂序。
      */
     data object ForwardKey : IcOp
 }

@@ -62,7 +62,7 @@ hw.keyboard.charmap=qwerty2
 hw.lcd.density=420
 hw.lcd.height=2400
 hw.lcd.width=1080
-hw.ramSize=2048M
+hw.ramSize=4096M
 disk.dataPartition.size=6144M
 hw.gpu.enabled=yes
 hw.gpu.mode=auto
@@ -76,10 +76,11 @@ EOF
 
 boot_emulator() {
   if ! "$ADB_EXE" devices | tr -d '\r' | grep -q "^$SERIAL[[:space:]]*device"; then
-    # -no-snapshot：一律冷開機、不存快照，資料分割區（含 Play 登入與已安裝的 App）照常保留
+    # -no-snapshot：一律冷開機、不存快照，資料分割區（含 Play 登入與已安裝的 App）照常保留；
+    # -memory 4096：登入 Google 後 Play 服務常駐，2 GB 會大量 swap，轉場變慢、點擊被丟掉
     log "啟動模擬器 $AVD_NAME（$SERIAL）"
     mkdir -p "$ROOT/e2e-out"
-    "$EMU_EXE" -avd "$AVD_NAME" -port "$EMU_PORT" -no-snapshot -no-audio -no-boot-anim >"$ROOT/e2e-out/emulator.log" 2>&1 &
+    "$EMU_EXE" -avd "$AVD_NAME" -port "$EMU_PORT" -memory 4096 -no-snapshot -no-audio -no-boot-anim >"$ROOT/e2e-out/emulator.log" 2>&1 &
     "$ADB_EXE" -s "$SERIAL" wait-for-device
   fi
   local waited=0

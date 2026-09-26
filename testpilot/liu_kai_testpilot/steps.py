@@ -21,6 +21,8 @@ _SYMBOL_KEYS = {
 }
 MAX_SCROLLS = 8
 ROTATE_POLLS = 20
+TOUCH_POLLS = 20
+_FOCUS = re.compile(r"mCurrentFocus=Window\{([0-9a-f]+) ")
 _WINDOW_HEADER = re.compile(r"^\s*Window #\d+ Window\{\S+ u\d+ (.+)\}:\s*$")
 _IME_FRAME = re.compile(r"name=\S+ InputMethod, [^\n]*?\bframe=\[-?\d+,(-?\d+)\]")
 
@@ -129,13 +131,34 @@ class StepExecutor:
         self.settle()
         return f"tap field {step['field']}", {}
 
+    def _focused_window_touchable(self) -> bool:
+        focus = _FOCUS.search(self.adb.shell("dumpsys window | grep mCurrentFocus"))
+        if focus is None:
+            return False
+        for line in self.adb.shell("dumpsys input").splitlines():
+            if f"name={focus.group(1)} " in line:
+                return "NOT_VISIBLE" not in line and "NOT_TOUCHABLE" not in line
+        return False
+
+    def await_touchable(self) -> None:
+        """等目前取得焦點的視窗可接收觸控（觸控派送清單中沒有 NOT_VISIBLE／NOT_TOUCHABLE）。
+        Activity 剛啟動或剛從其他畫面返回時有轉場期，這時的點擊會被丟掉；模擬器負載高時轉場會拉長。"""
+        polls = 0
+        while not self._focused_window_touchable():
+            polls += 1
+            if polls == TOUCH_POLLS:
+                raise LookupError("取得焦點的視窗一直無法接收觸控")
+            self._sleep(0.5)
+
     def _do_tap_text(self, step):
+        self.await_touchable()
         x, y = find_node(self.ui_xml(), text=step["text"]).rect.center
         self.adb.tap(x, y)
         self.settle()
         return f"tap text {step['text']}", {}
 
     def _do_long_press_text(self, step):
+        self.await_touchable()
         x, y = find_node(self.ui_xml(), text=step["text"]).rect.center
         self.adb.long_press(x, y, step.get("duration_ms", 1000))
         self.settle()
