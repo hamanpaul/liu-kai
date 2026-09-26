@@ -1,0 +1,18 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.kotlin/
+
+# 正版字表與其衍生物一律不得進 git（見 CLAUDE.md「本專案規範」）
+liu-kai-data/
+*.liutable
+liu_ibus_final*.txt
+lime_liu7*.txt
+liu70_*
+liu5.db
+*.lime
+e2e-out/

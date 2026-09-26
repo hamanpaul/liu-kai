@@ -1,0 +1,31 @@
+policy_profile: flat
+policy_version: 1.0.17
+code_paths:
+  - "**/*.kt"
+  - "**/*.kts"
+  - "**/*.py"
+  - "**/*.sh"
+  - "gradle/**"
+  - "app/src/**"
+  - "core/src/**"
+  - "cli/src/**"
+  - "scripts/**"
+doc_paths:
+  - "README.md"
+  - "docs/**"
+preflight:
+  steps:
+    - name: gradle-test
+      kind: tests
+      argv: ["./gradlew", "--no-daemon", "test"]
+      when_path_exists: "gradlew"
+      timeout_seconds: 1800
+tier: personal
+secret_scan:
+  allow: []
+doc_reference:
+  allow: []
+agent_files:
+  mode: symlink
+conventions_engine:
+  repo: hamanpaul/paulsha-conventions
