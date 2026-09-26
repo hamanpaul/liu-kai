@@ -33,7 +33,7 @@ sf 雪
 %ename synthetic-sc
 %cname 合成簡體
 %keyname begin
-a 甲
+a Ａ
 %keyname end
 %chardef begin
 a 甲
@@ -42,11 +42,15 @@ z 简
 %gen_inp
 %ename synthetic-jp
 %cname 合成日文
+%keyname begin
+k Ｋ
+%keyname end
 %chardef begin
-a あ
-a 亜
-ka か
-ka 蚊
-ki き
-kya きゃ
+a, あ
+a, ぁ
+a. ア
+ka, か
+ka. カ
+kya, きゃ
+aa 寸
 %chardef end

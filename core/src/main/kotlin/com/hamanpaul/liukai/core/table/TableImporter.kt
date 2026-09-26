@@ -20,15 +20,22 @@ enum class TableFormat { IBUS, CIN, NEUTRAL_TSV, UNKNOWN }
 object TableImporter {
     const val NEUTRAL_HEADER = "# liu-kai-tsv v1"
 
+    /**
+     * IBus 的 BEGIN_TABLE 在檔頭；CIN／LIME 的 % 指令可能在很後面
+     * （lime_liu7.txt 首段無標頭，第一個指令在第 28,817 行），所以掃描全文。
+     */
     fun detect(text: String): TableFormat {
         val head = text.take(64 * 1024)
         return when {
             head.trimStart('﻿').startsWith(NEUTRAL_HEADER) -> TableFormat.NEUTRAL_TSV
-            "BEGIN_TABLE" in head -> TableFormat.IBUS
-            "%chardef" in head || "%gen_inp" in head || "%cname" in head -> TableFormat.CIN
+            CIN_OR_IBUS_LINE.find(head)?.value?.trim() == "BEGIN_TABLE" -> TableFormat.IBUS
+            CIN_DIRECTIVE.containsMatchIn(text) -> TableFormat.CIN
             else -> TableFormat.UNKNOWN
         }
     }
+
+    private val CIN_OR_IBUS_LINE = Regex("(?m)^(BEGIN_TABLE|%chardef|%gen_inp|%cname)\\b")
+    private val CIN_DIRECTIVE = Regex("(?m)^%(chardef|gen_inp|cname)\\b")
 
     fun import(files: List<NamedBytes>): ImportResult {
         if (files.isEmpty()) throw TableImportException("沒有選擇任何檔案")
@@ -44,10 +51,14 @@ object TableImporter {
 
         val rawSections: List<TableSection> = when {
             tsv.isNotEmpty() && ibus.isEmpty() && cin.isEmpty() -> parseNeutral(tsv.single().second)
-            ibus.isNotEmpty() && cin.isNotEmpty() && tsv.isEmpty() -> SectionSplitter.split(
-                IbusTableParser.parse(ibus.single().second.lineSequence()),
-                CinParser.parse(cin.single().second.lineSequence()),
-            )
+            ibus.isNotEmpty() && cin.isNotEmpty() && tsv.isEmpty() -> try {
+                SectionSplitter.split(
+                    IbusTableParser.parse(ibus.single().second.lineSequence()),
+                    CinParser.parse(cin.single().second.lineSequence()),
+                )
+            } catch (e: SectionMismatchException) {
+                throw TableImportException("IBus 與 CIN 區段對不上：${e.message}")
+            }
             cin.isNotEmpty() && ibus.isEmpty() && tsv.isEmpty() ->
                 CinParser.parse(cin.single().second.lineSequence()).mapIndexed { i, s ->
                     TableSection(SectionSplitter.guessKind(i, s.cname, s.ename, s.entries), s.cname, s.entries)

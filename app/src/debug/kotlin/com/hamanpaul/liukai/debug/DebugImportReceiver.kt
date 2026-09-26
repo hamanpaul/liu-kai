@@ -11,7 +11,8 @@ import java.io.File
 /**
  * 僅 debug 版：供 adb 自動化匯入字表。
  * - `--es source demo`：匯入 APK 內建的合成字表（assets/synthetic-*.txt）。
- * - `--es source files`：匯入 app 專屬外部目錄 `files/import/` 內的所有檔案（以 adb push 放入）。
+ * - `--es source files`：匯入 app 私有目錄 `files/import/` 內的所有檔案
+ *   （以 `adb exec-in run-as <pkg> sh -c 'cat > files/import/<name>'` 寫入；匯入後刪除）。
  * 結果寫入 logcat（tag LiuKaiDebugImport）與 result data。
  */
 class DebugImportReceiver : BroadcastReceiver() {
@@ -25,10 +26,10 @@ class DebugImportReceiver : BroadcastReceiver() {
                         NamedBytes(name, context.assets.open(name).use { it.readBytes() })
                     }
                     "files" -> {
-                        val dir = File(context.getExternalFilesDir(null), "import")
+                        val dir = File(context.filesDir, "import")
                         val list = dir.listFiles()?.filter { it.isFile }?.sortedBy { it.name }.orEmpty()
                         require(list.isNotEmpty()) { "${dir.path} 沒有檔案" }
-                        list.map { NamedBytes(it.name, it.readBytes()) }
+                        list.map { NamedBytes(it.name, it.readBytes()) }.also { dir.deleteRecursively() }
                     }
                     else -> error("未知的 source：$source")
                 }

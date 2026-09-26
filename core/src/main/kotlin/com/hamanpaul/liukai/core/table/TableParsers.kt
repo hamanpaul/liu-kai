@@ -34,13 +34,21 @@ object IbusTableParser {
     }
 }
 
-/** CIN／LIME 文字格式中的一個區段（尚未判定用途）。 */
-data class CinSection(val cname: String?, val ename: String?, val entries: List<TableEntry>)
+/**
+ * CIN／LIME 文字格式中的一個區段（尚未判定用途）。
+ * keynames 為 `%keyname begin…end` 內的按鍵顯示名稱（例如 a → Ａ），不是字碼。
+ */
+data class CinSection(
+    val cname: String?,
+    val ename: String?,
+    val entries: List<TableEntry>,
+    val keynames: List<TableEntry> = emptyList(),
+)
 
 /**
  * CIN／LIME 文字格式，可含多個串接區段：
  * - `%gen_inp` 開啟新區段（目前區段已有內容時）；檔案開頭可以沒有標頭。
- * - `%cname`／`%ename` 設定區段名稱；`%keyname begin…end` 整段略過。
+ * - `%cname`／`%ename` 設定區段名稱；`%keyname begin…end` 內的行收進 keynames（不當字碼）。
  * - 其餘非 `%`、非 `#` 的非空行都視為「字碼 輸出字」資料列（`%chardef begin/end` 只是標記）。
  */
 object CinParser {
@@ -49,15 +57,17 @@ object CinParser {
         var cname: String? = null
         var ename: String? = null
         var entries = ArrayList<TableEntry>()
+        var keynames = ArrayList<TableEntry>()
         var inKeyname = false
 
         fun flush() {
             if (entries.isNotEmpty() || cname != null || ename != null) {
-                sections += CinSection(cname, ename, entries)
+                sections += CinSection(cname, ename, entries, keynames)
             }
             cname = null
             ename = null
             entries = ArrayList()
+            keynames = ArrayList()
         }
 
         for (raw in lines) {
@@ -65,7 +75,12 @@ object CinParser {
             val trimmed = line.trim()
             if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
             if (inKeyname) {
-                if (trimmed.startsWith("%keyname") && trimmed.endsWith("end")) inKeyname = false
+                if (trimmed.startsWith("%keyname") && trimmed.endsWith("end")) {
+                    inKeyname = false
+                } else {
+                    val cols = splitColumns(line)
+                    if (cols.size >= 2) keynames += TableEntry(cols[0], cols[1])
+                }
                 continue
             }
             if (trimmed.startsWith("%")) {

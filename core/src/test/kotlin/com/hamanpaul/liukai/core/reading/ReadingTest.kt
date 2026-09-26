@@ -24,10 +24,12 @@ class ReadingTest {
     }
 
     @Test
-    fun `同音字限字表內且依頻率排序`() {
+    fun `同音字限字表內，依年級、碼長、頻率排序`() {
         val r = Fixtures.readings
         assertEquals(listOf("ㄓㄨㄥ", "ㄓㄨㄥˋ"), r.of("中"))
-        assertEquals(listOf("中", "忠", "鐘"), r.homophones("忠", Fixtures.traditional))
+        assertEquals(1, r.gradeOf("中"))
+        // 鐘（2 年級）排在忠（無年級，雖然字表頻率較高）之前
+        assertEquals(listOf("中", "鐘", "忠"), r.homophones("忠", Fixtures.traditional))
         assertEquals(listOf("仲"), r.homophones("仲", Fixtures.traditional))
         assertEquals(emptyList(), r.homophones("無", Fixtures.traditional))
     }

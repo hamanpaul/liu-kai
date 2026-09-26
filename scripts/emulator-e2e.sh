@@ -3,14 +3,15 @@
 #
 # 用法：
 #   scripts/emulator-e2e.sh                 建置、安裝、匯入 demo 合成表並執行 ImeE2eTest
-#   scripts/emulator-e2e.sh --real <dir>    建置、安裝，匯入 <dir> 內的正版字表（不跑合成表測試），
-#                                           印出匯入統計後保留模擬器供實機驗收
+#   scripts/emulator-e2e.sh --real <dir>    建置、安裝，匯入 <dir> 內的真實字表（REAL_FILES 指定的檔案），
+#                                           執行 RealTableSpotTest 抽測後保留模擬器供驗收
 #   scripts/emulator-e2e.sh --no-build ...  略過 Gradle 建置
 #
 # 環境變數：
 #   WIN_SDK   Windows 端 Android SDK（預設 %USERPROFILE%\AppData\Local\Android\Sdk）
 #   AVD_NAME  專用 AVD 名稱（預設 LiuKai35，不存在時以 API 35 x86_64 映像建立）
 #   EMU_PORT  模擬器 console port（預設 5580，serial 為 emulator-<port>）
+#   REAL_FILES --real 時要匯入的檔名（預設 "liu_ibus_final.txt lime_liu7.txt"）
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -21,7 +22,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --real) MODE=real; REAL_DIR=${2:?--real 需要目錄}; shift 2 ;;
     --no-build) BUILD=0; shift ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "未知參數：$1" >&2; exit 2 ;;
   esac
 done
@@ -130,26 +131,31 @@ create_avd
 boot_emulator
 install_apks
 
+run_instrument() {
+  local out=$1; shift
+  adb shell am instrument -w -r "$@" com.hamanpaul.liukai.testhost.test/androidx.test.runner.AndroidJUnitRunner > "$out" || true
+  local summary
+  summary=$(grep -E '^(OK \(|FAILURES!!!|Tests run:)' "$out" || true)
+  log "結果：${summary:-（無輸出，見 $out）}"
+  grep -q '^OK (' "$out"
+}
+
 if [ "$MODE" = real ]; then
-  remote=/sdcard/Android/data/com.hamanpaul.liukai/files/import
-  adb shell rm -rf "$remote" >/dev/null
-  adb shell mkdir -p "$remote"
-  for f in "$REAL_DIR"/*; do
-    [ -f "$f" ] || continue
-    local_copy="$WIN_HOME/AppData/Local/Temp/liu-kai-e2e/$(basename "$f")"
-    cp "$f" "$local_copy"
-    adb push "$(wslpath -w "$local_copy")" "$remote/" | tail -1
-    rm -f "$local_copy"
+  # 以 app 身分（debug 版可 run-as）把檔案串流寫進 app 私有目錄 files/import/，匯入後由 receiver 刪除。
+  pkg=com.hamanpaul.liukai
+  "$ADB_EXE" -s "$SERIAL" shell run-as $pkg rm -rf files/import >/dev/null
+  for name in ${REAL_FILES:-liu_ibus_final.txt lime_liu7.txt}; do
+    f="$REAL_DIR/$name"
+    [ -f "$f" ] || { log "找不到 $f"; exit 1; }
+    "$ADB_EXE" -s "$SERIAL" exec-in run-as $pkg sh -c "mkdir -p files/import && cat > files/import/$name" < "$f"
+    log "已寫入 $name（$(adb shell run-as $pkg stat -c %s files/import/$name) bytes）"
   done
   import_table files
-  adb shell rm -rf "$remote" >/dev/null
-  log "正版字表已匯入，模擬器保留供驗收"
-  exit 0
+  log "執行 RealTableSpotTest"
+  run_instrument "$OUT/instrument-real.txt" -e realTable true -e class com.hamanpaul.liukai.testhost.RealTableSpotTest
+  exit $?
 fi
 
 import_table demo
 log "執行 ImeE2eTest"
-adb shell am instrument -w -r com.hamanpaul.liukai.testhost.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/instrument.txt" || true
-summary=$(grep -E '^(OK \(|FAILURES!!!|Tests run:)' "$OUT/instrument.txt" || true)
-log "結果：${summary:-（無輸出，見 e2e-out/instrument.txt）}"
-grep -q '^OK (' "$OUT/instrument.txt"
+run_instrument "$OUT/instrument.txt" -e class com.hamanpaul.liukai.testhost.ImeE2eTest

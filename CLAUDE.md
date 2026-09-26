@@ -89,7 +89,7 @@ review 變更時，除了 R-22 抓得到的懸空引用，另留意**語意陳�
 MOC 的**狀態語意對齊**（`moc.map` 上某 stage 宣稱 done 是否真 done、被 postpone 的 stage 是否還誤掛 done）同屬此 advisory 層：R-24 只確定性檢查連結懸空／孤兒與靜態鮮度，狀態是否真對齊由 Copilot reviewer 留言提醒。
 
 ## 本專案規範（liu-kai）
-- **正版字表與其衍生物一律不得進 git**：`liu_ibus_final.txt`、`lime_liu7.txt`、`liu70_*`、轉換後的 TSV／二進位字表、含真實字碼的測試輸出與截圖皆屬之。真實字表只放 repo 外（建議 `~/prj_pri/liu-kai-data/`），測試與 CI 只用合成字表（`core/src/test/resources/fixtures/`）。
+- **字表來源**：使用者自建的字表（2014「LIU FOR LINUX」附件：`liu_ibus_final.txt`、`lime_liu7.txt`、`liu70_*`），嘸蝦米字根授權已廢除，可合法使用（使用者 2026-09-26 確認）。目前字表檔不進 git、不內建進 APK，放在 repo 外 `~/prj_pri/liu-kai-data/`，於手機端匯入；是否改為內建由使用者決定。單元測試與 CI 只用合成字表（`core/src/test/resources/fixtures/`），真實字表以 `scripts/emulator-e2e.sh --real` 抽測。
 - **clean-room**：不得複製 rime-liur、openxiami、OhMyBias 等未授權來源的程式碼或資料；只能以其公開文件描述的行為作為黑箱參考。
 - APK（minSdk 28）不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
 - 設計與里程碑見 `docs/plan.md`。

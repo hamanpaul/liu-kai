@@ -13,15 +13,16 @@ class TableImportTest {
     @Test
     fun `IBus 解析只讀 BEGIN_TABLE 區塊並保留頻率`() {
         val entries = IbusTableParser.parse(Fixtures.text("synthetic-ibus.txt").lineSequence())
-        assertEquals(39, entries.size)
+        assertEquals(42, entries.size)
         assertEquals(TableEntry("a", "甲", 90), entries.first())
-        assertEquals(TableEntry("kya", "きゃ", 90), entries.last())
+        assertEquals(TableEntry("aa", "寸", 50), entries.last())
     }
 
     @Test
     fun `CIN 多區段解析：無標頭首段、gen_inp 切段、略過 keyname`() {
         val sections = CinParser.parse(Fixtures.text("synthetic-lime.txt").lineSequence())
-        assertEquals(listOf(31, 2, 6), sections.map { it.entries.size })
+        assertEquals(listOf(31, 2, 7), sections.map { it.entries.size })
+        assertEquals(listOf(0, 1, 1), sections.map { it.keynames.size })
         assertNull(sections[0].cname)
         assertEquals("合成簡體", sections[1].cname)
         assertEquals("合成日文", sections[2].cname)
@@ -35,6 +36,21 @@ class TableImportTest {
         )
         assertEquals(listOf(SectionKind.TRADITIONAL, SectionKind.OTHER, SectionKind.JAPANESE), split.map { it.kind })
         assertEquals(120L, split[0].entries.first { it.code == "Ab" }.freq)
+    }
+
+    @Test
+    fun `IBus 夾帶 keyname 列時一併對齊並丟棄；不含 keyname 時也可切分`() {
+        val cin = listOf(
+            CinSection(null, null, listOf(TableEntry("a", "甲"))),
+            CinSection("日文", null, listOf(TableEntry("ka", "か")), keynames = listOf(TableEntry("k", "Ｋ"))),
+        )
+        val withKeyname = listOf(TableEntry("a", "甲", 5), TableEntry("k", "Ｋ"), TableEntry("ka", "か", 7))
+        val split = SectionSplitter.split(withKeyname, cin)
+        assertEquals(listOf(listOf(TableEntry("a", "甲", 5)), listOf(TableEntry("ka", "か", 7))), split.map { it.entries })
+        val dataOnly = listOf(TableEntry("a", "甲", 5), TableEntry("ka", "か", 7))
+        assertEquals(split, SectionSplitter.split(dataOnly, cin))
+        val all = Fixtures.importResult.bundle.sections.flatMap { it.entries }.map { it.text }
+        assertTrue("Ａ" !in all && "Ｋ" !in all)
     }
 
     @Test
@@ -89,6 +105,14 @@ class TableImportTest {
         bundle.write(out)
         val read = TableBundle.read(ByteArrayInputStream(out.toByteArray()))
         assertEquals(bundle, read)
+    }
+
+    @Test
+    fun `無標頭首段超過 64KB 的 LIME 檔仍判定為 CIN`() {
+        // 真實 lime_liu7.txt 的第一個 % 指令在第 28,817 行（約 250KB 之後）。
+        val body = (0 until 12_000).joinToString("\n") { "a$it\t甲" }
+        val text = "$body\n%gen_inp\n%cname\t日文蝦\n%chardef\tbegin\nka\tか\n"
+        assertEquals(TableFormat.CIN, TableImporter.detect(text))
     }
 
     @Test

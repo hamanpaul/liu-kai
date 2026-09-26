@@ -141,10 +141,10 @@ class LiuEngineTest {
         type("q")
         e.handle(Key('`'))
         assertEquals("中", e.homophoneOf)
-        assertEquals(listOf("中", "忠", "鐘"), texts())
+        assertEquals(listOf("中", "鐘", "忠"), texts())
         assertEquals("ㄓㄨㄥ／ㄓㄨㄥˋ", e.candidates[0].annotation)
         assertEquals("ㄓㄨㄥ", e.candidates[1].annotation)
-        assertEquals(EngineResult(true, "忠"), e.handle(EngineEvent.Select(1)))
+        assertEquals(EngineResult(true, "忠"), e.handle(EngineEvent.Select(2)))
         assertNull(e.homophoneOf)
     }
 
@@ -177,15 +177,20 @@ class LiuEngineTest {
     }
 
     @Test
-    fun `日文模式：平假名候選後附片假名`() {
+    fun `日文模式：羅馬拼音加逗號為平假名、加句點為片假名，候選順序照字表`() {
         e.handle(EngineEvent.ToggleJapanese)
         assertEquals(InputMode.JAPANESE, e.mode)
-        type("ka")
-        assertEquals(listOf("か", "カ", "蚊"), texts())
-        assertEquals("カナ", e.candidates[1].annotation)
-        assertEquals(EngineResult(true, "カ"), e.handle(EngineEvent.Select(1)))
-        type("kya")
-        assertEquals(listOf("きゃ", "キャ"), texts())
+        type("ka,")
+        assertEquals(listOf("か"), texts())
+        e.handle(EngineEvent.Space)
+        type("ka.")
+        assertEquals(listOf("カ"), texts())
+        e.handle(EngineEvent.Escape)
+        type("a,")
+        assertEquals(listOf("あ", "ぁ"), texts())
+        assertEquals(EngineResult(true, "ぁ"), e.handle(Key('v')))
+        type("aa")
+        assertEquals(listOf("寸"), texts())
         e.handle(EngineEvent.ToggleEnglish)
         e.handle(EngineEvent.ToggleEnglish)
         assertEquals(InputMode.JAPANESE, e.mode)

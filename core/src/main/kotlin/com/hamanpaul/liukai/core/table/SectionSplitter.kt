@@ -7,27 +7,36 @@ class SectionMismatchException(message: String) : IllegalArgumentException(messa
 /**
  * 以 CIN／LIME 的區段邊界切分 IBus 資料流：
  * 各區段 (code,text) 依序串接後必須與 IBus 資料逐筆相同，否則拒絕（不猜測邊界）。
+ * 真實的 liu_ibus_final.txt 由 LIME 檔整份轉出，每段開頭夾帶 `%keyname` 的按鍵顯示名稱列（a → Ａ…）；
+ * 若 IBus 筆數等於「資料＋keyname」合計，就連同 keyname 一起對齊，再把 keyname 列丟棄。
  * 切分結果沿用 IBus 的頻率欄。
  */
 object SectionSplitter {
     fun split(ibus: List<TableEntry>, sections: List<CinSection>): List<TableSection> {
-        val total = sections.sumOf { it.entries.size }
-        if (total != ibus.size) {
-            throw SectionMismatchException("區段筆數合計 $total 與 IBus 筆數 ${ibus.size} 不符")
+        val dataTotal = sections.sumOf { it.entries.size }
+        val withKeynames = sections.sumOf { it.entries.size + it.keynames.size }
+        val includesKeynames = when (ibus.size) {
+            dataTotal -> false
+            withKeynames -> true
+            else -> throw SectionMismatchException(
+                "區段筆數合計 $dataTotal（含 keyname $withKeynames）與 IBus 筆數 ${ibus.size} 不符",
+            )
         }
         val out = ArrayList<TableSection>(sections.size)
         var cursor = 0
-        sections.forEachIndexed { index, section ->
-            val merged = section.entries.map { cin ->
-                val ib = ibus[cursor]
-                if (!cin.code.equals(ib.code, ignoreCase = true) || cin.text != ib.text) {
-                    throw SectionMismatchException(
-                        "第 ${cursor + 1} 筆不一致：CIN(${cin.code},${cin.text}) vs IBus(${ib.code},${ib.text})",
-                    )
-                }
-                cursor++
-                ib
+        fun take(cin: TableEntry): TableEntry {
+            val ib = ibus[cursor]
+            if (!cin.code.equals(ib.code, ignoreCase = true) || cin.text != ib.text) {
+                throw SectionMismatchException(
+                    "第 ${cursor + 1} 筆不一致：CIN(${cin.code},${cin.text}) vs IBus(${ib.code},${ib.text})",
+                )
             }
+            cursor++
+            return ib
+        }
+        sections.forEachIndexed { index, section ->
+            if (includesKeynames) section.keynames.forEach { take(it) }
+            val merged = section.entries.map { take(it) }
             out += TableSection(guessKind(index, section.cname, section.ename, merged), section.cname, merged)
         }
         return out

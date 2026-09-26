@@ -14,8 +14,8 @@ private const val USAGE = """liu-kai-cli <command> [options]
 commands:
   stats   <file>...                         匯入字表並印出各區段統計（不寫檔）
   convert <file>... --out <tsv>             匯入字表並輸出中性 TSV（請寫到 repo 外）
-  gen-readings --unihan <Unihan_Readings.txt> --out <readings.tsv>
-                                            由 Unihan kMandarin 產生注音讀音表
+  gen-readings --unihan <Unihan_Readings.txt> [--grades <Unihan_DictionaryLikeData.txt>] --out <readings.tsv>
+                                            由 Unihan kMandarin 產生注音讀音表（可附 kGradeLevel 常用度）
 """
 
 fun main(args: Array<String>) {
@@ -89,6 +89,17 @@ private fun convert(args: List<String>, out: PrintStream): Int {
 private fun genReadings(args: List<String>, out: PrintStream): Int {
     val source = File(requireNotNull(option(args, "--unihan")) { "gen-readings 需要 --unihan" })
     val target = File(requireNotNull(option(args, "--out")) { "gen-readings 需要 --out" })
+    val grades = HashMap<String, String>()
+    option(args, "--grades")?.let { path ->
+        File(path).useLines { seq ->
+            for (line in seq) {
+                val cols = line.split('\t')
+                if (cols.size >= 3 && cols[1] == "kGradeLevel") {
+                    grades[String(Character.toChars(cols[0].removePrefix("U+").toInt(16)))] = cols[2].trim()
+                }
+            }
+        }
+    }
     val lines = ArrayList<String>()
     var skipped = 0
     source.useLines { seq ->
@@ -98,16 +109,21 @@ private fun genReadings(args: List<String>, out: PrintStream): Int {
             val ch = String(Character.toChars(cols[0].removePrefix("U+").toInt(16)))
             val values = cols[2].trim().split(' ').filter { it.isNotEmpty() }.reversed()
             val zhuyin = values.mapNotNull { PinyinZhuyin.convert(it) }.distinct()
-            if (zhuyin.isEmpty()) skipped++ else lines += "$ch\t${zhuyin.joinToString(" ")}"
+            if (zhuyin.isEmpty()) {
+                skipped++
+            } else {
+                lines += "$ch\t${zhuyin.joinToString(" ")}" + (grades[ch]?.let { "\t$it" } ?: "")
+            }
         }
     }
     target.parentFile?.mkdirs()
     target.writeText(
         buildString {
-            append("# 由 liu-kai-cli gen-readings 自 Unicode Unihan kMandarin 產生（Unicode License v3，見 THIRD_PARTY_NOTICES.md）\n")
+            append("# 由 liu-kai-cli gen-readings 自 Unicode Unihan kMandarin／kGradeLevel 產生（Unicode License v3，見 THIRD_PARTY_NOTICES.md）\n")
+            append("# 欄位：字<TAB>注音讀音（第一個為主要讀音，台灣讀音優先）[<TAB>kGradeLevel]\n")
             lines.forEach { append(it).append('\n') }
         },
     )
-    out.println("readings=${lines.size} skipped=$skipped wrote ${target.path}")
+    out.println("readings=${lines.size} skipped=$skipped graded=${lines.count { it.count { c -> c == '\t' } == 2 }} wrote ${target.path}")
     return 0
 }

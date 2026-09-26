@@ -139,6 +139,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         candidateRow.orientation = HORIZONTAL
         candidateRow.gravity = Gravity.CENTER_VERTICAL
         candidateScroll.isHorizontalScrollBarEnabled = false
+        candidateScroll.contentDescription = "candidates"
         candidateScroll.addView(candidateRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         bar.addView(candidateScroll, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         return bar

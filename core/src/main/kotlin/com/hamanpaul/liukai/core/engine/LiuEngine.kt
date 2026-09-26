@@ -1,6 +1,5 @@
 package com.hamanpaul.liukai.core.engine
 
-import com.hamanpaul.liukai.core.kana.Kana
 import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.core.table.CompiledTable
 
@@ -259,21 +258,8 @@ class LiuEngine(
             table.wildcard(composing, config.wildcardLimit, config.wildcardOne, config.wildcardMany)
                 .map { (text, code) -> Candidate(text, code) }
         } else {
-            val texts = table.candidates(composing)
-            if (mode == InputMode.JAPANESE) withKatakana(texts) else texts.map { Candidate(it) }
+            // 日文段本身以「羅馬拼音＋,」輸出平假名、「＋.」輸出片假名，候選順序照字表，不另外插入變體。
+            table.candidates(composing).map { Candidate(it) }
         }
-    }
-
-    private fun withKatakana(texts: List<String>): List<Candidate> {
-        val out = ArrayList<Candidate>()
-        val seen = HashSet<String>()
-        for (t in texts) {
-            if (seen.add(t)) out += Candidate(t)
-            if (Kana.isAllHiragana(t)) {
-                val kata = Kana.toKatakana(t)
-                if (seen.add(kata)) out += Candidate(kata, "カナ")
-            }
-        }
-        return out
     }
 }

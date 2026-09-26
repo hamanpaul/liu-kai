@@ -81,6 +81,7 @@ class ImeE2eTest {
                 in 'a'..'z' -> device.pressKeyCode(KeyEvent.KEYCODE_A + (c - 'a'))
                 in '0'..'9' -> device.pressKeyCode(KeyEvent.KEYCODE_0 + (c - '0'))
                 ',' -> device.pressKeyCode(KeyEvent.KEYCODE_COMMA)
+                '.' -> device.pressKeyCode(KeyEvent.KEYCODE_PERIOD)
                 '?' -> device.pressKeyCode(KeyEvent.KEYCODE_SLASH, KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON)
                 '!' -> device.pressKeyCode(KeyEvent.KEYCODE_1, KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON)
                 '`' -> device.pressKeyCode(KeyEvent.KEYCODE_GRAVE)
@@ -155,7 +156,7 @@ class ImeE2eTest {
     @Test
     fun 反引號查同音字() {
         type("q`")
-        candidate(1, "忠").click()
+        candidate(2, "忠").click()
         assertFieldText("忠")
     }
 
@@ -163,17 +164,20 @@ class ImeE2eTest {
     fun 長按候選查同音字() {
         type("q")
         candidate(0, "中").longClick()
-        candidate(2, "鐘").click()
+        candidate(1, "鐘").click()
         assertFieldText("鐘")
     }
 
     @Test
-    fun 日文模式片假名() {
+    fun 日文模式平假名與片假名() {
         ctrl(KeyEvent.KEYCODE_J)
         device.wait(Until.hasObject(By.desc("mode").text("日")), TIMEOUT)
-        type("ka")
-        candidate(1, "カ").click()
-        assertFieldText("カ")
+        type("ka,")
+        candidate(0, "か")
+        type(" ka.")
+        candidate(0, "カ")
+        type(" ")
+        assertFieldText("かカ")
         ctrl(KeyEvent.KEYCODE_J)
     }
 

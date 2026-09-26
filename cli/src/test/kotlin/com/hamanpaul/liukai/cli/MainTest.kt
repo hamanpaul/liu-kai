@@ -23,7 +23,7 @@ class MainTest {
         val (code, out, _) = exec("stats", "$fixtures/synthetic-ibus.txt", "$fixtures/synthetic-lime.txt")
         assertEquals(0, code)
         assertTrue("[0] kind=TRADITIONAL name=- rawRows=31 uniquePairs=30" in out, out)
-        assertTrue("[2] kind=JAPANESE name=合成日文 rawRows=6" in out, out)
+        assertTrue("[2] kind=JAPANESE name=合成日文 rawRows=7" in out, out)
     }
 
     @Test
@@ -35,7 +35,7 @@ class MainTest {
         val lines = tsv.readLines()
         assertEquals("# liu-kai-tsv v1", lines.first())
         assertTrue("TRADITIONAL\tab\t天\t120" in lines)
-        assertTrue("JAPANESE\tka\tか\t100" in lines)
+        assertTrue("JAPANESE\tka,\tか\t100" in lines)
     }
 
     @Test
@@ -51,12 +51,15 @@ class MainTest {
         val unihan = File(dir, "Unihan_Readings.txt").apply {
             writeText("# comment\nU+4E2D\tkMandarin\tzhōng\nU+4E2D\tkDefinition\tcentral\nU+8AB0\tkMandarin\tshéi shuí\nU+20000\tkMandarin\thm\n")
         }
+        val grades = File(dir, "Unihan_DictionaryLikeData.txt").apply {
+            writeText("U+4E2D\tkGradeLevel\t1\nU+4E2D\tkFenn\t9A\n")
+        }
         val out = File(dir, "readings.tsv")
-        val (code, stdout, _) = exec("gen-readings", "--unihan", unihan.path, "--out", out.path)
+        val (code, stdout, _) = exec("gen-readings", "--unihan", unihan.path, "--grades", grades.path, "--out", out.path)
         assertEquals(0, code)
-        assertTrue("readings=2 skipped=1" in stdout, stdout)
+        assertTrue("readings=2 skipped=1 graded=1" in stdout, stdout)
         val lines = out.readLines().filterNot { it.startsWith("#") }
-        assertEquals(listOf("中\tㄓㄨㄥ", "誰\tㄕㄨㄟˊ ㄕㄟˊ"), lines)
+        assertEquals(listOf("中\tㄓㄨㄥ\t1", "誰\tㄕㄨㄟˊ ㄕㄟˊ"), lines)
     }
 
     @Test
