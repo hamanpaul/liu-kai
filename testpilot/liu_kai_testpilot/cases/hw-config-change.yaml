@@ -1,0 +1,50 @@
+id: hw-config-change
+name: 旋轉螢幕後輸入畫面重建仍可輸入
+description: 輸入法顯示中旋轉螢幕：框架重建輸入畫面（onCreateInputView 再次被呼叫，View 需先脫離舊父容器）；轉回後仍可組字上屏。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: rot1
+  action: rotate
+  target: EMU
+  rotation: 1
+- id: st1
+  action: ime_state
+  target: EMU
+- id: t1
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - SPACE
+- id: rot0
+  action: rotate
+  target: EMU
+  rotation: 0
+- id: t2
+  action: keys
+  target: EMU
+  keys:
+  - c
+  - SPACE
+- id: st2
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.keyboard_visible
+  operator: equals
+  value: false
+- field: st2.window_shown
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: 木水

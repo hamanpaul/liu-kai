@@ -53,4 +53,5 @@ ka, か
 ka. カ
 kya, きゃ
 aa 寸
+x, 雫
 %chardef end

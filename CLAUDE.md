@@ -39,7 +39,7 @@ policy_version: 1.0.17
 - [ ] 本 PR 有新增對應的 changelog fragment `changelog.d/<issue>-<slug>.md`（或 PR 標 `skip-changelog` + 理由）
 - [ ] `VERSION` 內容與意圖一致（release label PR 才可偏離 latest tag）
 - [ ] `.github/pull_request_template.md` checklist 全勾
-- [ ] 測試全綠（本 repo: `./gradlew test`；動到 IME 行為時另跑 `scripts/emulator-e2e.sh`）
+- [ ] 測試全綠且覆蓋率 100%（本 repo: `./gradlew :core:check :cli:check`、`(cd testpilot && .venv/bin/python -m pytest)`；動到 app 或輸入行為時另跑 `scripts/emulator-e2e.sh`，含 app 覆蓋率 100% 門檻）
 - [ ] `python3 -m policy_check --repo .` 無任何 failure
 - [ ] 已執行本 repo 擁有的 canonical `preflight-ci` skill（其核心為 `policy-preflight`），且全部 selected gates 通過
 - [ ] R-17：PR body 若引用 issue（`#N`），必須是 closing-keyword 形式（`Closes/Fixes/Resolves #N`）；只引用不關閉時上 `policy-exempt:issue-link`
@@ -89,7 +89,8 @@ review 變更時，除了 R-22 抓得到的懸空引用，另留意**語意陳�
 MOC 的**狀態語意對齊**（`moc.map` 上某 stage 宣稱 done 是否真 done、被 postpone 的 stage 是否還誤掛 done）同屬此 advisory 層：R-24 只確定性檢查連結懸空／孤兒與靜態鮮度，狀態是否真對齊由 Copilot reviewer 留言提醒。
 
 ## 本專案規範（liu-kai）
-- **字表來源**：使用者自建的字表（2014「LIU FOR LINUX」附件：`liu_ibus_final.txt`、`lime_liu7.txt`、`liu70_*`），嘸蝦米字根授權已廢除，可合法使用（使用者 2026-09-26 確認）。目前字表檔不進 git、不內建進 APK，放在 repo 外 `~/prj_pri/liu-kai-data/`，於手機端匯入；是否改為內建由使用者決定。單元測試與 CI 只用合成字表（`core/src/test/resources/fixtures/`），真實字表以 `scripts/emulator-e2e.sh --real` 抽測。
+- **字表來源**：使用者自建的字表（2014「LIU FOR LINUX」附件：`liu_ibus_final.txt`、`lime_liu7.txt`、`liu70_*`），嘸蝦米字根授權已廢除，可合法使用（使用者 2026-09-26 確認）。目前字表檔不進 git、不內建進 APK，放在 repo 外 `~/prj_pri/liu-kai-data/`，於手機端匯入；是否改為內建由使用者決定。單元測試與 CI 只用合成字表（`core/src/test/resources/fixtures/`），真實字表由 `scripts/emulator-e2e.sh` 的 `real-*` 案例抽測。
 - **clean-room**：不得複製 rime-liur、openxiami、OhMyBias 等未授權來源的程式碼或資料；只能以其公開文件描述的行為作為黑箱參考。
-- APK（minSdk 28）不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
+- APK（minSdk 30）不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
+- 測試 APK 不建立 GitHub Releases，一律放到 `test-apks` 分支（檔名 `liu-kai-debug-YYYY-MM-DD.apk`，該分支的 APKS.md 記錄最新版、raw 下載連結、SHA-256 與 source commit）；該分支不跑 CI、不做 policy check、不開 PR。
 - 設計與里程碑見 `docs/plan.md`。

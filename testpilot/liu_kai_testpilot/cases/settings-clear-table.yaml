@@ -1,0 +1,36 @@
+id: settings-clear-table
+name: 設定頁清除字表
+description: 按「清除字表」後顯示尚未匯入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: settings
+mutates_table: true
+steps:
+- id: status0
+  action: wait_text
+  target: EMU
+  contains: 字表：已匯入
+- id: clear
+  action: tap_text
+  target: EMU
+  text: 清除字表
+- id: report
+  action: wait_text
+  target: EMU
+  contains: 已清除
+- id: status
+  action: wait_text
+  target: EMU
+  contains: 尚未匯入
+pass_criteria:
+- field: status.text
+  operator: contains
+  value: 尚未匯入
+- field: report.text
+  operator: equals
+  value: 已清除字表

@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
-# liu-kai 模擬器端對端測試（WSL2 + Windows 端 Android 模擬器）。
+# liu-kai 端對端測試（WSL2 + Windows 端 Android 模擬器）：以 TestPilot plugin 執行 YAML 案例，
+# 匯出 app 覆蓋率並驗證 100% 門檻。
 #
 # 用法：
-#   scripts/emulator-e2e.sh                 建置、安裝、匯入 demo 合成表並執行 ImeE2eTest
-#   scripts/emulator-e2e.sh --real <dir>    建置、安裝，匯入 <dir> 內的真實字表（REAL_FILES 指定的檔案），
-#                                           執行 RealTableSpotTest 抽測後保留模擬器供驗收
-#   scripts/emulator-e2e.sh --no-build ...  略過 Gradle 建置
+#   scripts/emulator-e2e.sh                  建置、安裝、執行全部案例、匯出覆蓋率並驗證
+#   scripts/emulator-e2e.sh --case <id>...   只跑指定案例（仍匯出覆蓋率，但不驗證門檻）
+#   scripts/emulator-e2e.sh --no-build       略過 Gradle 建置
 #
 # 環境變數：
 #   WIN_SDK   Windows 端 Android SDK（預設 %USERPROFILE%\AppData\Local\Android\Sdk）
-#   AVD_NAME  專用 AVD 名稱（預設 LiuKai35，不存在時以 API 35 x86_64 映像建立）
+#   AVD_NAME  專用 AVD（預設 LiuKai35；不存在時以 API 35 x86_64 映像建立，含實體鍵盤）
 #   EMU_PORT  模擬器 console port（預設 5580，serial 為 emulator-<port>）
-#   REAL_FILES --real 時要匯入的檔名（預設 "liu_ibus_final.txt lime_liu7.txt"）
+#   LIU_KAI_DATA  真實字表目錄（預設 ~/prj_pri/liu-kai-data，real-* 案例使用）
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-MODE=demo
-REAL_DIR=""
 BUILD=1
+CASES=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --real) MODE=real; REAL_DIR=${2:?--real 需要目錄}; shift 2 ;;
     --no-build) BUILD=0; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    --case) CASES+=(--case "${2:?--case 需要 id}"); shift 2 ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) echo "未知參數：$1" >&2; exit 2 ;;
   esac
 done
@@ -35,8 +34,8 @@ SERIAL=emulator-$EMU_PORT
 ADB_EXE="$WIN_SDK/platform-tools/adb.exe"
 EMU_EXE="$WIN_SDK/emulator/emulator.exe"
 AVD_DIR="$WIN_HOME/.android/avd"
-OUT="$ROOT/e2e-out"
-mkdir -p "$OUT"
+VENV="$ROOT/testpilot/.venv"
+COVERAGE_DIR="$ROOT/app/build/outputs/e2e-coverage"
 
 adb() { "$ADB_EXE" -s "$SERIAL" "$@" | tr -d '\r'; }
 log() { printf '[e2e] %s\n' "$*"; }
@@ -45,10 +44,8 @@ create_avd() {
   [ -f "$AVD_DIR/$AVD_NAME.ini" ] && return
   log "建立 AVD $AVD_NAME"
   mkdir -p "$AVD_DIR/$AVD_NAME.avd"
-  local win_avd
-  win_avd=$(wslpath -w "$AVD_DIR/$AVD_NAME.avd")
   printf 'avd.ini.encoding=UTF-8\r\npath=%s\r\npath.rel=avd\\%s.avd\r\ntarget=android-35\r\n' \
-    "$win_avd" "$AVD_NAME" > "$AVD_DIR/$AVD_NAME.ini"
+    "$(wslpath -w "$AVD_DIR/$AVD_NAME.avd")" "$AVD_NAME" > "$AVD_DIR/$AVD_NAME.ini"
   cat > "$AVD_DIR/$AVD_NAME.avd/config.ini" <<EOF
 avd.ini.encoding=UTF-8
 AvdId=$AVD_NAME
@@ -78,11 +75,11 @@ EOF
 }
 
 boot_emulator() {
-  if "$ADB_EXE" devices | tr -d '\r' | grep -q "^$SERIAL[[:space:]]*device"; then
-    log "模擬器 $SERIAL 已在執行"
-  else
+  if ! "$ADB_EXE" devices | tr -d '\r' | grep -q "^$SERIAL[[:space:]]*device"; then
+    # -no-snapshot：一律冷開機、不存快照，資料分割區（含 Play 登入與已安裝的 App）照常保留
     log "啟動模擬器 $AVD_NAME（$SERIAL）"
-    "$EMU_EXE" -avd "$AVD_NAME" -port "$EMU_PORT" -no-snapshot-save -no-audio -no-boot-anim >"$OUT/emulator.log" 2>&1 &
+    mkdir -p "$ROOT/e2e-out"
+    "$EMU_EXE" -avd "$AVD_NAME" -port "$EMU_PORT" -no-snapshot -no-audio -no-boot-anim >"$ROOT/e2e-out/emulator.log" 2>&1 &
     "$ADB_EXE" -s "$SERIAL" wait-for-device
   fi
   local waited=0
@@ -93,69 +90,72 @@ boot_emulator() {
   done
   adb shell input keyevent KEYCODE_WAKEUP >/dev/null || true
   adb shell wm dismiss-keyguard >/dev/null 2>&1 || true
-  log "模擬器已開機"
+  log "模擬器 $SERIAL 已開機"
 }
 
-install_apks() {
+write_testbed() {
+  cat > "$ROOT/testpilot/testbed.yaml" <<EOF
+adb_binary: $ADB_EXE
+path_mapper: wslpath
+serial: $SERIAL
+repo_root: $ROOT
+reports_dir: $ROOT/testpilot/reports
+real_table_dir: ${LIU_KAI_DATA:-$HOME/prj_pri/liu-kai-data}
+screen_width: 1080
+settle_ms: 400
+EOF
+}
+
+install_apps() {
   local stage="$WIN_HOME/AppData/Local/Temp/liu-kai-e2e"
   mkdir -p "$stage"
-  cp "$ROOT/app/build/outputs/apk/debug/app-debug.apk" \
-     "$ROOT/testhost/build/outputs/apk/debug/testhost-debug.apk" \
-     "$ROOT/testhost/build/outputs/apk/androidTest/debug/testhost-debug-androidTest.apk" "$stage/"
-  for apk in app-debug.apk testhost-debug.apk testhost-debug-androidTest.apk; do
-    log "安裝 $apk"
-    adb install -r -t "$(wslpath -w "$stage/$apk")" | tail -1
+  for apk in app/build/outputs/apk/debug/app-debug.apk testhost/build/outputs/apk/debug/testhost-debug.apk; do
+    cp "$ROOT/$apk" "$stage/"
+    log "安裝 $(basename "$apk")：$(adb install -r -t "$(wslpath -w "$stage/$(basename "$apk")")" | tail -1)"
   done
-  local ime=com.hamanpaul.liukai/.ime.LiuKaiImeService
-  adb shell ime enable "$ime" >/dev/null
-  adb shell ime set "$ime" >/dev/null
-  adb shell settings put secure show_ime_with_hard_keyboard 0
-  log "目前輸入法：$(adb shell settings get secure default_input_method)"
-}
-
-import_table() {
-  local source=$1
-  local out
-  out=$(adb shell am broadcast -a com.hamanpaul.liukai.DEBUG_IMPORT \
-    -n com.hamanpaul.liukai/.debug.DebugImportReceiver --es source "$source")
-  echo "$out" > "$OUT/import.txt"
-  log "匯入結果：$(grep -o 'data="[^"]*"' <<<"$out" || echo "$out")"
-  grep -q 'data="OK' <<<"$out"
+  # 重新安裝會讓系統改回其他輸入法，重新啟用並切換
+  adb shell ime enable com.hamanpaul.liukai/.ime.LiuKaiImeService >/dev/null
+  adb shell ime set com.hamanpaul.liukai/.ime.LiuKaiImeService >/dev/null
 }
 
 if [ $BUILD -eq 1 ]; then
-  log "Gradle 建置"
-  (cd "$ROOT" && ./gradlew --no-daemon -q :app:assembleDebug :testhost:assembleDebug :testhost:assembleDebugAndroidTest)
+  log "Gradle 建置（debug 版含 JaCoCo instrumentation）"
+  (cd "$ROOT" && ./gradlew --no-daemon -q :app:assembleDebug :testhost:assembleDebug)
+fi
+if [ ! -x "$VENV/bin/testpilot" ]; then
+  log "建立 TestPilot 環境 $VENV"
+  uv venv -q "$VENV" --python 3.12
+  VIRTUAL_ENV="$VENV" uv pip install -q -e "$ROOT/testpilot[test]"
 fi
 create_avd
 boot_emulator
-install_apks
+write_testbed
+install_apps
 
-run_instrument() {
-  local out=$1; shift
-  adb shell am instrument -w -r "$@" com.hamanpaul.liukai.testhost.test/androidx.test.runner.AndroidJUnitRunner > "$out" || true
-  local summary
-  summary=$(grep -E '^(OK \(|FAILURES!!!|Tests run:)' "$out" || true)
-  log "結果：${summary:-（無輸出，見 $out）}"
-  grep -q '^OK (' "$out"
-}
-
-if [ "$MODE" = real ]; then
-  # 以 app 身分（debug 版可 run-as）把檔案串流寫進 app 私有目錄 files/import/，匯入後由 receiver 刪除。
-  pkg=com.hamanpaul.liukai
-  "$ADB_EXE" -s "$SERIAL" shell run-as $pkg rm -rf files/import >/dev/null
-  for name in ${REAL_FILES:-liu_ibus_final.txt lime_liu7.txt}; do
-    f="$REAL_DIR/$name"
-    [ -f "$f" ] || { log "找不到 $f"; exit 1; }
-    "$ADB_EXE" -s "$SERIAL" exec-in run-as $pkg sh -c "mkdir -p files/import && cat > files/import/$name" < "$f"
-    log "已寫入 $name（$(adb shell run-as $pkg stat -c %s files/import/$name) bytes）"
-  done
-  import_table files
-  log "執行 RealTableSpotTest"
-  run_instrument "$OUT/instrument-real.txt" -e realTable true -e class com.hamanpaul.liukai.testhost.RealTableSpotTest
-  exit $?
+log "執行 TestPilot 案例"
+mkdir -p "$ROOT/e2e-out"
+touch "$ROOT/e2e-out/.run-start"
+set +e
+(cd "$ROOT" && LIU_KAI_TESTBED="$ROOT/testpilot/testbed.yaml" "$VENV/bin/testpilot" run liu_kai "${CASES[@]}")
+status=$?
+set -e
+# testpilot 的結束碼不反映案例判定：以本次產生的 report.json 為準，沒有產生報告也算失敗
+latest=$(find "$ROOT/testpilot/reports" -mindepth 1 -maxdepth 1 -type d -newer "$ROOT/e2e-out/.run-start" 2>/dev/null | sort | tail -1)
+if [ -z "$latest" ]; then
+  log "本次執行沒有產生報告"
+  status=1
+elif [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["summary"]["overall"])' "$latest/report.json")" != PASS ]; then
+  status=1
 fi
 
-import_table demo
-log "執行 ImeE2eTest"
-run_instrument "$OUT/instrument.txt" -e class com.hamanpaul.liukai.testhost.ImeE2eTest
+rm -rf "$COVERAGE_DIR"
+(cd "$ROOT" && LIU_KAI_TESTBED="$ROOT/testpilot/testbed.yaml" "$VENV/bin/liu-kai-coverage" --out "$COVERAGE_DIR/e2e.ec")
+(cd "$ROOT" && ./gradlew --no-daemon -q :app:jacocoE2eReport)
+python3 "$ROOT/scripts/coverage-gaps.py" "$ROOT/app/build/reports/jacoco/jacocoE2eReport/jacocoE2eReport.xml" || true
+[ -n "$latest" ] && log "報告：$latest/report.md"
+
+[ $status -eq 0 ] || { log "案例未全數通過"; exit $status; }
+if [ ${#CASES[@]} -eq 0 ]; then
+  (cd "$ROOT" && ./gradlew --no-daemon -q :app:jacocoE2eCoverageVerification)
+  log "app 覆蓋率 100% 門檻通過"
+fi

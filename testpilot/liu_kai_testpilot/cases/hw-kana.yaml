@@ -1,0 +1,53 @@
+id: hw-kana
+name: 一般模式直接打假名
+description: 不切換模式：ka, 為平假名、ka. 為片假名；日文區段的日文漢字（aa 寸）不併入一般查詢。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: kana
+  action: keys
+  target: EMU
+  keys:
+  - k
+  - a
+  - ','
+  - SPACE
+  - k
+  - a
+  - .
+  - SPACE
+- id: kanji
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - a
+- id: st
+  action: ime_state
+  target: EMU
+- id: esc
+  action: keys
+  target: EMU
+  keys:
+  - ESCAPE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.mode
+  operator: equals
+  value: CHINESE
+- field: st.composing
+  operator: equals
+  value: aa
+- field: st.candidates
+  operator: equals
+  value: []
+- field: read.text
+  operator: equals
+  value: かカ

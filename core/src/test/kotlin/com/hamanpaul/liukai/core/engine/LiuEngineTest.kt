@@ -1,10 +1,11 @@
 package com.hamanpaul.liukai.core.engine
 
 import com.hamanpaul.liukai.core.Fixtures
-import com.hamanpaul.liukai.core.engine.EngineEvent.Key
+import com.hamanpaul.liukai.core.engine.ImeEvent.Key
 import com.hamanpaul.liukai.core.reading.Readings
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -20,25 +21,28 @@ class LiuEngineTest {
         type("ba")
         assertEquals("ba", e.composing)
         assertEquals(listOf("日", "月"), texts())
-        assertEquals(EngineResult(true, "日"), e.handle(EngineEvent.Space))
+        assertEquals(EngineResult(true, "日"), e.handle(ImeEvent.Space))
         assertEquals("", e.composing)
         assertTrue(e.candidates.isEmpty())
     }
 
     @Test
-    fun `無組字時空白交給 App；有組字無候選時保留組字`() {
-        assertEquals(EngineResult.PASS, e.handle(EngineEvent.Space))
+    fun `無組字時空白交給 App；空碼按空白清除組字並直接出空白`() {
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.Space))
         type("xv")
-        assertEquals(EngineResult.CONSUMED, e.handle(EngineEvent.Space))
-        assertEquals("xv", e.composing)
+        assertEquals(EngineResult(true, " "), e.handle(ImeEvent.Space))
+        assertEquals("", e.composing)
+        assertFalse(e.failed)
     }
 
     @Test
-    fun `觸控點選與數字鍵選字`() {
+    fun `觸控點選與數字鍵選字：0 為預設字，1–9 為第 2–10 個候選`() {
         type("ba")
-        assertEquals(EngineResult(true, "月"), e.handle(EngineEvent.Select(1)))
+        assertEquals(EngineResult(true, "月"), e.handle(ImeEvent.Select(1)))
         type("c")
-        assertEquals(EngineResult(true, "火"), e.handle(Key('2')))
+        assertEquals(EngineResult(true, "土"), e.handle(Key('2')))
+        type("c")
+        assertEquals(EngineResult(true, "水"), e.handle(Key('0')))
     }
 
     @Test
@@ -54,7 +58,7 @@ class LiuEngineTest {
         type("abv")
         assertEquals("abv", e.composing)
         assertEquals(listOf("地"), texts())
-        e.handle(EngineEvent.Escape)
+        e.handle(ImeEvent.Escape)
         type("vv")
         assertEquals(listOf("風"), texts())
     }
@@ -64,10 +68,10 @@ class LiuEngineTest {
         type("br")
         assertEquals("br", e.composing)
         assertTrue(e.candidates.isEmpty())
-        e.handle(EngineEvent.Escape)
+        e.handle(ImeEvent.Escape)
         type("cs")
         assertEquals("cs", e.composing)
-        e.handle(EngineEvent.Escape)
+        e.handle(ImeEvent.Escape)
         type("xv")
         assertEquals("xv", e.composing)
     }
@@ -88,52 +92,75 @@ class LiuEngineTest {
     @Test
     fun `Backspace、Esc、Enter`() {
         type("ab")
-        e.handle(EngineEvent.Backspace)
+        e.handle(ImeEvent.Backspace)
         assertEquals("a", e.composing)
-        e.handle(EngineEvent.Escape)
+        e.handle(ImeEvent.Escape)
         assertEquals("", e.composing)
-        assertEquals(EngineResult.PASS, e.handle(EngineEvent.Backspace))
-        assertEquals(EngineResult.PASS, e.handle(EngineEvent.Escape))
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.Backspace))
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.Escape))
         type("ab")
-        assertEquals(EngineResult(true, "ab"), e.handle(EngineEvent.Enter))
-        assertEquals(EngineResult.PASS, e.handle(EngineEvent.Enter))
+        assertEquals(EngineResult(true, "ab"), e.handle(ImeEvent.Enter))
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.Enter))
     }
 
     @Test
     fun `翻頁後數字鍵與空白以目前頁為準`() {
         type("a")
         assertEquals(12, e.candidates.size)
-        e.handle(EngineEvent.PageDown)
+        e.handle(ImeEvent.PageDown)
         assertEquals(10, e.pageStart)
-        assertEquals(EngineResult(true, "丑"), e.handle(Key('2')))
+        assertEquals(EngineResult(true, "丑"), e.handle(Key('1')))
         type("a")
         e.handle(Key('='))
-        assertEquals(EngineResult(true, "子"), e.handle(EngineEvent.Space))
+        assertEquals(EngineResult(true, "子"), e.handle(ImeEvent.Space))
         type("a")
-        e.handle(EngineEvent.PageDown)
-        e.handle(EngineEvent.PageDown)
+        e.handle(ImeEvent.PageDown)
+        e.handle(ImeEvent.PageDown)
         assertEquals(10, e.pageStart)
         e.handle(Key('-'))
         assertEquals(0, e.pageStart)
     }
 
     @Test
-    fun `組字中按非字根鍵：先上屏首選再把按鍵交給 App`() {
+    fun `組字中按非字根鍵：組字失敗，清除組字、不出字並標示失敗，下一個事件清除標示`() {
         type("ba")
-        assertEquals(EngineResult(false, "日"), e.handle(Key('!')))
-        type("ba")
-        assertEquals(EngineResult(false, "日"), e.handle(Key('A')))
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('!')))
+        assertEquals("", e.composing)
+        assertTrue(e.candidates.isEmpty())
+        assertTrue(e.failed)
+        type("b")
+        assertFalse(e.failed)
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('A')))
+        assertTrue(e.failed)
         assertEquals(EngineResult.PASS, e.handle(Key('A')))
+        assertFalse(e.failed)
     }
 
     @Test
-    fun `萬用字元候選附字碼`() {
-        type("a?")
+    fun `重置引擎時清除失敗標示`() {
+        type("ba!")
+        assertTrue(e.failed)
+        e.reset()
+        assertFalse(e.failed)
+    }
+
+    @Test
+    fun `萬用字元 * 比對零到多個字根，候選附字碼`() {
+        type("a*")
+        assertEquals("甲", texts().first())
         val tian = e.candidates.first { it.text == "天" }
         assertEquals("ab", tian.annotation)
-        e.handle(EngineEvent.Escape)
+        e.handle(ImeEvent.Escape)
         type("*d")
         assertEquals(listOf("和"), texts())
+    }
+
+    @Test
+    fun `問號不是萬用字元：組字中按下為組字失敗，無組字時交給 App`() {
+        type("ba")
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('?')))
+        assertTrue(e.failed)
+        assertEquals(EngineResult.PASS, e.handle(Key('?')))
     }
 
     @Test
@@ -144,23 +171,22 @@ class LiuEngineTest {
         assertEquals(listOf("中", "鐘", "忠"), texts())
         assertEquals("ㄓㄨㄥ／ㄓㄨㄥˋ", e.candidates[0].annotation)
         assertEquals("ㄓㄨㄥ", e.candidates[1].annotation)
-        assertEquals(EngineResult(true, "忠"), e.handle(EngineEvent.Select(2)))
+        assertEquals(EngineResult(true, "忠"), e.handle(ImeEvent.Select(2)))
         assertNull(e.homophoneOf)
     }
 
     @Test
-    fun `同音模式 Backspace 回到原字碼候選；長按查指定候選`() {
-        type("q")
-        e.handle(EngineEvent.Homophone(1))
-        assertEquals(listOf("仲"), texts())
-        e.handle(EngineEvent.Backspace)
+    fun `同音模式 Backspace 回到原字碼候選`() {
+        type("q`")
+        assertEquals("中", e.homophoneOf)
+        e.handle(ImeEvent.Backspace)
         assertNull(e.homophoneOf)
         assertEquals(listOf("中", "仲"), texts())
     }
 
     @Test
     fun `沒有讀音資料時仍顯示原字`() {
-        val noReadings = LiuEngine(Fixtures.traditional, Fixtures.japanese, Readings.EMPTY)
+        val noReadings = LiuEngine(Fixtures.traditional, Readings.EMPTY)
         "q".forEach { noReadings.handle(Key(it)) }
         noReadings.handle(Key('`'))
         assertEquals(listOf("中"), noReadings.candidates.map { it.text })
@@ -177,34 +203,127 @@ class LiuEngineTest {
     }
 
     @Test
-    fun `日文模式：羅馬拼音加逗號為平假名、加句點為片假名，候選順序照字表`() {
-        e.handle(EngineEvent.ToggleJapanese)
-        assertEquals(InputMode.JAPANESE, e.mode)
+    fun `假名：一般模式直接打羅馬拼音加逗號為平假名、加句點為片假名，候選順序照字表`() {
         type("ka,")
         assertEquals(listOf("か"), texts())
-        e.handle(EngineEvent.Space)
+        assertEquals(EngineResult(true, "か"), e.handle(ImeEvent.Space))
         type("ka.")
         assertEquals(listOf("カ"), texts())
-        e.handle(EngineEvent.Escape)
+        e.handle(ImeEvent.Escape)
         type("a,")
         assertEquals(listOf("あ", "ぁ"), texts())
         assertEquals(EngineResult(true, "ぁ"), e.handle(Key('v')))
-        type("aa")
-        assertEquals(listOf("寸"), texts())
-        e.handle(EngineEvent.ToggleEnglish)
-        e.handle(EngineEvent.ToggleEnglish)
-        assertEquals(InputMode.JAPANESE, e.mode)
-        e.handle(EngineEvent.ToggleJapanese)
-        assertEquals(InputMode.CHINESE, e.mode)
     }
 
     @Test
-    fun `沒有日文表時切換無作用；沒有字表時按鍵全部交給 App`() {
-        val noJp = LiuEngine(Fixtures.traditional, null, Fixtures.readings)
-        noJp.handle(EngineEvent.ToggleJapanese)
-        assertEquals(InputMode.CHINESE, noJp.mode)
+    fun `日文區段只併入假名，日文漢字不會出現在候選`() {
+        type("aa")
+        assertTrue(e.candidates.isEmpty())
+        e.handle(ImeEvent.Escape)
+        type("x,")
+        assertEquals(listOf("雲"), texts())
+    }
+
+    @Test
+    fun `沒有字表時按鍵全部交給 App`() {
         val empty = LiuEngine(null)
         assertEquals(EngineResult.PASS, empty.handle(Key('a')))
-        assertEquals(EngineResult.PASS, empty.handle(EngineEvent.Space))
+        assertEquals(EngineResult.PASS, empty.handle(ImeEvent.Space))
+    }
+
+    @Test
+    fun `setTables 換表並重置組字；預設設定每頁 10 個候選`() {
+        type("b")
+        e.setTables(Fixtures.traditional, Readings.EMPTY)
+        assertEquals("", e.composing)
+        assertEquals(10, e.config.pageSize)
+    }
+
+    @Test
+    fun `翻頁事件：沒有組字時放行，第一頁往前與最後一頁往後都停在原頁`() {
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.PageDown))
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.PageUp))
+        type("a")
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.PageUp))
+        assertEquals(0, e.pageStart)
+        e.handle(ImeEvent.PageDown)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.PageDown))
+        assertEquals(10, e.pageStart)
+    }
+
+    @Test
+    fun `數字 0 選目前頁預設字、9 選第 10 個候選；超出候選數的數字鍵不動作`() {
+        type("a")
+        assertEquals(EngineResult(true, "甲"), e.handle(Key('0')))
+        type("a")
+        assertEquals(EngineResult(true, "癸"), e.handle(Key('9')))
+        type("c")
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('5')))
+        assertEquals("c", e.composing)
+    }
+
+    @Test
+    fun `自訂每頁 5 個候選時，數字 5 以上不選字`() {
+        val small = LiuEngine(Fixtures.traditional, Readings.EMPTY, EngineConfig(pageSize = 5))
+        "a".forEach { small.handle(Key(it)) }
+        assertEquals(EngineResult.CONSUMED, small.handle(Key('5')))
+        assertEquals(EngineResult(true, "戊"), small.handle(Key('4')))
+    }
+
+    @Test
+    fun `非 ASCII 數字不當選字鍵，視為非字根鍵`() {
+        type("ba")
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('٣')))
+        assertTrue(e.failed)
+    }
+
+    @Test
+    fun `萬用字元組字中按 VRSF 鍵一律當字根`() {
+        type("a*v")
+        assertEquals("a*v", e.composing)
+    }
+
+    @Test
+    fun `空碼時按非字根鍵同樣是組字失敗`() {
+        type("xv")
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('!')))
+        assertEquals("", e.composing)
+        assertTrue(e.failed)
+    }
+
+    @Test
+    fun `點選不存在的候選不動作；無候選時按反引號不進同音模式`() {
+        type("ba")
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Select(-1)))
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Select(2)))
+        e.handle(ImeEvent.Escape)
+        type("xv`")
+        assertNull(e.homophoneOf)
+    }
+
+    @Test
+    fun `刪光字根後候選清空，再按 Backspace 交給 App`() {
+        type("b")
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Backspace))
+        assertEquals("", e.composing)
+        assertTrue(e.candidates.isEmpty())
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.Backspace))
+    }
+
+    @Test
+    fun `同音模式：數字鍵選字、翻頁鍵翻頁、其他鍵為組字失敗`() {
+        type("q`")
+        assertEquals(EngineResult(true, "鐘"), e.handle(Key('1')))
+        type("q`")
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('=')))
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('-')))
+        assertEquals("中", e.homophoneOf)
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('!')))
+        assertNull(e.homophoneOf)
+        assertEquals("", e.composing)
+        assertTrue(e.failed)
+        type("q`")
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('A')))
+        assertTrue(e.failed)
     }
 }

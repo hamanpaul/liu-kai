@@ -1,0 +1,86 @@
+import base64
+import json
+
+import pytest
+
+from liu_kai_testpilot.ime_state import ImeState, Rect, parse_dump
+
+
+def dump_with(state: dict) -> str:
+    payload = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
+    return f"SERVICE com.hamanpaul.liukai/.ime.LiuKaiImeService pid=1\n  mWindowCreated=true\n  LIUKAI_STATE {payload}\n"
+
+
+STATE = {
+    "mode": "CHINESE",
+    "tableLoaded": True,
+    "composing": "ba",
+    "homophoneOf": None,
+    "keyboardVisible": True,
+    "failureHint": True,
+    "windowShown": True,
+    "candidateRow": {"x": 0, "y": 2000, "w": 1080, "h": 150},
+    "candidates": [
+        {"index": 0, "text": "日", "annotation": None, "x": 200, "y": 2000, "w": 100, "h": 150},
+        {"index": 1, "text": "月", "annotation": "ㄩㄝˋ", "x": 300, "y": 2000, "w": 100, "h": 150},
+    ],
+    "keys": {"b": {"x": 500, "y": 2300, "w": 90, "h": 140}},
+}
+
+
+def test_parse_dump_decodes_state_line():
+    state = parse_dump(dump_with(STATE))
+    assert state.mode == "CHINESE"
+    assert state.table_loaded is True
+    assert state.composing == "ba"
+    assert state.homophone_of is None
+    assert state.keyboard_visible is True
+    assert state.failure_hint is True
+    assert [c.text for c in state.candidates] == ["日", "月"]
+    assert state.candidates[1].annotation == "ㄩㄝˋ"
+    assert state.candidate_row == Rect(0, 2000, 1080, 150)
+    assert state.keys["b"].center == (545, 2370)
+
+
+def test_candidate_lookup_by_text_or_index():
+    state = parse_dump(dump_with(STATE))
+    assert state.candidate(text="月").index == 1
+    assert state.candidate(index=0).text == "日"
+    assert state.candidate(text="月").rect.center == (350, 2075)
+    with pytest.raises(LookupError, match="星"):
+        state.candidate(text="星")
+    with pytest.raises(LookupError, match="index=5"):
+        state.candidate(index=5)
+
+
+def test_key_lookup_reports_missing_key():
+    state = parse_dump(dump_with(STATE))
+    with pytest.raises(LookupError, match="key:zz"):
+        state.key("zz")
+    assert state.key("b") == Rect(500, 2300, 90, 140)
+
+
+def test_parse_dump_without_state_line_raises():
+    with pytest.raises(ValueError, match="LIUKAI_STATE"):
+        parse_dump("SERVICE something\n  nothing here\n")
+
+
+def test_candidate_texts_helper():
+    assert parse_dump(dump_with(STATE)).candidate_texts() == ["日", "月"]
+
+
+def test_rect_contains_center_within_screen_width():
+    assert Rect(1000, 0, 200, 10).center_visible(1080) is False
+    assert Rect(10, 0, 20, 10).center_visible(1080) is True
+    assert Rect(-40, 0, 20, 10).center_visible(1080) is False
+
+
+def test_state_is_immutable():
+    state = parse_dump(dump_with(STATE))
+    assert isinstance(state, ImeState)
+    with pytest.raises(AttributeError):
+        state.mode = "ENGLISH"
+
+
+def test_window_shown_is_parsed():
+    assert parse_dump(dump_with({**STATE, "windowShown": False})).window_shown is False

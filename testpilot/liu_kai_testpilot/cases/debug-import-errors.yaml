@@ -1,0 +1,37 @@
+id: debug-import-errors
+name: 除錯匯入的錯誤回報
+description: 未知 source、沒有檔案、只有 IBus 檔都回報 FAIL，字表不變。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: none
+steps:
+- id: bogus
+  action: import_table
+  target: EMU
+  source: bogus
+- id: empty
+  action: import_table
+  target: EMU
+  source: files
+  files: []
+- id: ibus
+  action: import_table
+  target: EMU
+  source: files
+  files:
+  - core/src/test/resources/fixtures/synthetic-ibus.txt
+pass_criteria:
+- field: bogus.result
+  operator: contains
+  value: 未知的 source
+- field: empty.result
+  operator: contains
+  value: 沒有檔案
+- field: ibus.result
+  operator: contains
+  value: 只有 IBus

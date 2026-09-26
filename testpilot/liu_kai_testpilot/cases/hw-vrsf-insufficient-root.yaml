@@ -1,0 +1,38 @@
+id: hw-vrsf-insufficient-root
+name: VRSF 候選不足時當字根
+description: b 只有一個候選，按 r（第 3 候選）時 r 當字根附加，組字變成 br 且無候選。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - r
+- id: st
+  action: ime_state
+  target: EMU
+- id: esc
+  action: keys
+  target: EMU
+  keys:
+  - ESCAPE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.composing
+  operator: equals
+  value: br
+- field: st.candidates
+  operator: equals
+  value: []
+- field: read.text
+  operator: equals
+  value: ''

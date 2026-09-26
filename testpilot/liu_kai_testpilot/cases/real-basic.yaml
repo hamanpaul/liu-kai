@@ -1,0 +1,54 @@
+id: real-basic
+name: 真實字表：上屏、標點、VRSF、點選
+description: 匯入 ~/prj_pri/liu-kai-data 的 liu_ibus_final.txt＋lime_liu7.txt 後抽測。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: real
+steps:
+- id: t1
+  action: keys
+  target: EMU
+  keys:
+  - c
+  - i
+  - SPACE
+  - ','
+  - SPACE
+- id: t2
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - a
+  - v
+- id: t3
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - e
+  - v
+  - SPACE
+- id: t4
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - a
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 寸
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 中，丶鏙寸

@@ -1,0 +1,61 @@
+id: hw-homophone-mode-keys
+name: 同音模式的翻頁鍵與非字根鍵
+description: 同音模式下 =/- 翻頁仍停留；按 ! 或 Shift+A 為組字失敗：離開同音模式、不出字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: h1
+  action: keys
+  target: EMU
+  keys:
+  - q
+  - '`'
+  - '='
+  - '-'
+- id: st
+  action: ime_state
+  target: EMU
+- id: bang
+  action: text
+  target: EMU
+  text: '!'
+- id: st2
+  action: ime_state
+  target: EMU
+- id: h2
+  action: keys
+  target: EMU
+  keys:
+  - q
+  - '`'
+- id: upper
+  action: text
+  target: EMU
+  text: A
+- id: st3
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.homophone_of
+  operator: equals
+  value: 中
+- field: st2.failure_hint
+  operator: equals
+  value: true
+- field: st2.homophone_of
+  operator: equals
+  value: null
+- field: st3.failure_hint
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: ''

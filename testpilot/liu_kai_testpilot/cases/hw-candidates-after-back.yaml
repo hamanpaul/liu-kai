@@ -1,0 +1,57 @@
+id: hw-candidates-after-back
+name: 收起輸入法後打字碼，候選列重新出現並可選字
+description: 防止官方 PRO 常見的「候選字沒出現、無法選字」：按 BACK 收起輸入法後以實體鍵盤打 ba，輸入法視窗必須實際顯示（WindowManager isVisible），候選為「日 月」，點「月」上屏。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: back
+  action: keys
+  target: EMU
+  keys:
+  - BACK
+- id: hidden
+  action: ime_window
+  target: EMU
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+- id: wait
+  action: wait
+  target: EMU
+  ms: 800
+- id: shown
+  action: ime_window
+  target: EMU
+- id: st
+  action: ime_state
+  target: EMU
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 月
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: hidden.visible
+  operator: equals
+  value: false
+- field: shown.visible
+  operator: equals
+  value: true
+- field: st.candidates
+  operator: equals
+  value:
+  - 日
+  - 月
+- field: read.text
+  operator: equals
+  value: 月

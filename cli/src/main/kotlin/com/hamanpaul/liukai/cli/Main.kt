@@ -7,7 +7,6 @@ import com.hamanpaul.liukai.core.table.TableImportException
 import com.hamanpaul.liukai.core.table.TableImporter
 import java.io.File
 import java.io.PrintStream
-import kotlin.system.exitProcess
 
 private const val USAGE = """liu-kai-cli <command> [options]
 
@@ -18,8 +17,14 @@ commands:
                                             由 Unihan kMandarin 產生注音讀音表（可附 kGradeLevel 常用度）
 """
 
+/**
+ * 失敗時以未捕捉例外結束（JVM 結束碼 1），只印訊息不印 stack trace。
+ * 不用 exitProcess：永不返回的呼叫會讓覆蓋率工具記錄不到該段程式。
+ */
 fun main(args: Array<String>) {
-    exitProcess(run(args.toList(), System.out, System.err))
+    Thread.setDefaultUncaughtExceptionHandler { _, e -> System.err.println(e.message) }
+    val code = run(args.toList(), System.out, System.err)
+    check(code == 0) { "liu-kai-cli 失敗（結束碼 $code）" }
 }
 
 fun run(args: List<String>, out: PrintStream, err: PrintStream): Int {
@@ -75,7 +80,7 @@ private fun printStats(result: ImportResult, out: PrintStream) {
 private fun convert(args: List<String>, out: PrintStream): Int {
     val target = File(requireNotNull(option(args, "--out")) { "convert 需要 --out" })
     val result = importFiles(positional(args))
-    target.parentFile?.mkdirs()
+    target.absoluteFile.parentFile.mkdirs()
     target.writeText(TableImporter.writeNeutral(result.bundle.sections))
     printStats(result, out)
     out.println("wrote ${target.path}")
@@ -116,7 +121,7 @@ private fun genReadings(args: List<String>, out: PrintStream): Int {
             }
         }
     }
-    target.parentFile?.mkdirs()
+    target.absoluteFile.parentFile.mkdirs()
     target.writeText(
         buildString {
             append("# 由 liu-kai-cli gen-readings 自 Unicode Unihan kMandarin／kGradeLevel 產生（Unicode License v3，見 THIRD_PARTY_NOTICES.md）\n")

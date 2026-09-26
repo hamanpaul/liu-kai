@@ -1,0 +1,28 @@
+id: settings-saf-cancel
+name: SAF 選檔取消
+description: 開啟選檔畫面後按返回（選檔畫面的 BACK 會先回上一層資料夾，按到回設定頁為止），不匯入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: settings
+steps:
+- id: open
+  action: tap_text
+  target: EMU
+  text: 3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）
+- id: picker
+  action: wait_text
+  target: EMU
+  contains: Files in Download
+- id: status
+  action: back_until
+  target: EMU
+  contains: 輸入法：
+pass_criteria:
+- field: status.text
+  operator: contains
+  value: 字表：已匯入

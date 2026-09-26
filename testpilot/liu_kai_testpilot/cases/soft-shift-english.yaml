@@ -1,0 +1,64 @@
+id: soft-shift-english
+name: 軟鍵盤英文模式與 Shift
+description: 切英文；Shift 後 a 為大寫且自動放開；Shift 後按 , 不影響 Shift；再按 Shift 放開；切回中文。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st1
+  action: ime_state
+  target: EMU
+- id: s1
+  action: tap_key
+  target: EMU
+  key: shift
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: s2
+  action: tap_key
+  target: EMU
+  key: shift
+- id: comma
+  action: tap_key
+  target: EMU
+  key: ','
+- id: s3
+  action: tap_key
+  target: EMU
+  key: shift
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st2
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.mode
+  operator: equals
+  value: ENGLISH
+- field: st2.mode
+  operator: equals
+  value: CHINESE
+- field: read.text
+  operator: equals
+  value: Ab,

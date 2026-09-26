@@ -1,0 +1,33 @@
+id: hw-no-table
+name: 尚未匯入字表時按鍵全部交給 App
+description: 移除字表後輸入法不介入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: none
+mutates_table: true
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.table_loaded
+  operator: equals
+  value: false
+- field: read.text
+  operator: equals
+  value: ba

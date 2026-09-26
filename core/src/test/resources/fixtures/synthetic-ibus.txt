@@ -47,4 +47,5 @@ ka,	か	100
 ka.	カ	100
 kya,	きゃ	90
 aa	寸	50
+x,	雫	40
 END_TABLE

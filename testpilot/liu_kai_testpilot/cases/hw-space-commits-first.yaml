@@ -1,0 +1,56 @@
+id: hw-space-commits-first
+name: 空白上屏首選；空碼按空白出空白
+description: 實體鍵盤輸入字碼 ba，候選列應為「日 月」，按空白上屏首選；空碼 xv 按空白清除組字並直接出空白。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+- id: st
+  action: ime_state
+  target: EMU
+- id: space
+  action: keys
+  target: EMU
+  keys:
+  - SPACE
+- id: empty
+  action: keys
+  target: EMU
+  keys:
+  - x
+  - v
+  - SPACE
+- id: st2
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.candidates
+  operator: equals
+  value:
+  - 日
+  - 月
+- field: st.composing
+  operator: equals
+  value: ba
+- field: st2.composing
+  operator: equals
+  value: ''
+- field: st2.failure_hint
+  operator: equals
+  value: false
+- field: read.text
+  operator: equals
+  value: '日 '

@@ -1,0 +1,37 @@
+id: soft-enter-search
+name: 軟鍵盤 Enter：組字中送出字碼、否則觸發欄位動作
+description: 搜尋欄：b a 後 Enter 送出 ba；再 Enter 觸發搜尋。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  field: search
+  keyboard: soft
+steps:
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: e1
+  action: tap_key
+  target: EMU
+  key: enter
+- id: e2
+  action: tap_key
+  target: EMU
+  key: enter
+- id: result
+  action: read_text
+  target: EMU
+  contains: action=
+pass_criteria:
+- field: result.text
+  operator: equals
+  value: action=3 text=ba

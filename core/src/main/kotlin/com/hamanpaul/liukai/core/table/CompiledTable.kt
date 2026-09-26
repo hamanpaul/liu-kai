@@ -10,8 +10,7 @@ class CompiledTable private constructor(
     private val textFreq: Map<String, Long>,
     private val textCodes: Map<String, List<String>>,
 ) {
-    val size: Int get() = codes.size
-    val maxCodeLength: Int = codes.maxOfOrNull { it.length } ?: 0
+    val maxCodeLength: Int = codes.fold(0) { longest, code -> maxOf(longest, code.length) }
     val alphabet: Set<Char> = codes.flatMapTo(HashSet()) { it.toList() }
 
     private fun indexOf(code: String): Int = codes.binarySearch(code)
@@ -39,20 +38,12 @@ class CompiledTable private constructor(
     fun codesOf(text: String): List<String> = textCodes[text] ?: emptyList()
 
     /**
-     * 萬用字元查字：`?` 恰一個字根、`*` 零到多個字根。
+     * 萬用字元查字：`*`（many）比對零到多個字根。
      * 回傳 (輸出字, 字碼)，同字只留第一次（短碼優先），最多 limit 筆。
      */
-    fun wildcard(pattern: String, limit: Int, one: Char = '?', many: Char = '*'): List<Pair<String, String>> {
-        val literalPrefix = pattern.takeWhile { it != one && it != many }
-        val regex = Regex(
-            pattern.map {
-                when (it) {
-                    one -> "."
-                    many -> ".*"
-                    else -> Regex.escape(it.toString())
-                }
-            }.joinToString(""),
-        )
+    fun wildcard(pattern: String, limit: Int, many: Char = '*'): List<Pair<String, String>> {
+        val literalPrefix = pattern.takeWhile { it != many }
+        val regex = Regex(pattern.map { if (it == many) ".*" else Regex.escape(it.toString()) }.joinToString(""))
         var start = indexOf(literalPrefix).let { if (it >= 0) it else -it - 1 }
         if (literalPrefix.isEmpty()) start = 0
         val matched = ArrayList<String>()

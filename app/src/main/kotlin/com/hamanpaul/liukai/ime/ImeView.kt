@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.text.SpannableStringBuilder
@@ -16,26 +15,19 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
+import android.view.WindowManager
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.hamanpaul.liukai.core.engine.Candidate
 import com.hamanpaul.liukai.core.engine.InputMode
-
-/** 軟鍵盤送出的按鍵。 */
-sealed interface SoftKey {
-    data class Text(val char: Char) : SoftKey
-    data object Backspace : SoftKey
-    data object Space : SoftKey
-    data object Enter : SoftKey
-    data object ToggleEnglish : SoftKey
-    data object ToggleJapanese : SoftKey
-}
+import com.hamanpaul.liukai.core.ime.SoftKey
+import org.json.JSONArray
+import org.json.JSONObject
 
 interface ImeActions {
     fun onSoftKey(key: SoftKey)
     fun onCandidateTap(index: Int)
-    fun onCandidateLongPress(index: Int)
 }
 
 /** 畫面需要的引擎狀態快照。 */
@@ -47,6 +39,8 @@ data class UiState(
     val pageSize: Int,
     val homophoneOf: String?,
     val tableLoaded: Boolean,
+    /** 組字失敗：整個輸入畫面加紅框，直到下一次按鍵。 */
+    val failed: Boolean,
 )
 
 /**
@@ -65,9 +59,15 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val keyboard = LinearLayout(context)
 
     private var shifted = false
+    private val keyViews = LinkedHashMap<String, View>()
     private var symbols = false
     private var mode: InputMode = InputMode.CHINESE
+    private var shownCandidates: List<Candidate> = emptyList()
     private val repeatHandler = Handler(Looper.getMainLooper())
+    private val failureFrame = GradientDrawable().apply {
+        setColor(Color.TRANSPARENT)
+        setStroke(dp(3f), FAILURE)
+    }
 
     init {
         orientation = VERTICAL
@@ -79,15 +79,16 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         rebuildKeyboard()
         // 輸入法視窗在手勢導覽下會延伸到導覽列底下：以導覽列 inset 補底部 padding，避免最下排按鍵被遮住。
         setOnApplyWindowInsetsListener { v, insets ->
-            val bottom = if (Build.VERSION.SDK_INT >= 30) {
-                insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-            } else {
-                @Suppress("DEPRECATION")
-                insets.systemWindowInsetBottom
-            }
-            v.setPadding(0, 0, 0, bottom)
+            v.setPadding(0, 0, 0, insets.getInsets(WindowInsets.Type.navigationBars()).bottom)
             insets
         }
+    }
+
+    /** 回到字母層並放開 Shift（換到新的輸入欄時呼叫）。 */
+    fun resetLayout() {
+        shifted = false
+        symbols = false
+        rebuildKeyboard()
     }
 
     fun setKeyboardVisible(visible: Boolean) {
@@ -95,6 +96,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     }
 
     fun render(state: UiState) {
+        foreground = if (state.failed) failureFrame else null
         if (state.mode != mode) {
             mode = state.mode
             rebuildKeyboard()
@@ -102,7 +104,6 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         badge.text = when {
             !state.tableLoaded -> "無表"
             state.mode == InputMode.ENGLISH -> "英"
-            state.mode == InputMode.JAPANESE -> "日"
             else -> "中"
         }
         composingView.text = when {
@@ -110,10 +111,43 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             else -> state.composing
         }
         candidateRow.removeAllViews()
+        shownCandidates = state.candidates
         state.candidates.forEachIndexed { index, cand ->
             candidateRow.addView(candidateView(index, cand, state))
         }
         candidateScroll.post { candidateScroll.scrollTo(0, 0) }
+    }
+
+    /**
+     * 診斷輸出：候選列、各候選與各按鍵的螢幕座標（供 dump() 與端對端測試使用）。
+     * 輸入法視窗貼齊螢幕底部，以「螢幕底 − 視窗高 + 視窗內座標」換算；不用 getLocationOnScreen，
+     * 因為視窗進場動畫由系統移動、不觸發重新排版，快取的視窗位置在下次排版前都是舊值。
+     */
+    fun describe(json: JSONObject) {
+        windowTop = context.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds.bottom - rootView.height
+        json.put("keyboardVisible", keyboard.visibility == VISIBLE)
+        json.put("failureHint", foreground != null)
+        json.put("candidateRow", bounds(candidateScroll))
+        val candidates = JSONArray()
+        for (i in 0 until candidateRow.childCount) {
+            val child = candidateRow.getChildAt(i)
+            val cand = shownCandidates[i]
+            candidates.put(
+                bounds(child).put("index", i).put("text", cand.text).put("annotation", cand.annotation ?: JSONObject.NULL),
+            )
+        }
+        json.put("candidates", candidates)
+        val keys = JSONObject()
+        for ((id, view) in keyViews) keys.put(id, bounds(view))
+        json.put("keys", keys)
+    }
+
+    private var windowTop = 0
+
+    private fun bounds(v: View): JSONObject {
+        val loc = IntArray(2)
+        v.getLocationInWindow(loc)
+        return JSONObject().put("x", loc[0]).put("y", windowTop + loc[1]).put("w", v.width).put("h", v.height)
     }
 
     private fun buildCandidateBar(): View {
@@ -150,7 +184,8 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val text = SpannableStringBuilder()
         val pageOffset = index - state.pageStart
         if (pageOffset in 0 until state.pageSize) {
-            val label = if (pageOffset == 9) "0" else "${pageOffset + 1}"
+            // 選字鍵 0–9：0 為預設字（空白上屏的字）
+            val label = "$pageOffset"
             text.append(label, ForegroundColorSpan(Color.GRAY), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             text.setSpan(RelativeSizeSpan(0.55f), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
@@ -169,18 +204,14 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         tv.minWidth = dp(44f)
         tv.contentDescription = "cand:$index:${cand.text}"
         tv.isClickable = true
-        tv.isLongClickable = true
         tv.setOnClickListener { actions.onCandidateTap(index) }
-        tv.setOnLongClickListener {
-            actions.onCandidateLongPress(index)
-            true
-        }
         tv.background = keyBackground(pressedOnly = true)
         return tv
     }
 
     private fun rebuildKeyboard() {
         keyboard.removeAllViews()
+        keyViews.clear()
         val rows = if (symbols) SYMBOL_ROWS else LETTER_ROWS
         rows.forEach { row -> keyboard.addView(buildRow(row), LayoutParams(LayoutParams.MATCH_PARENT, dp(50f))) }
     }
@@ -195,6 +226,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             key.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (def.label.length > 1) 15f else 20f)
             key.gravity = Gravity.CENTER
             key.contentDescription = "key:${def.id}"
+            keyViews[def.id] = key
             key.background = keyBackground(special = def.special)
             key.isClickable = true
             if (def.id == "backspace") attachRepeat(key) else key.setOnClickListener { onKey(def) }
@@ -207,7 +239,6 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
     private fun labelFor(def: KeyDef): String = when (def.id) {
         "toggle_english" -> if (mode == InputMode.ENGLISH) "英" else "中"
-        "toggle_japanese" -> if (mode == InputMode.JAPANESE) "日✓" else "日"
         "shift" -> if (shifted) "⇪" else "⇧"
         else -> if (shifted && def.label.length == 1 && def.label[0].isLetter()) def.label.uppercase() else def.label
     }
@@ -219,7 +250,6 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             "space" -> actions.onSoftKey(SoftKey.Space)
             "enter" -> actions.onSoftKey(SoftKey.Enter)
             "toggle_english" -> actions.onSoftKey(SoftKey.ToggleEnglish)
-            "toggle_japanese" -> actions.onSoftKey(SoftKey.ToggleJapanese)
             else -> {
                 var c = def.label[0]
                 if (shifted && c.isLetter()) {
@@ -241,16 +271,15 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             }
         }
         key.setOnTouchListener { v, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    v.isPressed = true
-                    actions.onSoftKey(SoftKey.Backspace)
-                    repeatHandler.postDelayed(repeat, 400)
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.isPressed = false
-                    repeatHandler.removeCallbacks(repeat)
-                }
+            val action = ev.actionMasked
+            if (action == MotionEvent.ACTION_DOWN) {
+                v.isPressed = true
+                actions.onSoftKey(SoftKey.Backspace)
+                repeatHandler.postDelayed(repeat, 400)
+            } else if (action != MotionEvent.ACTION_MOVE) {
+                // UP 或 CANCEL：放開即停止連續刪除
+                v.isPressed = false
+                repeatHandler.removeCallbacks(repeat)
             }
             true
         }
@@ -280,6 +309,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         private val KEY_SPECIAL = Color.rgb(0x2C, 0x2C, 0x2F)
         private val KEY_PRESSED = Color.rgb(0x5A, 0x5A, 0x60)
         private val ACCENT = Color.rgb(0x7F, 0xC8, 0xF8)
+        private val FAILURE = Color.rgb(0xE5, 0x39, 0x35)
 
         private fun chars(s: String) = s.map { KeyDef(it.toString(), it.toString()) }
 
@@ -290,10 +320,10 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             listOf(
                 KeyDef("symbols", "符", 1.2f, true),
                 KeyDef("toggle_english", "中", 1.2f, true),
-                KeyDef("toggle_japanese", "日", 1.2f, true),
-                KeyDef("?", "?"),
+                // * 萬用字元、` 同音字查詢
                 KeyDef("*", "*"),
-                KeyDef("space", "空白", 4f),
+                KeyDef("`", "`"),
+                KeyDef("space", "空白", 5.2f),
                 KeyDef("enter", "↵", 1.6f, true),
             ),
         )
@@ -301,7 +331,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         private val SYMBOL_ROWS = listOf(
             chars("1234567890"),
             chars("@#$%&-+()/"),
-            chars("!\":_=`~<>") + KeyDef("backspace", "⌫", 1.4f, true),
+            chars("!?\":_=`~<>") + KeyDef("backspace", "⌫", 1.4f, true),
             listOf(
                 KeyDef("symbols", "ABC", 1.2f, true),
                 KeyDef("toggle_english", "中", 1.2f, true),

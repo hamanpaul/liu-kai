@@ -1,0 +1,32 @@
+id: soft-no-table
+name: 軟鍵盤在未匯入字表時直出
+description: 沒有字表：候選列顯示「無表」，按鍵直接輸出。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: none
+  keyboard: soft
+mutates_table: true
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.table_loaded
+  operator: equals
+  value: false
+- field: read.text
+  operator: equals
+  value: b

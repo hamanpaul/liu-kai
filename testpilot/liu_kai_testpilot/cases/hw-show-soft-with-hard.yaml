@@ -1,0 +1,38 @@
+id: hw-show-soft-with-hard
+name: 實體鍵盤時也顯示螢幕鍵盤
+description: 開啟 show_ime_with_hard_keyboard：候選列加軟鍵盤都顯示，軟鍵盤可打字與點選候選。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: st1
+  action: ime_state
+  target: EMU
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 月
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.keyboard_visible
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: 月

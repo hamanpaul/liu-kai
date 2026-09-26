@@ -1,0 +1,75 @@
+id: hw-compose-failure
+name: 組字失敗：不出字並以紅框提示
+description: ba 後按 ! 或 Shift+A、空碼 xv 後按 !：組字失敗，清除組字、不出字，輸入畫面加紅框；下一次按鍵後紅框消失。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: t1
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+- id: bang
+  action: text
+  target: EMU
+  text: '!'
+- id: st1
+  action: ime_state
+  target: EMU
+- id: t2
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+- id: upper
+  action: text
+  target: EMU
+  text: A
+- id: t3
+  action: keys
+  target: EMU
+  keys:
+  - x
+  - v
+- id: bang2
+  action: text
+  target: EMU
+  text: '!'
+- id: st2
+  action: ime_state
+  target: EMU
+- id: t4
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - SPACE
+- id: st3
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.failure_hint
+  operator: equals
+  value: true
+- field: st1.composing
+  operator: equals
+  value: ''
+- field: st2.failure_hint
+  operator: equals
+  value: true
+- field: st3.failure_hint
+  operator: equals
+  value: false
+- field: read.text
+  operator: equals
+  value: 木

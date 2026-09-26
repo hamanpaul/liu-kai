@@ -1,0 +1,42 @@
+id: soft-layout-resets-on-new-field
+name: 換到新的輸入欄時軟鍵盤回到字母層
+description: 在一般欄切到符號層輸入 1；點多行欄後軟鍵盤回到字母層，可直接以字根組字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: one
+  action: tap_key
+  target: EMU
+  key: '1'
+- id: focus
+  action: tap_field
+  target: EMU
+  field: multiline
+- id: q
+  action: tap_key
+  target: EMU
+  key: q
+- id: st
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.composing
+  operator: equals
+  value: q
+- field: read.text
+  operator: equals
+  value: '1'

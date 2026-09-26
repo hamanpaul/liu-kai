@@ -1,0 +1,36 @@
+id: hw-candidate-tap-sequence
+name: 點選候選上屏且可連續點選
+description: 官方版的痛點：點候選無法上屏。依文字點「火」、再依索引點第 3 個候選「土」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: c1
+  action: keys
+  target: EMU
+  keys:
+  - c
+- id: tap1
+  action: tap_candidate
+  target: EMU
+  text: 火
+- id: c2
+  action: keys
+  target: EMU
+  keys:
+  - c
+- id: tap2
+  action: tap_candidate
+  target: EMU
+  index: 2
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 火土

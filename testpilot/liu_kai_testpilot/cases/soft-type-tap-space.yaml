@@ -1,0 +1,42 @@
+id: soft-type-tap-space
+name: 軟鍵盤打字、點選候選、空白
+description: 顯示螢幕鍵盤：軟鍵盤 b a 後點「月」，再按空白鍵輸出空白。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: st1
+  action: ime_state
+  target: EMU
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 月
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.keyboard_visible
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: '月 '

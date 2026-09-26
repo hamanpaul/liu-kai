@@ -9,12 +9,8 @@ import com.hamanpaul.liukai.core.table.CompiledTable
  * 年級 → 最短字碼長度（嘸蝦米常用字多有短碼）→ 字表頻率 → 字碼。
  * 字表的頻率欄不一定是使用頻率（自建表只記同碼內順位），所以不作為主要依據。
  */
-class Readings(private val map: Map<String, List<String>>, private val grades: Map<String, Int> = emptyMap()) {
-    val size: Int get() = map.size
-
+class Readings private constructor(private val map: Map<String, List<String>>, private val grades: Map<String, Int>) {
     fun of(ch: String): List<String> = map[ch].orEmpty()
-
-    fun gradeOf(ch: String): Int? = grades[ch]
 
     private var indexedFor: CompiledTable? = null
     private var index: Map<String, List<String>> = emptyMap()
@@ -29,8 +25,8 @@ class Readings(private val map: Map<String, List<String>>, private val grades: M
         if (indexedFor !== table) {
             val grouped = HashMap<String, MutableList<String>>()
             for ((ch, readings) in map) {
-                val primary = readings.firstOrNull() ?: continue
-                if (table.containsText(ch)) grouped.getOrPut(primary) { ArrayList() } += ch
+                // parse 保證每個字至少有一個讀音
+                if (table.containsText(ch)) grouped.getOrPut(readings.first()) { ArrayList() } += ch
             }
             index = grouped.mapValues { (_, chars) ->
                 chars.sortedWith(
@@ -46,7 +42,7 @@ class Readings(private val map: Map<String, List<String>>, private val grades: M
     }
 
     companion object {
-        val EMPTY = Readings(emptyMap())
+        val EMPTY = Readings(emptyMap(), emptyMap())
 
         fun parse(lines: Sequence<String>): Readings {
             val map = HashMap<String, List<String>>()
@@ -63,10 +59,8 @@ class Readings(private val map: Map<String, List<String>>, private val grades: M
             return Readings(map, grades)
         }
 
-        /** 讀取打包在 core 內的 `/readings.tsv`（由 cli gen-readings 產生）；不存在時回傳空資料。 */
-        fun loadBundled(): Readings {
-            val stream = Readings::class.java.getResourceAsStream("/readings.tsv") ?: return EMPTY
-            return stream.bufferedReader(Charsets.UTF_8).use { parse(it.lineSequence()) }
-        }
+        /** 讀取打包在 core 內的 `/readings.tsv`（由 cli gen-readings 產生，隨 core 一起發佈）。 */
+        fun loadBundled(): Readings =
+            parse(Readings::class.java.getResource("/readings.tsv")!!.readText(Charsets.UTF_8).lineSequence())
     }
 }

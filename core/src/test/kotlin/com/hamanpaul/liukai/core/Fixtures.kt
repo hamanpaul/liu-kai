@@ -27,11 +27,7 @@ object Fixtures {
         CompiledTable.build(importResult.bundle.section(SectionKind.TRADITIONAL)!!.entries)
     }
 
-    val japanese: CompiledTable by lazy {
-        CompiledTable.build(importResult.bundle.section(SectionKind.JAPANESE)!!.entries)
-    }
-
     val readings: Readings by lazy { Readings.parse(text("readings.tsv").lineSequence()) }
 
-    fun engine(): LiuEngine = LiuEngine(traditional, japanese, readings)
+    fun engine(): LiuEngine = LiuEngine(traditional, readings)
 }

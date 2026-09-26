@@ -1,0 +1,22 @@
+id: settings-corrupt-table
+name: 設定頁顯示字表損毀
+description: 字表檔損毀時設定頁提示重新匯入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: corrupt
+  launch: settings
+mutates_table: true
+steps:
+- id: status
+  action: wait_text
+  target: EMU
+  contains: 損毀
+pass_criteria:
+- field: status.text
+  operator: contains
+  value: 損毀

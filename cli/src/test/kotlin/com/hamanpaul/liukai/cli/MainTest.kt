@@ -6,6 +6,7 @@ import java.io.PrintStream
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class MainTest {
@@ -23,7 +24,7 @@ class MainTest {
         val (code, out, _) = exec("stats", "$fixtures/synthetic-ibus.txt", "$fixtures/synthetic-lime.txt")
         assertEquals(0, code)
         assertTrue("[0] kind=TRADITIONAL name=- rawRows=31 uniquePairs=30" in out, out)
-        assertTrue("[2] kind=JAPANESE name=合成日文 rawRows=7" in out, out)
+        assertTrue("[2] kind=JAPANESE name=合成日文 rawRows=8" in out, out)
     }
 
     @Test
@@ -35,7 +36,8 @@ class MainTest {
         val lines = tsv.readLines()
         assertEquals("# liu-kai-tsv v1", lines.first())
         assertTrue("TRADITIONAL\tab\t天\t120" in lines)
-        assertTrue("JAPANESE\tka,\tか\t100" in lines)
+        assertTrue("TRADITIONAL\tka,\tか\t100" in lines)
+        assertTrue(lines.none { it.startsWith("JAPANESE") })
     }
 
     @Test
@@ -67,5 +69,60 @@ class MainTest {
         val (code, _, err) = exec("nope")
         assertEquals(2, code)
         assertTrue("liu-kai-cli" in err)
+    }
+
+    @Test
+    fun `說明與參數錯誤的回報`() {
+        assertEquals(2, exec().first)
+        for (flag in listOf("-h", "--help", "help")) {
+            val (code, out, _) = exec(flag)
+            assertEquals(0, code)
+            assertTrue("gen-readings" in out)
+        }
+        val cases = listOf(
+            listOf("stats") to "需要至少一個字表檔",
+            listOf("convert", "$fixtures/synthetic-lime.txt") to "convert 需要 --out",
+            listOf("convert", "$fixtures/synthetic-lime.txt", "--out") to "--out 需要值",
+            listOf("gen-readings", "--out", "x.tsv") to "gen-readings 需要 --unihan",
+            listOf("gen-readings", "--unihan", "u.txt") to "gen-readings 需要 --out",
+        )
+        for ((args, message) in cases) {
+            val (code, _, err) = exec(*args.toTypedArray())
+            assertEquals(2, code, args.toString())
+            assertTrue(message in err, err)
+        }
+    }
+
+    @Test
+    fun `gen-readings 不帶年級檔、並容忍多餘空白與不完整的列`() {
+        val dir = createTempDirectory().toFile()
+        val unihan = File(dir, "u.txt").apply { writeText("U+4E00\tkMandarin\tyī  yí\nshort line\n") }
+        val grades = File(dir, "g.txt").apply { writeText("# comment\nU+4E00\tkGradeLevel\t1\n") }
+        val out = File(dir, "r.tsv")
+        assertEquals(0, exec("gen-readings", "--unihan", unihan.path, "--out", out.path).first)
+        assertEquals(listOf("一\tㄧˊ ㄧ"), out.readLines().filterNot { it.startsWith("#") })
+        assertEquals(0, exec("gen-readings", "--unihan", unihan.path, "--grades", grades.path, "--out", out.path).first)
+        assertEquals(listOf("一\tㄧˊ ㄧ\t1"), out.readLines().filterNot { it.startsWith("#") })
+    }
+
+    @Test
+    fun `main 成功時正常返回、失敗時以例外結束並只印訊息`() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        val originalOut = System.out
+        val originalErr = System.err
+        val err = ByteArrayOutputStream()
+        try {
+            System.setOut(PrintStream(ByteArrayOutputStream(), true, "UTF-8"))
+            System.setErr(PrintStream(err, true, "UTF-8"))
+            main(arrayOf("--help"))
+            val e = assertFailsWith<IllegalStateException> { main(arrayOf("nope")) }
+            assertEquals("liu-kai-cli 失敗（結束碼 2）", e.message)
+            Thread.getDefaultUncaughtExceptionHandler()!!.uncaughtException(Thread.currentThread(), e)
+            assertTrue(err.toString("UTF-8").endsWith("liu-kai-cli 失敗（結束碼 2）\n"))
+        } finally {
+            System.setOut(originalOut)
+            System.setErr(originalErr)
+            Thread.setDefaultUncaughtExceptionHandler(previous)
+        }
     }
 }

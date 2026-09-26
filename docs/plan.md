@@ -33,7 +33,7 @@
 ## 3. 授權與資料邊界
 
 - 單元測試與 CI 使用**合成字表**：`core/src/test/resources/fixtures/`，以及 debug 版內建的 demo 表。
-- 真實字表放在 repo 外（`~/prj_pri/liu-kai-data/`），以 `scripts/emulator-e2e.sh --real` 匯入模擬器抽測；抽測程式內含少量真實字碼（使用者自建表，可合法使用）。
+- 真實字表放在 repo 外（`~/prj_pri/liu-kai-data/`），由 `scripts/emulator-e2e.sh` 的 `real-*` 案例匯入模擬器抽測；抽測程式內含少量真實字碼（使用者自建表，可合法使用）。
 - 讀音資料採 Unicode Unihan `kMandarin`（Unicode License v3，可隨 APK 散布，授權聲明見 `THIRD_PARTY_NOTICES.md`），由 `liu-kai-cli gen-readings` 轉成注音後 commit 產物 `core/src/main/resources/readings.tsv`。
 - APK 不宣告 `INTERNET` 權限；`android:allowBackup="false"`，並以 `dataExtractionRules` 排除字表。
 
@@ -73,25 +73,28 @@ liu70_jp.* ─────────┘                         └─► neut
 
 ## 6. 引擎行為規格
 
-信心欄引自討論結論；「需實測」由使用者對照官方行為確認，實測後更新本表。
+信心欄引自討論結論；「確認」欄記錄使用者依官方使用經驗確認的結果（2026-09-26 行為確認清單），
+其餘項目以 `liu-kai-diff` 與官方嘸蝦米 PRO 對照（見第 9 節），對照後更新本表。
 
-| # | 行為 | v0.1 規則 | 信心 | 需實測 |
+| # | 行為 | v0.1 規則 | 信心 | 確認 |
 |---|---|---|---|---|
-| 1 | 字根輸入 | 字表字碼用到的字元都是字根鍵；組字長度上限＝字表最長碼 | 高 | 抽測 |
-| 2 | 空白 | 有候選時上屏首選；無組字時送出空白；有組字但無候選時保留組字 | 高 | 是 |
-| 3 | 點選候選 | 觸控候選列任一項立即 `commitText` 並清空組字 | 高 | 是 |
-| 4 | 數字鍵 | 組字中，1–9、0 選目前頁第 1–10 個候選 | 中 | 是 |
-| 5 | VRSF | v／r／s／f＝第 2／3／4／5 候選 | 高 | 是 |
-| 6 | VRSF 衝突 | 「碼＋鍵」是任一合法碼的前綴（含完整碼）時當字根；否則只有在「碼」是完整碼且候選數足夠時才選字；兩者都不成立時當字根附加 | 中 | 必測 |
-| 7 | 翻頁 | PageDown／PageUp、`=`／`-`（不在字根集內時）；觸控候選列可橫向捲動 | 低 | 必測 |
-| 8 | Backspace | 組字中刪最後一個字根；無組字時交給 App | 高 | 是 |
-| 9 | Esc | 清空組字 | 中 | 是 |
-| 10 | Enter | 組字中送出原始字碼字母；無組字時交給 App | 低 | 必測 |
-| 11 | 中英切換 | 實體鍵盤單按 Shift；軟鍵盤「中／英」鍵 | 中 | 是 |
-| 12 | 自動上屏 | v0.1 不做（預設關閉） | 低 | 必測 |
-| 13 | 萬用字元 | `?`＝恰一個字根，`*`＝零到多個字根；結果最多 200 筆，每筆標示字碼 | 中 | 必測 |
-| 14 | 同音字／讀音 | 觸控長按候選，或實體鍵盤在組字後按 `` ` ``，列出首選字（或長按字）的注音與同音字；同音字依常用度排序（Unihan kGradeLevel → 最短碼長 → 字碼） | 中 | 必測 |
-| 15 | 日文模式 | 以字表日文段查字，照字表慣例：羅馬拼音加 `,` 為平假名、加 `.` 為片假名（`ka,` → か、`kk,` → っ、`av,` → ぁ），其餘為日文漢字；候選順序照字表，不另插入變體；軟鍵盤「日」鍵、實體鍵盤 Ctrl+J 切換 | 中 | 必測 |
+| 1 | 字根輸入 | 字表字碼用到的字元都是字根鍵；組字長度上限＝字表最長碼 | 高 | 待對照 |
+| 2 | 空白 | 有候選時上屏首選；無組字時送出空白；空碼（有組字但無候選）時清除組字並直接出空白 | 高 | 已確認 |
+| 3 | 點選候選 | 觸控候選列任一項立即 `commitText` 並清空組字；長按候選沒有特別功能 | 高 | 已確認 |
+| 4 | 數字鍵 | 組字中，0 選目前頁的預設字（第 1 個，即空白上屏的字）、1–9 選第 2–10 個；候選標籤為 0–9 | 高 | 已確認 |
+| 5 | VRSF | v／r／s／f 選標籤 1／2／3／4 的候選（第 2／3／4／5 個） | 高 | 已確認 |
+| 6 | VRSF 衝突 | 「碼＋鍵」是任一合法碼的前綴（含完整碼）時當字根；否則只有在「碼」是完整碼且候選數足夠時才選字；兩者都不成立時當字根附加 | 高 | 已確認（以字碼為主） |
+| 7 | 翻頁 | `=`／`-`（不在字根集內時），另支援 PageDown／PageUp；觸控候選列可橫向捲動 | 高 | 已確認 |
+| 8 | Backspace | 組字中刪最後一個字根；無組字時交給 App | 高 | 待對照 |
+| 9 | Esc | 清空組字 | 高 | 已確認 |
+| 10 | Enter | 組字中送出原始字碼字母；無組字時交給 App | 高 | 已確認 |
+| 11 | 中英切換 | 實體鍵盤單按 Shift；軟鍵盤「中／英」鍵；Shift＋字母直接輸出大寫 | 高 | 已確認 |
+| 12 | 自動上屏 | 不做：打滿四碼仍要按空白 | 高 | 已確認 |
+| 13 | 萬用字元 | 只有 `*`，比對零到多個字根；結果最多 200 筆，每筆標示字碼；`?` 不是萬用字元 | 高 | 已確認（`*`）；比對語意待對照 |
+| 14 | 同音字／讀音 | 組字後按 `` ` ``（軟鍵盤字母層與符號層都有此鍵），列出首選字的注音與同音字；同音字依常用度排序（Unihan kGradeLevel → 最短碼長 → 字碼） | 高 | 已確認（`` ` ``） |
+| 15 | 假名 | 不切換模式：一般模式直接打「羅馬拼音＋`,`」為平假名、「＋`.`」為片假名（`ka,` → か、`kk,` → っ、`av,` → ぁ）；匯入時把字表日文段的假名字碼併入繁中查詢，日文漢字不併入；沒有日文模式 | 高 | 已確認 |
+| 0 | 候選列一定出現 | 組字中候選列必須實際顯示在畫面上並可選字，包括實體鍵盤、輸入法被收起（BACK）或尚未顯示時開始打字；這是使用者最主要的需求（官方 PRO 常發生候選字沒出現、無法選字） | 高 | 已確認（`hw-candidates-after-back`、`hw-type-before-window-shown` 以 WindowManager 確認） |
+| 16 | 組字失敗 | 組字中（含同音模式）按引擎不能處理的鍵（標點、`?`、Shift＋字母等）：清除組字、不出字，按鍵也不交給 App；整個輸入畫面加紅框提示，直到下一次按鍵 | 高 | 已確認（不出字、紅框）；組字中 Shift＋字母待對照 |
 
 ## 7. IME 前端
 
@@ -101,7 +104,7 @@ liu70_jp.* ─────────┘                         └─► neut
   - 組字用 `setComposingText`，上屏用 `commitText`。App 不支援 composing 時，改在候選列顯示組字。
   - 密碼欄（`TYPE_TEXT_VARIATION_PASSWORD` 等）強制英數直出。
   - 處理 `EditorInfo.imeOptions` 的 action（搜尋／送出）。
-- 候選列：每個候選是獨立的標準 TextView（`contentDescription` 為 `cand:<索引>:<字>`），可點選、長按，也可被 UiAutomator 定位；候選列置於可橫向捲動的容器內。
+- 候選列：每個候選是獨立的標準 TextView（`contentDescription` 為 `cand:<索引>:<字>`），可點選，也可被 UiAutomator 定位；候選列置於可橫向捲動的容器內。
 - 實體鍵盤：`onShowInputRequested` 一律接受（預設實作在有實體鍵盤時會拒絕 App 的隱含顯示請求，導致候選列不出現），開始組字而畫面未顯示時呼叫 `requestShowSelf`。
 - 組字區：只有畫面上確實有 liu-kai 的組字區時，組字清空才以 `setComposingText("")` 移除，避免誤刪使用者選取的文字；游標被移出組字區時結束組字。
 - targetSdk 35 的 edge-to-edge：輸入畫面以導覽列 inset 補底部 padding。
@@ -118,14 +121,17 @@ liu70_jp.* ─────────┘                         └─► neut
 
 ## 9. 測試策略
 
-| 層級 | 內容 | 執行 |
-|---|---|---|
-| core 單元測試 | 引擎狀態機、VRSF 衝突、萬用字元、翻頁、讀音、假名、解析與切分（合成字表） | `./gradlew test`（CI） |
-| cli golden | 合成的 IBus／LIME 檔 → TSV／manifest 逐位元比對 | `./gradlew test`（CI） |
-| 真實字表驗證 | `cli stats` 與第 5 節基準比對；`scripts/emulator-e2e.sh --real` 匯入模擬器並執行 `RealTableSpotTest` | 本機，字表與產物不入 git |
-| 模擬器 E2E | testhost + UiAutomator：實體鍵盤打字、VRSF、點候選、萬用字元、同音、日文、密碼欄 | `scripts/emulator-e2e.sh`（本機 Windows 模擬器 AVD `LiuKai35`） |
+2026-09-26 起改為 TDD，目標覆蓋率為全部程式碼 100%（行與分支），不接受排除清單，詳見 `docs/superpowers/plans/2026-09-26-testpilot-full-coverage.md`。
 
-模擬器限制：沒有 LINE／Messenger／Gmail 帳號，App 矩陣只能在模擬器上測 Chrome 與 testhost，其他 App 留待實機驗收。
+| 層級 | 內容 | 執行 | 門檻 |
+|---|---|---|---|
+| core 單元測試 | 引擎、字表、讀音、IME 決策（`ImeController` 等） | `./gradlew :core:check`（CI） | JaCoCo 行＋分支 100% |
+| cli 單元測試 | stats／convert／gen-readings、main | `./gradlew :cli:check`（CI） | JaCoCo 行＋分支 100% |
+| TestPilot plugin | adb 包裝、狀態／UI 解析、step、判定、runner、報告 | `pytest`（CI） | 行＋分支 100% |
+| 模擬器端對端 | `testpilot run liu_kai`：54 個 YAML 案例（實體鍵盤、軟鍵盤、設定頁、SAF 選檔、字表損毀、真實字表抽測） | `scripts/emulator-e2e.sh`（本機 AVD `LiuKai35`） | app JaCoCo 行＋分支 100% |
+| 官方行為對照 | `liu-kai-diff`：同一批實體鍵序列（`testpilot/liu_kai_testpilot/diff_cases.yaml`，對應行為確認清單題號）分別在官方嘸蝦米 PRO 與 liu-kai 上執行，記錄輸入法視窗是否實際顯示與輸入欄最後的文字，可附截圖；依使用者答案推得的預期逐項判定兩邊 | 本機 AVD（需先在模擬器安裝官方 PRO） | 參考用：官方不符使用者答案時視為官方偏差，不據以修改 liu-kai；沒有預期的項目由使用者決定 |
+
+Android 端刻意保持薄：輸入邏輯都在 `core` 的 `ImeController`；服務只轉送事件、執行 `IcOp`。IME 狀態透過 `dumpsys activity service` 的 `LIUKAI_STATE` 診斷輸出供案例讀取。模擬器限制：沒有 LINE／Messenger／Gmail 帳號，這些 App 留待實機驗收。
 
 ## 10. 里程碑
 

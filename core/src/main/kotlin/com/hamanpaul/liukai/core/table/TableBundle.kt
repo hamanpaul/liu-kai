@@ -1,5 +1,7 @@
 package com.hamanpaul.liukai.core.table
 
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.InputStream
@@ -18,7 +20,7 @@ data class TableBundle(
     fun section(kind: SectionKind): TableSection? = sections.firstOrNull { it.kind == kind }
 
     fun write(out: OutputStream) {
-        val d = DataOutputStream(out.buffered())
+        val d = DataOutputStream(BufferedOutputStream(out))
         d.write(MAGIC)
         d.writeInt(VERSION)
         d.writeInt(sources.size)
@@ -47,7 +49,7 @@ data class TableBundle(
         private const val VERSION = 1
 
         fun read(input: InputStream): TableBundle {
-            val d = DataInputStream(input.buffered())
+            val d = DataInputStream(BufferedInputStream(input))
             val magic = ByteArray(MAGIC.size)
             d.readFully(magic)
             require(magic.contentEquals(MAGIC)) { "不是 liu-kai 字表檔" }

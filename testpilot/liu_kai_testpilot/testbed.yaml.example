@@ -1,0 +1,17 @@
+# liu-kai TestPilot 測試環境。複製為 testpilot/testbed.yaml（或以環境變數 LIU_KAI_TESTBED 指定路徑）。
+# scripts/emulator-e2e.sh 會依本機環境自動產生 testpilot/testbed.yaml。
+
+# WSL 呼叫 Windows 端的 adb.exe 時，安裝 APK 需把路徑轉成 Windows 路徑（wslpath）；原生 Linux adb 用 none
+adb_binary: /mnt/c/Users/<你的帳號>/AppData/Local/Android/Sdk/platform-tools/adb.exe
+path_mapper: wslpath
+serial: emulator-5580
+
+# 以下路徑相對於執行 testpilot 的目錄（repo 根目錄）
+repo_root: .
+reports_dir: testpilot/reports
+
+# 真實字表（real-* 案例使用；不進 git）
+real_table_dir: ~/prj_pri/liu-kai-data
+
+screen_width: 1080
+settle_ms: 400

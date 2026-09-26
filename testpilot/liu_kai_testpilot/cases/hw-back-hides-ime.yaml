@@ -1,0 +1,30 @@
+id: hw-back-hides-ime
+name: 輸入法顯示時按 BACK 由系統收起
+description: 輸入法不處理 BACK；框架在輸入法視窗顯示時攔下 BACK（按下與放開）並收起輸入法，testhost 仍在前景。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: back
+  action: keys
+  target: EMU
+  keys:
+  - BACK
+- id: ime
+  action: shell
+  target: EMU
+  command: dumpsys input_method | grep -m1 -o "mInputShown=[a-z]*"
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: ime.output
+  operator: equals
+  value: mInputShown=false
+- field: read.text
+  operator: equals
+  value: ''

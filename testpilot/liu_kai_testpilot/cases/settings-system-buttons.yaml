@@ -1,0 +1,53 @@
+id: settings-system-buttons
+name: 設定頁的系統設定與切換輸入法按鈕
+description: 開啟系統輸入法設定後返回；開啟輸入法選單後關閉。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: settings
+steps:
+- id: enable
+  action: tap_text
+  target: EMU
+  text: 1. 在系統設定啟用 liu-kai
+- id: sys
+  action: wait_text
+  target: EMU
+  contains: liu-kai 嘸蝦米
+- id: b1
+  action: keys
+  target: EMU
+  keys:
+  - BACK
+- id: back1
+  action: wait_text
+  target: EMU
+  contains: 輸入法：
+- id: picker
+  action: tap_text
+  target: EMU
+  text: 2. 切換輸入法
+- id: dialog
+  action: wait_text
+  target: EMU
+  contains: Choose input method
+- id: b2
+  action: keys
+  target: EMU
+  keys:
+  - BACK
+- id: status
+  action: wait_text
+  target: EMU
+  contains: 輸入法：
+pass_criteria:
+- field: dialog.text
+  operator: equals
+  value: Choose input method
+- field: status.text
+  operator: contains
+  value: 使用中

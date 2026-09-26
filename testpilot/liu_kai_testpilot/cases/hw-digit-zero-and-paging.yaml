@@ -1,0 +1,54 @@
+id: hw-digit-zero-and-paging
+name: 0 選預設字、9 選第十候選與翻頁
+description: a 有 12 個候選：0 選預設字（第 1 個）、9 選第 10 個；PageDown 後 1 選第 12 個；= 翻頁後空白；兩次 PageDown 後 - 回第一頁；第一頁 PageUp 不動。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: zero
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - '0'
+- id: nine
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - '9'
+- id: pd
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - PAGE_DOWN
+  - '1'
+- id: eq
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - '='
+  - SPACE
+- id: back
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - PAGE_DOWN
+  - PAGE_DOWN
+  - '-'
+  - PAGE_UP
+  - SPACE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 甲癸丑子甲

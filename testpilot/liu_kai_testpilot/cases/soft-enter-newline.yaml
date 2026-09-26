@@ -1,0 +1,39 @@
+id: soft-enter-newline
+name: 軟鍵盤 Enter 在多行欄換行
+description: 多行欄按 Enter 送出換行鍵，再以軟鍵盤輸入「日」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  field: multiline
+  keyboard: soft
+steps:
+- id: e
+  action: tap_key
+  target: EMU
+  key: enter
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: read
+  action: read_field
+  target: EMU
+  field: multiline
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: '
+
+    日'

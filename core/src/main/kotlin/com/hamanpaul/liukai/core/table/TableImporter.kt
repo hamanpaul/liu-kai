@@ -1,11 +1,13 @@
 package com.hamanpaul.liukai.core.table
 
+import com.hamanpaul.liukai.core.kana.Kana
+
 /** 匯入時的一個來源檔（名稱只用於報告與格式判斷）。 */
 class NamedBytes(val name: String, val bytes: ByteArray)
 
 class TableImportException(message: String) : IllegalArgumentException(message)
 
-/** 匯入結果：可存檔的字表，以及給使用者看的全區段報告。 */
+/** 匯入結果：可存檔的字表（只有繁中區段，已併入假名字碼），以及給使用者看的全區段報告。 */
 data class ImportResult(val bundle: TableBundle, val allSections: List<SectionStats>)
 
 enum class TableFormat { IBUS, CIN, NEUTRAL_TSV, UNKNOWN }
@@ -38,7 +40,6 @@ object TableImporter {
     private val CIN_DIRECTIVE = Regex("(?m)^%(chardef|gen_inp|cname)\\b")
 
     fun import(files: List<NamedBytes>): ImportResult {
-        if (files.isEmpty()) throw TableImportException("沒有選擇任何檔案")
         val decoded = files.map { it to it.bytes.toString(Charsets.UTF_8) }
         val byFormat = decoded.groupBy { (_, text) -> detect(text) }
         byFormat[TableFormat.UNKNOWN]?.let { unknown ->
@@ -47,11 +48,9 @@ object TableImporter {
         val ibus = byFormat[TableFormat.IBUS].orEmpty()
         val cin = byFormat[TableFormat.CIN].orEmpty()
         val tsv = byFormat[TableFormat.NEUTRAL_TSV].orEmpty()
-        if (ibus.size > 1 || cin.size > 1 || tsv.size > 1) throw TableImportException("同一種格式只能選一個檔案")
 
-        val rawSections: List<TableSection> = when {
-            tsv.isNotEmpty() && ibus.isEmpty() && cin.isEmpty() -> parseNeutral(tsv.single().second)
-            ibus.isNotEmpty() && cin.isNotEmpty() && tsv.isEmpty() -> try {
+        val rawSections: List<TableSection> = when (Triple(ibus.size, cin.size, tsv.size)) {
+            Triple(1, 1, 0) -> try {
                 SectionSplitter.split(
                     IbusTableParser.parse(ibus.single().second.lineSequence()),
                     CinParser.parse(cin.single().second.lineSequence()),
@@ -59,30 +58,36 @@ object TableImporter {
             } catch (e: SectionMismatchException) {
                 throw TableImportException("IBus 與 CIN 區段對不上：${e.message}")
             }
-            cin.isNotEmpty() && ibus.isEmpty() && tsv.isEmpty() ->
-                CinParser.parse(cin.single().second.lineSequence()).mapIndexed { i, s ->
-                    TableSection(SectionSplitter.guessKind(i, s.cname, s.ename, s.entries), s.cname, s.entries)
-                }
-            ibus.isNotEmpty() && cin.isEmpty() && tsv.isEmpty() ->
-                throw TableImportException("只有 IBus 表無法切分區段，請同時選擇 lime_liu7.txt（CIN／LIME 格式）")
-            else -> throw TableImportException("不支援的檔案組合")
+            Triple(0, 1, 0) -> CinParser.parse(cin.single().second.lineSequence()).mapIndexed { i, s ->
+                TableSection(SectionSplitter.guessKind(i, s.cname, s.ename, s.entries), s.cname, s.entries)
+            }
+            Triple(0, 0, 1) -> parseNeutral(tsv.single().second)
+            Triple(1, 0, 0) -> throw TableImportException("只有 IBus 表無法切分區段，請同時選擇 lime_liu7.txt（CIN／LIME 格式）")
+            else -> throw TableImportException(
+                "不支援的檔案組合（IBus ${ibus.size}、CIN ${cin.size}、TSV ${tsv.size}）：" +
+                    "請選 IBus＋CIN、單一 CIN，或單一中性 TSV",
+            )
         }
 
         val normalized = rawSections.map { it.copy(entries = TableNormalizer.normalize(it.entries)) }
         val allStats = normalized.mapIndexed { i, s -> TableNormalizer.stats(s, rawSections[i].entries.size) }
-        val keepIdx = listOf(SectionKind.TRADITIONAL, SectionKind.JAPANESE).mapNotNull { kind ->
-            normalized.indexOfFirst { it.kind == kind }.takeIf { it >= 0 }
-        }
-        if (keepIdx.none { normalized[it].kind == SectionKind.TRADITIONAL }) {
-            throw TableImportException("找不到繁中區段")
-        }
+        val tradIdx = normalized.indexOfFirst { it.kind == SectionKind.TRADITIONAL }
+        if (tradIdx < 0) throw TableImportException("找不到繁中區段")
+        // 嘸蝦米在一般模式以「羅馬拼音＋,」輸入平假名、「＋.」輸入片假名：把日文區段的假名字碼併入繁中查詢；
+        // 日文區段的其他內容（日文漢字）不併入。
+        val kana = normalized.firstOrNull { it.kind == SectionKind.JAPANESE }?.entries.orEmpty().filter(::isKanaCode)
+        val main = normalized[tradIdx].let { it.copy(entries = TableNormalizer.normalize(it.entries + kana)) }
         val bundle = TableBundle(
-            sections = keepIdx.map { normalized[it] },
+            sections = listOf(main),
             sources = files.map { SourceFile(it.name, sha256Hex(it.bytes)) },
-            stats = keepIdx.map { allStats[it] },
+            stats = listOf(TableNormalizer.stats(main, rawSections[tradIdx].entries.size + kana.size)),
         )
         return ImportResult(bundle, allStats)
     }
+
+    private fun isKanaCode(e: TableEntry): Boolean = e.code.last() in KANA_CODE_SUFFIXES && e.text.all(Kana::isKana)
+
+    private const val KANA_CODE_SUFFIXES = ",."
 
     fun writeNeutral(sections: List<TableSection>): String = buildString {
         append(NEUTRAL_HEADER).append('\n')

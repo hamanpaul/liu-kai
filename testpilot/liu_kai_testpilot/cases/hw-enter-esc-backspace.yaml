@@ -1,0 +1,49 @@
+id: hw-enter-esc-backspace
+name: Enter 送出字碼、Esc 清除、Backspace
+description: ab 按 Enter 送出原始字碼；c 按 Esc 清除；b 按 Backspace 刪光組字；再按 Backspace 交給 App 刪字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: enter
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - b
+  - ENTER
+- id: esc
+  action: keys
+  target: EMU
+  keys:
+  - c
+  - ESCAPE
+- id: del
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - DEL
+- id: st
+  action: ime_state
+  target: EMU
+- id: del2
+  action: keys
+  target: EMU
+  keys:
+  - DEL
+  - ESCAPE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.composing
+  operator: equals
+  value: ''
+- field: read.text
+  operator: equals
+  value: a

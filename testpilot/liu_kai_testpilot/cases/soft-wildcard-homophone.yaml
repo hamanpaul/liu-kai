@@ -1,0 +1,44 @@
+id: soft-wildcard-homophone
+name: 軟鍵盤萬用字元與同音字鍵
+description: a * 點「天」；q 後按 ` 查同音字，點「忠」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: q1
+  action: tap_key
+  target: EMU
+  key: '*'
+- id: t1
+  action: tap_candidate
+  target: EMU
+  text: 天
+- id: q
+  action: tap_key
+  target: EMU
+  key: q
+- id: g
+  action: tap_key
+  target: EMU
+  key: '`'
+- id: t2
+  action: tap_candidate
+  target: EMU
+  text: 忠
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 天忠

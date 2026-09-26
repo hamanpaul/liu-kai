@@ -1,0 +1,58 @@
+id: settings-saf-multi
+name: SAF 多選 IBus＋LIME 匯入成功
+description: 長按第一個檔案進入多選、再點第二個、按選取：匯入成功並顯示各區段統計。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: settings
+mutates_table: true
+steps:
+- id: p1
+  action: push_file
+  target: EMU
+  src: core/src/test/resources/fixtures/synthetic-ibus.txt
+  dest: /sdcard/Download/liukai-ibus.txt
+- id: p2
+  action: push_file
+  target: EMU
+  src: core/src/test/resources/fixtures/synthetic-lime.txt
+  dest: /sdcard/Download/liukai-lime.txt
+- id: open
+  action: tap_text
+  target: EMU
+  text: 3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）
+- id: picker
+  action: wait_text
+  target: EMU
+  contains: liukai-ibus.txt
+- id: lp
+  action: long_press_text
+  target: EMU
+  text: liukai-ibus.txt
+- id: selected
+  action: wait_text
+  target: EMU
+  contains: selected
+- id: t2
+  action: tap_text
+  target: EMU
+  text: liukai-lime.txt
+- id: select
+  action: tap_text
+  target: EMU
+  text: Select
+- id: report
+  action: wait_text
+  target: EMU
+  contains: 匯入成功
+pass_criteria:
+- field: report.text
+  operator: contains
+  value: 全部區段
+- field: report.text
+  operator: contains
+  value: liukai-lime.txt
