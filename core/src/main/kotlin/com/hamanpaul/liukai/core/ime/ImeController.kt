@@ -2,6 +2,8 @@ package com.hamanpaul.liukai.core.ime
 
 import com.hamanpaul.liukai.core.engine.ImeEvent
 import com.hamanpaul.liukai.core.engine.EngineEvent
+import com.hamanpaul.liukai.core.engine.EngineResult
+import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
 
 /**
@@ -89,6 +91,12 @@ class ImeController(val engine: LiuEngine) {
         val result = engine.handle(event)
         val ops = tracker.sync(result, engine)
         return if (result.consumed) ops else ops + passThrough(key, imeOptions, inputType)
+    }
+
+    /** 切換語言模式（長按「同音」的選單）：清除欄位內的組字。 */
+    fun selectLanguage(lang: Language): List<IcOp> {
+        engine.selectLanguage(lang)
+        return tracker.sync(EngineResult.CONSUMED, engine)
     }
 
     fun tapCandidate(index: Int): List<IcOp> = tracker.sync(engine.handle(ImeEvent.Select(index)), engine)

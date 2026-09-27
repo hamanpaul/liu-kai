@@ -40,6 +40,13 @@ a 甲
 z 简
 %chardef end
 %gen_inp
+%ename synthetic-tw
+%cname 合成台簡
+%chardef begin
+qq 钟
+ba 日
+%chardef end
+%gen_inp
 %ename synthetic-jp
 %cname 合成日文
 %keyname begin

@@ -35,6 +35,9 @@ STATE = {
     "touches": 7,
     "rowLabels": [["1", "2"], ["ALT", "⌫"]],
     "strip": ["punct:!", "punct:?"],
+    "language": "JAPANESE",
+    "codeHint": "忠 qa",
+    "languages": ["TRADITIONAL", "JAPANESE"],
 }
 
 
@@ -55,6 +58,8 @@ def test_parse_dump_decodes_state_line():
     assert state.touches == 7
     assert state.row_labels == [["1", "2"], ["ALT", "⌫"]]
     assert state.strip == ["punct:!", "punct:?"]
+    assert (state.language, state.languages) == ("JAPANESE", ["TRADITIONAL", "JAPANESE"])
+    assert state.code_hint == "忠 qa"
     assert [c.text for c in state.candidates] == ["日", "月"]
     assert state.candidates[1].annotation == "ㄩㄝˋ"
     assert state.candidate_row == Rect(0, 2000, 1080, 150)

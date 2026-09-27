@@ -1,5 +1,7 @@
 package com.hamanpaul.liukai.data
 
+import com.hamanpaul.liukai.core.engine.Language
+import com.hamanpaul.liukai.core.engine.languageTables
 import android.content.Context
 import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.core.table.CompiledTable
@@ -19,6 +21,8 @@ import java.nio.file.StandardCopyOption
 class LoadedTables(
     val bundle: TableBundle,
     val traditional: CompiledTable,
+    /** 繁中以外的語言模式字表（无／台／日）。 */
+    val others: Map<Language, CompiledTable>,
     val readings: Readings,
     /** 目前字表來自 APK 內建（尚未匯入其他字表）。 */
     val bundled: Boolean,
@@ -103,6 +107,7 @@ object TableStore {
         val loaded = LoadedTables(
             bundle = bundle,
             traditional = CompiledTable.build(bundle.section(SectionKind.TRADITIONAL)!!.entries),
+            others = bundle.languageTables(),
             readings = readings,
             bundled = File(context.filesDir, BUNDLED_FLAG).exists(),
         )

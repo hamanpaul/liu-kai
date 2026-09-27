@@ -13,7 +13,7 @@ class TableImportTest {
     @Test
     fun `IBus 解析只讀 BEGIN_TABLE 區塊並保留頻率`() {
         val entries = IbusTableParser.parse(Fixtures.text("synthetic-ibus.txt").lineSequence())
-        assertEquals(43, entries.size)
+        assertEquals(45, entries.size)
         assertEquals(TableEntry("a", "甲", 90), entries.first())
         assertEquals(TableEntry("x,", "雫", 40), entries.last())
     }
@@ -21,11 +21,12 @@ class TableImportTest {
     @Test
     fun `CIN 多區段解析：無標頭首段、gen_inp 切段、略過 keyname`() {
         val sections = CinParser.parse(Fixtures.text("synthetic-lime.txt").lineSequence())
-        assertEquals(listOf(31, 2, 8), sections.map { it.entries.size })
-        assertEquals(listOf(0, 1, 1), sections.map { it.keynames.size })
+        assertEquals(listOf(31, 2, 2, 8), sections.map { it.entries.size })
+        assertEquals(listOf(0, 1, 0, 1), sections.map { it.keynames.size })
         assertNull(sections[0].cname)
         assertEquals("合成簡體", sections[1].cname)
-        assertEquals("合成日文", sections[2].cname)
+        assertEquals("合成台簡", sections[2].cname)
+        assertEquals("合成日文", sections[3].cname)
     }
 
     @Test
@@ -34,7 +35,10 @@ class TableImportTest {
             IbusTableParser.parse(Fixtures.text("synthetic-ibus.txt").lineSequence()),
             CinParser.parse(Fixtures.text("synthetic-lime.txt").lineSequence()),
         )
-        assertEquals(listOf(SectionKind.TRADITIONAL, SectionKind.OTHER, SectionKind.JAPANESE), split.map { it.kind })
+        assertEquals(
+            listOf(SectionKind.TRADITIONAL, SectionKind.SIMPLIFIED, SectionKind.TW_SIMPLIFIED, SectionKind.JAPANESE),
+            split.map { it.kind },
+        )
         assertEquals(120L, split[0].entries.first { it.code == "Ab" }.freq)
     }
 
@@ -62,11 +66,16 @@ class TableImportTest {
     }
 
     @Test
-    fun `匯入：只保留繁中，字碼小寫、去重並取最大頻率`() {
+    fun `匯入：保留繁、簡、台簡、日四段（語言模式用），字碼小寫、去重並取最大頻率`() {
         val result = Fixtures.importResult
-        assertEquals(listOf(SectionKind.TRADITIONAL), result.bundle.sections.map { it.kind })
-        assertNull(result.bundle.section(SectionKind.JAPANESE))
-        assertEquals(3, result.allSections.size)
+        assertEquals(
+            listOf(SectionKind.TRADITIONAL, SectionKind.SIMPLIFIED, SectionKind.TW_SIMPLIFIED, SectionKind.JAPANESE),
+            result.bundle.sections.map { it.kind },
+        )
+        assertEquals(listOf("甲", "简"), result.bundle.section(SectionKind.SIMPLIFIED)!!.entries.map { it.text })
+        assertEquals(8, result.bundle.section(SectionKind.JAPANESE)!!.entries.size)
+        assertEquals(4, result.allSections.size)
+        assertEquals(result.bundle.sections.map { it.kind }, result.bundle.stats.map { it.kind })
         val trad = result.bundle.section(SectionKind.TRADITIONAL)!!
         val tian = trad.entries.filter { it.text == "天" }
         assertEquals(listOf(TableEntry("ab", "天", 120)), tian)
@@ -225,6 +234,17 @@ class TableImportTest {
         val headerOnly = CinParser.parse(sequenceOf("%cname 只有標頭"))
         assertEquals(listOf(CinSection("只有標頭", null, emptyList())), headerOnly)
         assertEquals(listOf(CinSection(null, "only-ename", emptyList())), CinParser.parse(sequenceOf("%ename only-ename")))
+    }
+
+    @Test
+    fun `區段用途判定：簡體、台簡（打繁出簡）與 lime_liu7 只叫「蝦」的台簡段`() {
+        val any = listOf(TableEntry("a", "甲"))
+        assertEquals(SectionKind.SIMPLIFIED, SectionSplitter.guessKind(1, "簡體蝦", "liu", any))
+        assertEquals(SectionKind.TW_SIMPLIFIED, SectionSplitter.guessKind(0, "台簡蝦", "liu", any))
+        assertEquals(SectionKind.TW_SIMPLIFIED, SectionSplitter.guessKind(2, "蝦", "liu", any))
+        assertEquals(SectionKind.TRADITIONAL, SectionSplitter.guessKind(0, "嘸蝦米", "liu", any))
+        assertEquals(SectionKind.TRADITIONAL, SectionSplitter.guessKind(0, "蝦", "liu", any))
+        assertEquals(SectionKind.JAPANESE, SectionSplitter.guessKind(3, "日文蝦", "liu", any))
     }
 
     @Test

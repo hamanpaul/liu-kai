@@ -82,6 +82,8 @@ def test_ime_state_captures_summary(ex, adb):
         "row_colors": [],
         "row_labels": [],
         "strip": [],
+        "language": "TRADITIONAL",
+        "code_hint": None,
         "candidate_strip": [2200, 150],
         "candidates": ["日", "月"],
         "annotations": [None, "ㄩㄝˋ"],

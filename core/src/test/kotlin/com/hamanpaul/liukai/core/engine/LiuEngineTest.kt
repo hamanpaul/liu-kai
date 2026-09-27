@@ -405,4 +405,85 @@ class LiuEngineTest {
         assertEquals(EngineResult.CONSUMED, e.handle(Key('A')))
         assertTrue(e.failed)
     }
+
+    private fun withLanguages(): LiuEngine =
+        Fixtures.engine().also { it.setTables(Fixtures.traditional, Fixtures.readings, Fixtures.languageTables) }
+
+    private fun LiuEngine.typeAndSpace(code: String): EngineResult {
+        code.forEach { handle(Key(it)) }
+        return handle(ImeEvent.Space)
+    }
+
+    @Test
+    fun `語言模式：嘸（繁）、无（簡）、台（打繁出簡）、日各查自己的字表`() {
+        val m = withLanguages()
+        assertEquals(listOf(Language.TRADITIONAL, Language.SIMPLIFIED, Language.TW_SIMPLIFIED, Language.JAPANESE), m.languages)
+        assertEquals(Language.TRADITIONAL, m.language)
+        assertTrue(m.selectLanguage(Language.SIMPLIFIED))
+        assertEquals(EngineResult(true, "简"), m.typeAndSpace("z"))
+        m.selectLanguage(Language.TW_SIMPLIFIED)
+        assertEquals(EngineResult(true, "钟"), m.typeAndSpace("qq"))
+        m.selectLanguage(Language.JAPANESE)
+        assertEquals(EngineResult(true, "寸"), m.typeAndSpace("aa"))
+        assertEquals(EngineResult(true, "か"), m.typeAndSpace("ka,"))
+        m.selectLanguage(Language.TRADITIONAL)
+        assertEquals(EngineResult(true, "鐘"), m.typeAndSpace("qq"))
+    }
+
+    @Test
+    fun `切換語言模式清除組字；沒有該段字表時不切換也不清除`() {
+        type("b")
+        assertEquals(listOf(Language.TRADITIONAL), e.languages)
+        assertFalse(e.selectLanguage(Language.JAPANESE))
+        assertEquals(Language.TRADITIONAL, e.language)
+        assertEquals("b", e.composing)
+        val m = withLanguages()
+        m.handle(Key('b'))
+        assertTrue(m.selectLanguage(Language.SIMPLIFIED))
+        assertEquals("", m.composing)
+    }
+
+    @Test
+    fun `重新載入字表時保留語言模式；新字表沒有該段時回到繁中；沒有字表時沒有語言可選`() {
+        val m = withLanguages()
+        m.selectLanguage(Language.JAPANESE)
+        m.setTables(Fixtures.traditional, Fixtures.readings, Fixtures.languageTables)
+        assertEquals(Language.JAPANESE, m.language)
+        m.setTables(Fixtures.traditional, Fixtures.readings)
+        assertEquals(Language.TRADITIONAL, m.language)
+        m.setTables(null, Readings.EMPTY)
+        assertEquals(emptyList(), m.languages)
+        assertEquals(Language.TRADITIONAL, m.language)
+    }
+
+    @Test
+    fun `字表只有繁中段時沒有其他語言模式字表`() {
+        val bundle = Fixtures.importResult.bundle
+        val onlyTraditional = bundle.copy(sections = bundle.sections.take(1), stats = bundle.stats.take(1))
+        assertEquals(emptyMap(), onlyTraditional.languageTables())
+        assertEquals(setOf(Language.SIMPLIFIED, Language.TW_SIMPLIFIED, Language.JAPANESE), Fixtures.languageTables.keys)
+    }
+
+    @Test
+    fun `同音查碼：從同音字清單上屏後提供該字的字碼（短碼在前），下一個事件清除`() {
+        type("q`")
+        assertEquals(EngineResult(true, "忠"), e.handle(ImeEvent.Select(2)))
+        assertEquals(CodeHint("忠", listOf("qa")), e.codeHint)
+        e.handle(Key('b'))
+        assertNull(e.codeHint)
+        e.handle(ImeEvent.HomophoneKey)
+        e.handle(ImeEvent.Escape)
+        e.handle(ImeEvent.HomophoneKey)
+        type("b")
+        e.handle(ImeEvent.Space)
+        e.handle(ImeEvent.Space)
+        assertEquals(CodeHint("木", listOf("b")), e.codeHint)
+    }
+
+    @Test
+    fun `一般上屏不提供字碼`() {
+        type("ba")
+        e.handle(ImeEvent.Space)
+        assertNull(e.codeHint)
+    }
 }

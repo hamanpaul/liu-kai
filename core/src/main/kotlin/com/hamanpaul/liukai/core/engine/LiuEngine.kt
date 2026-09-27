@@ -5,6 +5,9 @@ import com.hamanpaul.liukai.core.table.CompiledTable
 
 enum class InputMode { CHINESE, ENGLISH }
 
+/** 同音查碼：從同音字清單上屏的字與它的字碼（短碼在前）。 */
+data class CodeHint(val text: String, val codes: List<String>)
+
 /** 候選項；annotation 為附註（萬用字元顯示字碼、同音顯示注音）。 */
 data class Candidate(val text: String, val annotation: String? = null)
 
@@ -69,6 +72,18 @@ class LiuEngine(
     /** 上一個事件是組字失敗（組字已清除、不出字，畫面以紅框提示）；下一個事件或重置時清除。 */
     var failed: Boolean = false
         private set
+    /** 上一個事件從同音字清單上屏時，該字的字碼（官方「同音查碼」）；下一個事件清除。 */
+    var codeHint: CodeHint? = null
+        private set
+    /** 語言模式；只能選有字表的模式（見 [languages]）。 */
+    var language: Language = Language.TRADITIONAL
+        private set
+    /** 繁中以外的語言模式字表。 */
+    private var others: Map<Language, CompiledTable> = emptyMap()
+
+    /** 可選的語言模式：有繁中字表時為繁中加上其他有字表的模式；沒有字表時為空。 */
+    val languages: List<Language>
+        get() = if (table == null) emptyList() else Language.entries.filter { it == Language.TRADITIONAL || it in others }
     /** 同音鍵前置查詢中：打的字碼用來找要查同音的字，選字後列出該字的同音字。 */
     private var homophonePrefix = false
 
@@ -86,12 +101,28 @@ class LiuEngine(
             else -> "'$composing"
         }
 
-    /** table 為繁中字表（匯入時已併入日文區段的假名字碼）。 */
-    fun setTables(table: CompiledTable?, readings: Readings) {
+    /**
+     * table 為繁中字表（匯入時已併入日文區段的假名字碼），others 為其他語言模式的字表。
+     * 重新載入時保留語言模式；新字表沒有該模式時回到繁中。
+     */
+    fun setTables(table: CompiledTable?, readings: Readings, others: Map<Language, CompiledTable> = emptyMap()) {
         this.table = table
         this.readings = readings
+        this.others = others
+        if (language !in languages) language = Language.TRADITIONAL
         reset()
     }
+
+    /** 切換語言模式並清除組字；沒有該模式的字表時不切換，回傳 false。 */
+    fun selectLanguage(lang: Language): Boolean {
+        if (lang !in languages) return false
+        language = lang
+        reset()
+        return true
+    }
+
+    /** 目前語言模式的字表（繁中以外的模式一定有字表，見 [selectLanguage]）。 */
+    private fun currentTable(): CompiledTable? = if (language == Language.TRADITIONAL) table else others.getValue(language)
 
     fun reset() {
         composing = ""
@@ -104,10 +135,11 @@ class LiuEngine(
 
     fun handle(event: EngineEvent): EngineResult {
         failed = false
+        codeHint = null
         return when (event) {
             EngineEvent.ToggleEnglish -> toggleEnglish()
             is ImeEvent -> {
-                val table = table
+                val table = currentTable()
                 if (mode == InputMode.ENGLISH || table == null) EngineResult.PASS else handleIme(event, table)
             }
         }
@@ -245,7 +277,9 @@ class LiuEngine(
     private fun commitAt(index: Int, table: CompiledTable): EngineResult {
         if (homophonePrefix && homophoneOf == null) return homophone(index, table)
         val text = candidates[index].text
+        val fromHomophones = homophoneOf != null
         reset()
+        if (fromHomophones) codeHint = CodeHint(text, table.codesOf(text).sortedWith(compareBy({ it.length }, { it })))
         return EngineResult(true, text)
     }
 

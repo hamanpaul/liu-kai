@@ -420,6 +420,8 @@ class StepExecutor:
             "row_colors": s.row_colors,
             "row_labels": s.row_labels,
             "strip": s.strip,
+            "language": s.language,
+            "code_hint": s.code_hint,
             "candidate_strip": [s.candidate_row.y, s.candidate_row.h],
             "candidates": s.candidate_texts(),
             "annotations": [c.annotation for c in s.candidates],

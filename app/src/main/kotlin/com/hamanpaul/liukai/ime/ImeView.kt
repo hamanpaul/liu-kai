@@ -27,7 +27,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.hamanpaul.liukai.R
 import com.hamanpaul.liukai.core.engine.Candidate
+import com.hamanpaul.liukai.core.engine.CodeHint
 import com.hamanpaul.liukai.core.engine.InputMode
+import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.ime.EnterAction
 import com.hamanpaul.liukai.core.ime.SoftKey
 import org.json.JSONArray
@@ -41,6 +43,8 @@ interface ImeActions {
     fun onVoice()
     /** 中文模式閒置時候選列的常用標點：直接上屏。 */
     fun onPunctuation(text: String)
+    /** 長按「同音」選單選的語言模式。 */
+    fun onLanguage(language: Language)
 }
 
 /** 畫面需要的引擎狀態快照。 */
@@ -54,6 +58,11 @@ data class UiState(
     val tableLoaded: Boolean,
     /** 組字失敗：整個輸入畫面加紅框，直到下一次按鍵。 */
     val failed: Boolean,
+    /** 目前的語言模式與可選的語言模式（長按「同音」的選單）。 */
+    val language: Language = Language.TRADITIONAL,
+    val languages: List<Language> = listOf(Language.TRADITIONAL),
+    /** 同音查碼：從同音字清單上屏的字與字碼，顯示到下一次按鍵。 */
+    val codeHint: CodeHint? = null,
 )
 
 /**
@@ -172,11 +181,15 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         }
         composingView.text = when {
             state.homophoneOf != null -> "音:${state.homophoneOf}"
+            state.codeHint != null -> hintText(state.codeHint)
             else -> state.composing
         }
         refreshBar()
         candidateScroll.post { candidateScroll.scrollTo(0, 0) }
     }
+
+    /** 同音查碼的顯示文字，例如「忠 qa」（多個字碼以／分隔）。 */
+    fun hintText(hint: CodeHint): String = "${hint.text} ${hint.codes.joinToString("／")}"
 
     /** 重建候選列：有候選時列出候選；中文字母層閒置時列出常用標點（與官方相同）。 */
     private fun refreshBar() {
@@ -432,6 +445,14 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 true
             }
         }
+        if (def.id == "homophone") {
+            // 長按「同音」：語言模式選單（嘸／无／台／日），目前的模式以強調色標示
+            frame.setOnLongClickListener {
+                val state = lastState!!
+                showPopup(frame, state.languages.map { PopupDef("lang:${it.name}", LANGUAGE_LABELS.getValue(it)) }, "lang:${state.language.name}")
+                true
+            }
+        }
         def.popup?.let { popup ->
             // 右下角「…」表示可長按彈出
             frame.addView(
@@ -493,7 +514,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         }
     }
 
-    private fun showPopup(anchor: View, popup: List<PopupDef>) {
+    private fun showPopup(anchor: View, popup: List<PopupDef>, selected: String? = null) {
         popupPanel.removeAllViews()
         popupViews.clear()
         popup.chunked(POPUP_COLUMNS).forEach { chunk ->
@@ -508,10 +529,15 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 tv.typeface = Typeface.DEFAULT_BOLD
                 tv.contentDescription = "key:popup:${p.id}"
                 tv.isClickable = true
-                tv.background = gradientStates(POPUP_TOP, POPUP_BOTTOM, POPUP_PRESSED_TOP, POPUP_PRESSED_BOTTOM)
+                tv.background = if (p.id == selected) gradientStates(ACCENT, ACCENT, POPUP_PRESSED_TOP, POPUP_PRESSED_BOTTOM)
+                else gradientStates(POPUP_TOP, POPUP_BOTTOM, POPUP_PRESSED_TOP, POPUP_PRESSED_BOTTOM)
                 tv.setOnClickListener {
                     dismissPopup()
-                    if (p.id == SETTINGS) actions.onOpenSettings() else actions.onSoftKey(SoftKey.Text(p.label[0]))
+                    when {
+                        p.id == SETTINGS -> actions.onOpenSettings()
+                        p.id.startsWith(LANG) -> actions.onLanguage(Language.valueOf(p.id.removePrefix(LANG)))
+                        else -> actions.onSoftKey(SoftKey.Text(p.label[0]))
+                    }
                 }
                 popupViews["popup:${p.id}"] = tv
                 row.addView(tv, LayoutParams(dp(40f), dp(56f)).apply { setMargins(dp(1f), dp(1f), dp(1f), dp(1f)) })
@@ -636,6 +662,14 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         private const val PROBE_INSET = 20
         private const val POPUP_COLUMNS = 7
         private const val SETTINGS = "settings"
+        private const val LANG = "lang:"
+        /** 語言模式選單的標籤（官方：嘸 无 台 日）。 */
+        private val LANGUAGE_LABELS = mapOf(
+            Language.TRADITIONAL to "嘸",
+            Language.SIMPLIFIED to "无",
+            Language.TW_SIMPLIFIED to "台",
+            Language.JAPANESE to "日",
+        )
 
         private val ACTION_LABELS = mapOf(
             EditorInfo.IME_ACTION_GO to "Go",

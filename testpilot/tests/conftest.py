@@ -25,6 +25,9 @@ def state_dump(**overrides) -> str:
         "probe": {"x": 4, "y": 2204, "color": "#000000"},
         "rowLabels": [],
         "strip": [],
+        "language": "TRADITIONAL",
+        "languages": ["TRADITIONAL"],
+        "codeHint": None,
     }
     state.update(overrides)
     payload = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()

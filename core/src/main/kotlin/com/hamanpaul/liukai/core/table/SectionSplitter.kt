@@ -42,10 +42,17 @@ object SectionSplitter {
         return out
     }
 
-    /** 第一段視為繁中；名稱含「日」／jp，或輸出字多為假名者視為日文；其餘為 OTHER。 */
+    /**
+     * 名稱含「日」／jp，或輸出字多為假名者視為日文；名稱含「台簡」為打繁出簡、含「簡」為簡體；
+     * lime_liu7.txt 的打繁出簡段名稱只有「蝦」（與 liu70_tw_cn.cin 比對 99.8% 相同），第二段以後名為「蝦」者也視為打繁出簡；
+     * 其餘第一段視為繁中、其他為 OTHER。
+     */
     fun guessKind(index: Int, cname: String?, ename: String?, entries: List<TableEntry>): SectionKind {
         val names = listOfNotNull(cname, ename).joinToString(" ").lowercase()
         if ("日" in names || "jp" in names || "japan" in names) return SectionKind.JAPANESE
+        if ("台簡" in names) return SectionKind.TW_SIMPLIFIED
+        if ("簡" in names) return SectionKind.SIMPLIFIED
+        if (index > 0 && cname == "蝦") return SectionKind.TW_SIMPLIFIED
         if (entries.isNotEmpty()) {
             val kana = entries.count { e -> e.text.any { Kana.isKana(it) } }
             if (kana * 3 >= entries.size) return SectionKind.JAPANESE

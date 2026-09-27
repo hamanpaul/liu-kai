@@ -2,6 +2,7 @@ package com.hamanpaul.liukai.core.ime
 
 import com.hamanpaul.liukai.core.Fixtures
 import com.hamanpaul.liukai.core.engine.InputMode
+import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -186,5 +187,15 @@ class ImeControllerTest {
         c.startInput(classText)
         assertEquals(ImeOutcome(false, emptyList()), c.keyUp(keyB))
         assertEquals(ImeOutcome(false, emptyList()), c.keyUp(space))
+    }
+
+    @Test
+    fun `切換語言模式時清除欄位內的組字`() {
+        c.engine.setTables(Fixtures.traditional, Fixtures.readings, Fixtures.languageTables)
+        c.softKey(SoftKey.Text('b'), 0, classText)
+        assertEquals(listOf(IcOp.ClearComposing), c.selectLanguage(Language.SIMPLIFIED))
+        assertEquals(Language.SIMPLIFIED, c.engine.language)
+        assertEquals(emptyList(), c.selectLanguage(Language.JAPANESE))
+        assertEquals(Language.JAPANESE, c.engine.language)
     }
 }

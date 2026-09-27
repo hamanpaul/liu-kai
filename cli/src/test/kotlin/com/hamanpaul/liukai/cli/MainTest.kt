@@ -27,7 +27,9 @@ class MainTest {
         val (code, out, _) = exec("stats", "$fixtures/synthetic-ibus.txt", "$fixtures/synthetic-lime.txt")
         assertEquals(0, code)
         assertTrue("[0] kind=TRADITIONAL name=- rawRows=31 uniquePairs=30" in out, out)
-        assertTrue("[2] kind=JAPANESE name=合成日文 rawRows=8" in out, out)
+        assertTrue("[1] kind=SIMPLIFIED name=合成簡體 rawRows=2" in out, out)
+        assertTrue("[2] kind=TW_SIMPLIFIED name=合成台簡 rawRows=2" in out, out)
+        assertTrue("[3] kind=JAPANESE name=合成日文 rawRows=8" in out, out)
     }
 
     @Test
@@ -40,7 +42,10 @@ class MainTest {
         assertEquals("# liu-kai-tsv v1", lines.first())
         assertTrue("TRADITIONAL\tab\t天\t120" in lines)
         assertTrue("TRADITIONAL\tka,\tか\t100" in lines)
-        assertTrue(lines.none { it.startsWith("JAPANESE") })
+        // 語言模式（无／台／日）的區段照原樣輸出
+        assertTrue("SIMPLIFIED\tz\t简\t1" in lines)
+        assertTrue("TW_SIMPLIFIED\tqq\t钟\t40" in lines)
+        assertTrue("JAPANESE\taa\t寸\t50" in lines)
     }
 
     @Test
@@ -51,8 +56,11 @@ class MainTest {
         assertEquals(0, code)
         assertTrue("wrote ${bin.path}" in out, out)
         val read = FileInputStream(bin).let { TableBundle.read(it).also { _ -> it.close() } }
-        assertEquals(listOf(SectionKind.TRADITIONAL), read.sections.map { it.kind })
-        assertTrue(read.sections.single().entries.any { it.code == "ka," && it.text == "か" })
+        assertEquals(
+            listOf(SectionKind.TRADITIONAL, SectionKind.SIMPLIFIED, SectionKind.TW_SIMPLIFIED, SectionKind.JAPANESE),
+            read.sections.map { it.kind },
+        )
+        assertTrue(read.sections.first().entries.any { it.code == "ka," && it.text == "か" })
         assertEquals(listOf("synthetic-ibus.txt", "synthetic-lime.txt"), read.sources.map { it.name })
     }
 

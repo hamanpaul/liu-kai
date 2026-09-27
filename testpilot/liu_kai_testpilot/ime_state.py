@@ -60,6 +60,11 @@ class ImeState:
     # 各排按鍵顯示的標籤（以圖示顯示的鍵為其代表字元）、候選列的常用標點（punct:X）
     row_labels: list[list[str]] = field(default_factory=list)
     strip: list[str] = field(default_factory=list)
+    # 語言模式（TRADITIONAL／SIMPLIFIED／TW_SIMPLIFIED／JAPANESE）與可選的模式
+    language: str = "TRADITIONAL"
+    languages: list[str] = field(default_factory=list)
+    # 同音查碼：從同音字清單上屏的字與字碼（例如「忠 qa」），沒有時為 None
+    code_hint: str | None = None
 
     def candidate(self, text: str | None = None, index: int | None = None) -> CandidateView:
         for c in self.candidates:
@@ -103,5 +108,8 @@ def parse_dump(output: str) -> ImeState:
                 touches=d["touches"],
                 row_labels=d["rowLabels"],
                 strip=d["strip"],
+                language=d["language"],
+                languages=d["languages"],
+                code_hint=d["codeHint"],
             )
     raise ValueError("dumpsys 輸出中沒有 LIUKAI_STATE（輸入法未啟動或不是 liu-kai？）")

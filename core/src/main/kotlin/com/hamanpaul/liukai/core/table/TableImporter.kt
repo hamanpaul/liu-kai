@@ -7,7 +7,7 @@ class NamedBytes(val name: String, val bytes: ByteArray)
 
 class TableImportException(message: String) : IllegalArgumentException(message)
 
-/** 匯入結果：可存檔的字表（只有繁中區段，已併入假名字碼），以及給使用者看的全區段報告。 */
+/** 匯入結果：可存檔的字表（繁中區段已併入假名字碼，另保留簡、台簡、日三段供語言模式），以及給使用者看的全區段報告。 */
 data class ImportResult(val bundle: TableBundle, val allSections: List<SectionStats>)
 
 enum class TableFormat { IBUS, CIN, NEUTRAL_TSV, UNKNOWN }
@@ -77,10 +77,12 @@ object TableImporter {
         // 日文區段的其他內容（日文漢字）不併入。
         val kana = normalized.firstOrNull { it.kind == SectionKind.JAPANESE }?.entries.orEmpty().filter(::isKanaCode)
         val main = normalized[tradIdx].let { it.copy(entries = TableNormalizer.normalize(it.entries + kana)) }
+        // 語言模式（无／台／日）各用自己的區段，照原樣保留（每種各取第一段）
+        val modes = LANGUAGE_KINDS.mapNotNull { kind -> normalized.indexOfFirst { it.kind == kind }.takeIf { it >= 0 } }
         val bundle = TableBundle(
-            sections = listOf(main),
+            sections = listOf(main) + modes.map { normalized[it] },
             sources = files.map { SourceFile(it.name, sha256Hex(it.bytes)) },
-            stats = listOf(TableNormalizer.stats(main, rawSections[tradIdx].entries.size + kana.size)),
+            stats = listOf(TableNormalizer.stats(main, rawSections[tradIdx].entries.size + kana.size)) + modes.map { allStats[it] },
         )
         return ImportResult(bundle, allStats)
     }
@@ -88,6 +90,7 @@ object TableImporter {
     private fun isKanaCode(e: TableEntry): Boolean = e.code.last() in KANA_CODE_SUFFIXES && e.text.all(Kana::isKana)
 
     private const val KANA_CODE_SUFFIXES = ",."
+    private val LANGUAGE_KINDS = listOf(SectionKind.SIMPLIFIED, SectionKind.TW_SIMPLIFIED, SectionKind.JAPANESE)
 
     fun writeNeutral(sections: List<TableSection>): String = buildString {
         append(NEUTRAL_HEADER).append('\n')

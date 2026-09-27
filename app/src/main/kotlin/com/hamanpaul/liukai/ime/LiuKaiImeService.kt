@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
 import com.hamanpaul.liukai.core.ime.EditorPolicy
 import com.hamanpaul.liukai.core.ime.IcOp
@@ -17,6 +18,7 @@ import com.hamanpaul.liukai.core.ime.ImeController
 import com.hamanpaul.liukai.core.ime.ImeOutcome
 import com.hamanpaul.liukai.core.ime.SoftKey
 import com.hamanpaul.liukai.core.reading.Readings
+import com.hamanpaul.liukai.data.ImePrefs
 import com.hamanpaul.liukai.data.TableStore
 import com.hamanpaul.liukai.settings.SettingsActivity
 import org.json.JSONObject
@@ -37,6 +39,8 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         super.onCreate()
         view = ImeView(this, this)
         reloadTables()
+        // 還原上次選的語言模式（字表沒有該模式時維持繁中）
+        controller.engine.selectLanguage(ImePrefs.language(this))
     }
 
     private fun reloadTables() {
@@ -47,7 +51,7 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         if (loaded == null) {
             controller.engine.setTables(null, Readings.EMPTY)
         } else {
-            controller.engine.setTables(loaded.traditional, loaded.readings)
+            controller.engine.setTables(loaded.traditional, loaded.readings, loaded.others)
         }
     }
 
@@ -155,6 +159,12 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         Toast.makeText(this, "請先在系統的螢幕鍵盤設定啟用語音輸入", Toast.LENGTH_SHORT).show()
     }
 
+    /** 長按「同音」選單：切換語言模式並記住。 */
+    override fun onLanguage(language: Language) {
+        ImePrefs.setLanguage(this, language)
+        execute(controller.selectLanguage(language))
+    }
+
     /** 候選列的常用標點：直接上屏（只在沒有組字時顯示）。 */
     override fun onPunctuation(text: String) = execute(listOf(IcOp.Commit(text)))
 
@@ -195,6 +205,9 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         homophoneOf = controller.engine.homophoneOf,
         tableLoaded = controller.tableLoaded,
         failed = controller.engine.failed,
+        language = controller.engine.language,
+        languages = controller.engine.languages,
+        codeHint = controller.engine.codeHint,
     )
 
     private fun render() {
@@ -214,6 +227,9 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
             .put("composing", state.composing)
             .put("homophoneOf", state.homophoneOf ?: JSONObject.NULL)
             .put("windowShown", isInputViewShown)
+            .put("language", controller.engine.language.name)
+            .put("languages", org.json.JSONArray(controller.engine.languages.map { it.name }))
+            .put("codeHint", controller.engine.codeHint?.let(view::hintText) ?: JSONObject.NULL)
         view.describe(json)
         fout.println("LIUKAI_STATE " + Base64.encodeToString(json.toString().toByteArray(), Base64.NO_WRAP))
     }
