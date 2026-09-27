@@ -255,9 +255,14 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
             .put("windowShown", isInputViewShown)
             .put("language", controller.engine.language.name)
             .put("languages", org.json.JSONArray(controller.engine.languages.map { it.name }))
-            .put("codeHint", controller.engine.codeHint?.let(view::hintText) ?: JSONObject.NULL)
+            .put("codeHint", codeHintText())
         view.describe(json)
         fout.println("LIUKAI_STATE " + Base64.encodeToString(json.toString().toByteArray(), Base64.NO_WRAP))
+    }
+
+    private fun codeHintText(): Any {
+        val hint = controller.engine.codeHint
+        return if (hint == null) JSONObject.NULL else view.hintText(hint)
     }
 
     companion object {

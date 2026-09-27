@@ -5,10 +5,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorFilter
 import android.graphics.Paint
-import android.graphics.PixelFormat
-import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -74,12 +71,12 @@ data class UiState(
     /** 組字失敗：整個輸入畫面加紅框，直到下一次按鍵。 */
     val failed: Boolean,
     /** 目前的語言模式與可選的語言模式（長按「同音」的選單）。 */
-    val language: Language = Language.TRADITIONAL,
-    val languages: List<Language> = listOf(Language.TRADITIONAL),
+    val language: Language,
+    val languages: List<Language>,
     /** 同音查碼：從同音字清單上屏的字與字碼，顯示到下一次按鍵。 */
-    val codeHint: CodeHint? = null,
+    val codeHint: CodeHint?,
     /** 智慧鍵盤：組字中可接的下一碼（null 為不限制）。 */
-    val nextKeys: Set<Char>? = null,
+    val nextKeys: Set<Char>?,
 )
 
 /**
@@ -674,6 +671,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val left = keyLoc[0] - rootLoc[0]
         val top = keyLoc[1] - rootLoc[1]
         preview.text = labelFor(def)
+        preview.style()
         if (pal.previewAbove) {
             // 經典灰（量測官方）：寬為鍵寬 5/3、高為鍵高 9/7 的黑框，底邊在鍵頂上方 0.3 鍵高
             val w = key.width * 5 / 3
@@ -916,37 +914,30 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
     private data class PopupDef(val id: String, val label: String)
 
-    /** 按鍵放大預覽：圓角底色，標籤畫在上半部（按鍵上方）。 */
-    private inner class PreviewDrawable : Drawable() {
+    /** 按鍵放大預覽：圓角底色（經典灰加灰色邊）與放大的標籤；底色與邊由 GradientDrawable 繪製。 */
+    private inner class PreviewDrawable : GradientDrawable() {
         var text = ""
-        private val bg = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val border = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(1.5f).toFloat() }
         private val fg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textAlign = Paint.Align.CENTER
             typeface = Typeface.DEFAULT_BOLD
             textSize = dp(34f).toFloat()
         }
 
-        override fun draw(canvas: Canvas) {
-            val b = bounds
-            bg.color = pal.previewBg
+        /** 依主題設定底色與邊框：經典灰為獨立黑框加灰色邊，其餘主題為半透明長條。 */
+        fun style() {
+            cornerRadius = dp(4f).toFloat()
+            setColor(pal.previewBg)
+            setStroke(if (pal.previewAbove) dp(1.5f) else 0, GRAY_PREVIEW_BORDER)
             fg.color = pal.text
-            canvas.drawRoundRect(RectF(b), dp(4f).toFloat(), dp(4f).toFloat(), bg)
-            // 經典灰：獨立黑框（灰色邊），字置中；其餘主題：長條上半部放字
-            val textY = if (pal.previewAbove) {
-                border.color = GRAY_PREVIEW_BORDER
-                canvas.drawRoundRect(RectF(b), dp(4f).toFloat(), dp(4f).toFloat(), border)
-                b.exactCenterY()
-            } else {
-                b.top + b.height() / 4f
-            }
-            canvas.drawText(text, b.exactCenterX(), textY - (fg.descent() + fg.ascent()) / 2, fg)
         }
 
-        override fun setAlpha(alpha: Int) = Unit
-        override fun setColorFilter(colorFilter: ColorFilter?) = Unit
-        @Deprecated("Deprecated in Java")
-        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+        override fun draw(canvas: Canvas) {
+            super.draw(canvas)
+            val b = bounds
+            // 經典灰：字置中；其餘主題：字在長條上半部（按鍵上方）
+            val textY = if (pal.previewAbove) b.exactCenterY() else b.top + b.height() / 4f
+            canvas.drawText(text, b.exactCenterX(), textY - (fg.descent() + fg.ascent()) / 2, fg)
+        }
     }
 
     /**

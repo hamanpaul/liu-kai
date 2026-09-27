@@ -1,0 +1,70 @@
+id: soft-english-symbols
+name: 英文模式的 ?123 層
+description: 英文模式的 ?123 層：左下為「中」、ABC 回字母層，空白鍵為圖示、句點鍵為「.」（中文模式則為嘸蝦米與「.'[]」）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st
+  action: ime_state
+  target: EMU
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+pass_criteria:
+- field: st.row_labels
+  operator: equals
+  value:
+  - - '1'
+    - '2'
+    - '3'
+    - '4'
+    - '5'
+    - '6'
+    - '7'
+    - '8'
+    - '9'
+    - '0'
+  - - '@'
+    - '#'
+    - $
+    - '%'
+    - '&'
+    - '*'
+    - '-'
+    - +
+    - (
+    - )
+  - - ALT
+    - '!'
+    - '"'
+    - ''''
+    - ':'
+    - ;
+    - /
+    - '?'
+    - ⌫
+  - - 中
+    - ABC
+    - ','
+    - ␣
+    - .
+    - Next

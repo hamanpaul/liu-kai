@@ -84,7 +84,8 @@ class UserPhrasesActivity : Activity() {
     }
 
     private fun withSelection(action: (Int) -> Unit) {
-        if (selected in phrases.indices) action(selected) else Toast.makeText(this, "請先選取字詞", Toast.LENGTH_SHORT).show()
+        // selected 為 -1（沒有選取）或清單內的索引
+        if (selected >= 0) action(selected) else Toast.makeText(this, "請先選取字詞", Toast.LENGTH_SHORT).show()
     }
 
     private fun update(newList: List<UserPhrase>, newSelected: Int) {
@@ -137,7 +138,7 @@ class UserPhrasesActivity : Activity() {
                     !UserPhrases.validCode(c) -> Toast.makeText(this, "拆碼不合法", Toast.LENGTH_SHORT).show()
                     t.isEmpty() -> Toast.makeText(this, "請輸入字詞", Toast.LENGTH_SHORT).show()
                     index == null -> update(phrases + UserPhrase(c.lowercase(), t), phrases.size)
-                    else -> update(phrases.mapIndexed { i, p -> if (i == index) UserPhrase(c.lowercase(), t) else p }, index)
+                    else -> update(phrases.toMutableList().apply { set(index, UserPhrase(c.lowercase(), t)) }, index)
                 }
             }
             .show()
