@@ -91,6 +91,11 @@ boot_emulator() {
   done
   adb shell input keyevent KEYCODE_WAKEUP >/dev/null || true
   adb shell wm dismiss-keyguard >/dev/null 2>&1 || true
+  # 關閉系統動畫（UI 測試慣例）：模擬器的繪圖路徑在大量轉場動畫下曾卡住 WindowManager 68 秒，
+  # 被 watchdog 重啟 system_server；關閉後轉場也不再造成點擊落空
+  for scale in window_animation_scale transition_animation_scale animator_duration_scale; do
+    adb shell settings put global "$scale" 0
+  done
   log "模擬器 $SERIAL 已開機"
 }
 
