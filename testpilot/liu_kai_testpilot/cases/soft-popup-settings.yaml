@@ -28,6 +28,7 @@ steps:
   action: wait_text
   target: EMU
   contains: 輸入法：
+  timeout_ms: 15000
 - id: close
   action: keys
   target: EMU
