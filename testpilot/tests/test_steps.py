@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from liu_kai_testpilot.steps import TAP_TRIES, UNTIL_CHECKS, DeviceConfig, StepExecutor, keycode
+from liu_kai_testpilot.steps import TAP_TRIES, UI_DUMP_TRIES, UNTIL_CHECKS, DeviceConfig, StepExecutor, keycode
 
 from .conftest import FOCUS, UI_XML, cand, ime_window_block, raw_screen, state_dump, window_dump
 
@@ -273,11 +273,12 @@ def test_ui_dump_is_retried_when_uiautomator_fails(ex, adb):
     assert len(attempts) == 4
 
 
-def test_ui_dump_gives_up_after_three_failures(ex, adb):
+def test_ui_dump_gives_up_after_repeated_failures(ex, adb):
+    # 畫面轉場中 uiautomator 會連續回報 null root node：最多試 UI_DUMP_TRIES 次，每次間隔 0.5 秒
     adb.fail_on = "uiautomator"
     result = run(ex, action="read_field", field="plain")
     assert result["success"] is False
-    assert len([c for c in adb.of("shell") if c[1].startswith("uiautomator")]) == 3
+    assert len([c for c in adb.of("shell") if c[1].startswith("uiautomator")]) == UI_DUMP_TRIES
 
 
 def test_taps_on_ime_fail_fast_when_window_hidden(ex, adb):

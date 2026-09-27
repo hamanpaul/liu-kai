@@ -32,6 +32,7 @@ READ_POLLS = 6
 ACK_POLLS = 20
 UNTIL_CHECKS = 6
 TAP_TRIES = 3
+UI_DUMP_TRIES = 6
 # 只操作／讀取輸入法、不會讓輸入法視窗收起或重新顯示的動作；其他動作之後，下一次點鍵盤要重新確認已畫在畫面上
 KEEPS_IME_DRAWN = frozenset({"tap_key", "long_press_key", "tap_candidate", "ime_state", "read_field"})
 _FOCUS = re.compile(r"mCurrentFocus=Window\{([0-9a-f]+) ")
@@ -91,7 +92,7 @@ class StepExecutor:
                 self._sleep(0.5)
 
     def ui_xml(self) -> str:
-        """uiautomator 在畫面動畫中偶爾取不到閒置狀態或根節點而失敗，稍候重試（最多 3 次）。"""
+        """uiautomator 在畫面動畫中偶爾取不到閒置狀態或根節點而失敗，每 0.5 秒重試（最多 UI_DUMP_TRIES 次）。"""
         attempt = 0
         while True:
             try:
@@ -101,9 +102,9 @@ class StepExecutor:
                 )
             except AdbError:
                 attempt += 1
-                if attempt == 3:
+                if attempt == UI_DUMP_TRIES:
                     raise
-                self.settle()
+                self._sleep(0.5)
 
     def execute(self, step: dict[str, Any]) -> dict[str, Any]:
         action = str(step.get("action"))
