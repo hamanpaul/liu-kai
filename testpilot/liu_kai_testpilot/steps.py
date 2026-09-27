@@ -291,7 +291,7 @@ class StepExecutor:
         while True:
             state = self.shown_state()
             c = state.candidate(text=step.get("text"), index=step.get("index"))
-            if c.rect.center_visible(self.config.screen_width):
+            if c.rect.center_within(state.candidate_row):
                 return state, c
             if scrolls == MAX_SCROLLS:
                 raise LookupError(f"候選 {c.text} 捲動後仍不在畫面內")

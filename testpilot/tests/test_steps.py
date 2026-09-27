@@ -117,6 +117,17 @@ def test_tap_candidate_scrolls_row_until_visible(ex, adb):
     assert adb.of("tap") == [("tap", 650, 2275)]
 
 
+def test_tap_candidate_scrolls_when_center_is_under_the_voice_key(ex, adb):
+    # 候選列右端是語音鍵：候選中心在螢幕內但超出候選列時要先捲動，否則會點到語音鍵
+    row = {"x": 0, "y": 2200, "w": 965, "h": 150}
+    under = state_dump(candidateRow=row, candidates=[cand(0, "日", 200), cand(15, "丑", 960)])
+    near = state_dump(candidateRow=row, candidates=[cand(0, "日", -900), cand(15, "丑", 600)])
+    adb.queue(DUMPSYS, under, near)
+    run(ex, action="tap_candidate", text="丑")
+    assert len(adb.of("swipe")) == 1
+    assert adb.of("tap") == [("tap", 650, 2275)]
+
+
 def test_tap_candidate_gives_up_after_max_scrolls(ex, adb):
     adb.queue(DUMPSYS, state_dump(candidates=[cand(15, "丑", 5000)]))
     result = run(ex, action="tap_candidate", text="丑")

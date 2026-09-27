@@ -18,8 +18,9 @@ class Rect:
     def center(self) -> tuple[int, int]:
         return self.x + self.w // 2, self.y + self.h // 2
 
-    def center_visible(self, screen_width: int) -> bool:
-        return 0 <= self.center[0] < screen_width
+    def center_within(self, other: "Rect") -> bool:
+        """中心點的 x 是否落在 other 的左右範圍內（例如候選是否在候選列的可見範圍，不被語音鍵蓋住）。"""
+        return other.x <= self.center[0] < other.x + other.w
 
 
 def _rect(d: dict) -> Rect:

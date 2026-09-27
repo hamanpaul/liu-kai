@@ -146,10 +146,15 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
 
     override fun onCandidateTap(index: Int) = execute(controller.tapCandidate(index))
 
-    /** 長按「,」的 ⚙：收起輸入法並開啟 liu-kai 設定頁。 */
+    /**
+     * 長按「,」的 ⚙：收起輸入法並開啟 liu-kai 設定主頁。設定頁的工作若還停在子頁（例如加字加詞），
+     * CLEAR_TOP 會回到主頁，而不是只把停在子頁的工作帶到前景。
+     */
     override fun onOpenSettings() {
         requestHideSelf(0)
-        startActivity(Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        startActivity(
+            Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        )
     }
 
     /**

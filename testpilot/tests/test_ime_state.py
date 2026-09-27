@@ -104,10 +104,13 @@ def test_candidate_texts_helper():
     assert parse_dump(dump_with(STATE)).candidate_texts() == ["日", "月"]
 
 
-def test_rect_contains_center_within_screen_width():
-    assert Rect(1000, 0, 200, 10).center_visible(1080) is False
-    assert Rect(10, 0, 20, 10).center_visible(1080) is True
-    assert Rect(-40, 0, 20, 10).center_visible(1080) is False
+def test_rect_center_within_another_rect():
+    row = Rect(0, 0, 965, 150)
+    assert Rect(1000, 0, 200, 10).center_within(row) is False
+    assert Rect(10, 0, 20, 10).center_within(row) is True
+    assert Rect(-40, 0, 20, 10).center_within(row) is False
+    # 候選列右端之後是語音鍵：中心在候選列外（語音鍵底下）不算可見
+    assert Rect(940, 0, 60, 10).center_within(row) is False
 
 
 def test_state_is_immutable():
