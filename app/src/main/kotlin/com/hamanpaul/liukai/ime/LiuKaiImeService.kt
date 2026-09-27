@@ -223,6 +223,7 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         language = controller.engine.language,
         languages = controller.engine.languages,
         codeHint = controller.engine.codeHint,
+        nextKeys = controller.engine.nextKeys,
     )
 
     private fun render() {

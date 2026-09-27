@@ -76,4 +76,16 @@ class CompiledTableTest {
         assertEquals(listOf("ab", "ac"), table.codesOf("甲"))
         assertEquals(listOf("乙" to "a", "甲" to "ab"), table.wildcard("a*", 10))
     }
+
+    @Test
+    fun `下一碼：以某字碼為前綴的所有字碼的下一個字根`() {
+        val t = CompiledTable.build(
+            listOf(TableEntry("a", "甲"), TableEntry("ab", "天"), TableEntry("abc", "人"), TableEntry("ad", "丁"), TableEntry("b", "木"), TableEntry("x,", "雲")),
+        )
+        assertEquals(setOf('b', 'd'), t.nextChars("a"))
+        assertEquals(setOf('c'), t.nextChars("ab"))
+        assertEquals(setOf(','), t.nextChars("x"))
+        assertEquals(emptySet(), t.nextChars("abc"))
+        assertEquals(emptySet(), t.nextChars("z"))
+    }
 }

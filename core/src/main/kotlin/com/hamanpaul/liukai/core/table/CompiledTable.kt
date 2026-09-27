@@ -30,6 +30,18 @@ class CompiledTable private constructor(
         return insertion < codes.size && codes[insertion].startsWith(prefix)
     }
 
+    /** 以 prefix 為前綴的較長字碼的下一個字根（智慧鍵盤用）。 */
+    fun nextChars(prefix: String): Set<Char> {
+        val i = indexOf(prefix)
+        var at = if (i >= 0) i + 1 else -i - 1
+        val out = HashSet<Char>()
+        while (at < codes.size && codes[at].startsWith(prefix)) {
+            out += codes[at][prefix.length]
+            at++
+        }
+        return out
+    }
+
     fun containsText(text: String): Boolean = text in textFreq
 
     fun freqOf(text: String): Long = textFreq[text] ?: 0

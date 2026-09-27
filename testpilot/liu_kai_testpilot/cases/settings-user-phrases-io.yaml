@@ -1,0 +1,133 @@
+id: settings-user-phrases-io
+name: 加字加詞：匯出、匯入與取消
+description: 照官方「加字加詞」的匯出與匯入：匯出成 TSV 檔，再匯入同一個檔案（加在清單最後）；取消選檔不變更；無法解析的檔案回報匯入失敗。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: settings
+steps:
+- id: push
+  action: push_file
+  target: EMU
+  src: testpilot/fixtures/bad.txt
+  dest: /sdcard/Download/liukai-bad.txt
+- id: open
+  action: tap_text
+  target: EMU
+  text: 加字加詞
+  until: 沒有字詞資料
+- id: add
+  action: tap_text
+  target: EMU
+  text: 新增
+  until: 新增字詞
+- id: c
+  action: tap_field
+  target: EMU
+  field: phrase_code
+- id: ct
+  action: text
+  target: EMU
+  text: qq
+- id: t
+  action: tap_field
+  target: EMU
+  field: phrase_text
+- id: tk
+  action: keys
+  target: EMU
+  keys:
+  - Q
+  - SPACE
+- id: ok
+  action: tap_text
+  target: EMU
+  text: 確定
+  until: qq
+- id: export
+  action: tap_text
+  target: EMU
+  text: 匯出
+  until: SAVE
+- id: save_doc
+  action: tap_text
+  target: EMU
+  text: SAVE
+  until: 匯出
+- id: import
+  action: tap_text
+  target: EMU
+  text: 匯入
+  until: liu-kai-phrases.tsv
+- id: pick
+  action: tap_text
+  target: EMU
+  text: liu-kai-phrases.tsv
+  until: 匯出
+- id: count
+  action: read_text
+  target: EMU
+  contains: qq
+- id: import2
+  action: tap_text
+  target: EMU
+  text: 匯入
+  until: liukai-bad.txt
+- id: bad
+  action: tap_text
+  target: EMU
+  text: liukai-bad.txt
+  until: 匯出
+- id: import3
+  action: tap_text
+  target: EMU
+  text: 匯入
+  until: liukai-bad.txt
+- id: cancel
+  action: back_until
+  target: EMU
+  contains: 匯出
+- id: save
+  action: tap_text
+  target: EMU
+  text: 儲存
+- id: host
+  action: launch_host
+  target: EMU
+- id: field
+  action: tap_field
+  target: EMU
+  field: plain
+- id: win
+  action: ime_window
+  target: EMU
+  expect: true
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - Q
+  - Q
+- id: st
+  action: ime_state
+  target: EMU
+- id: esc
+  action: keys
+  target: EMU
+  keys:
+  - ESCAPE
+pass_criteria:
+- field: st.candidates
+  operator: equals
+  value:
+  - 中
+  - 鐘
+cleanup:
+- action: shell
+  command: run-as com.hamanpaul.liukai rm -f files/user_phrases.tsv
+- action: shell
+  command: rm -f /sdcard/Download/liu-kai-phrases.tsv

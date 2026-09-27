@@ -1,8 +1,8 @@
 package com.hamanpaul.liukai.data
 
+import android.content.Context
 import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.languageTables
-import android.content.Context
 import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.core.table.CompiledTable
 import com.hamanpaul.liukai.core.table.ImportResult
@@ -10,6 +10,7 @@ import com.hamanpaul.liukai.core.table.NamedBytes
 import com.hamanpaul.liukai.core.table.SectionKind
 import com.hamanpaul.liukai.core.table.TableBundle
 import com.hamanpaul.liukai.core.table.TableImporter
+import com.hamanpaul.liukai.core.table.UserPhrases
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -100,13 +101,17 @@ object TableStore {
             invalidate()
             return null
         }
-        val stamp = f.lastModified() xor f.length()
+        // 字表檔或自訂字詞（加字加詞）有變更時重新編譯
+        val stamp = (f.lastModified() xor f.length()) * 31 + UserPhraseStore.stamp(context)
         val hit = cached
         if (hit != null && stamp == cachedStamp) return hit
         val bundle = TableBundle.read(ByteArrayInputStream(f.readBytes()))
         val loaded = LoadedTables(
             bundle = bundle,
-            traditional = CompiledTable.build(bundle.section(SectionKind.TRADITIONAL)!!.entries),
+            // 自訂字詞排在同碼候選前面
+            traditional = CompiledTable.build(
+                UserPhrases.merge(bundle.section(SectionKind.TRADITIONAL)!!.entries, UserPhraseStore.load(context)),
+            ),
             others = bundle.languageTables(),
             readings = readings,
             bundled = File(context.filesDir, BUNDLED_FLAG).exists(),

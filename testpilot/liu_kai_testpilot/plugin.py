@@ -181,6 +181,8 @@ class Plugin(PluginBase):
         ]
         if case.get("preconditions", {}).get("prefs"):
             steps.append({"action": "pref", "reset": True})
+        # 案例自訂的清除步驟（例如刪除加字加詞的檔案）
+        steps += case.get("cleanup", [])
         for step in steps:
             self.executor.execute(step)
         if case.get("mutates_table"):

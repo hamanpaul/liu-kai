@@ -1,0 +1,32 @@
+id: soft-smart-keyboard-off
+name: 關閉智慧鍵盤
+description: 設定「智慧鍵盤」關閉時，組字中不淡化也不隱藏按鍵。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    smart_keyboard: 'false'
+steps:
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: st1
+  action: ime_state
+  target: EMU
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+pass_criteria:
+- field: st1.dimmed
+  operator: equals
+  value: []
+- field: st1.hidden
+  operator: equals
+  value: []

@@ -1,0 +1,178 @@
+id: settings-keyboard-options
+name: 嘸蝦米鍵盤設定與設定主題及配置
+description: 照官方的兩層設定頁：在「嘸蝦米鍵盤設定」切換勾選項與退出鍵（永遠顯示），在「設定主題及配置」選主題、按鍵高度並切換顯示按鍵與數字鍵；回到輸入欄後鍵盤依設定顯示。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  launch: settings
+  prefs:
+    auto_cap: 'true'
+steps:
+- id: kb
+  action: tap_text
+  target: EMU
+  text: 嘸蝦米鍵盤設定
+  until: 按鍵時震動
+- id: preview
+  action: tap_text
+  target: EMU
+  text: 按鍵時顯示彈出式視窗
+- id: vib
+  action: tap_text
+  target: EMU
+  text: 按鍵時震動
+- id: snd
+  action: tap_text
+  target: EMU
+  text: 按鍵時播放音效
+- id: smart
+  action: tap_text
+  target: EMU
+  text: 智慧鍵盤
+- id: done
+  action: tap_text
+  target: EMU
+  text: 顯示退出鍵盤鍵
+  until: 永遠顯示
+- id: show
+  action: tap_text
+  target: EMU
+  text: 永遠顯示
+  until: 按鍵時震動
+- id: theme
+  action: tap_text
+  target: EMU
+  text: 設定主題及配置
+  until: 按鍵高度設定
+- id: dd
+  action: tap_text
+  target: EMU
+  text: 經典灰 ▾
+  until: 質感白
+- id: white
+  action: tap_text
+  target: EMU
+  text: 質感白
+  until: 質感白 ▾
+- id: keys
+  action: tap_text
+  target: EMU
+  text: 顯示按鍵
+- id: num
+  action: tap_text
+  target: EMU
+  text: 顯示數字鍵
+- id: hdd
+  action: tap_text
+  target: EMU
+  text: 高 ▾
+  until: 稍低
+- id: low
+  action: tap_text
+  target: EMU
+  text: 低
+  until: 低 ▾
+- id: host
+  action: launch_host
+  target: EMU
+- id: field
+  action: tap_field
+  target: EMU
+  field: plain
+- id: win
+  action: ime_window
+  target: EMU
+  expect: true
+- id: st
+  action: ime_state
+  target: EMU
+- id: down
+  action: touch_key
+  target: EMU
+  key: g
+  phase: down
+- id: st2
+  action: ime_state
+  target: EMU
+- id: up
+  action: touch_key
+  target: EMU
+  key: g
+  phase: up
+- id: st3
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st.palette
+  operator: equals
+  value:
+    bg: '#ECEFF1'
+    bar: '#DDE1E4'
+    text: '#37474F'
+    strip: '#4A555D'
+    cells: false
+- field: st.rows
+  operator: equals
+  value:
+  - - '1'
+    - '2'
+    - '3'
+    - '4'
+    - '5'
+    - '6'
+    - '7'
+    - '8'
+    - '9'
+    - '0'
+  - - q
+    - w
+    - e
+    - r
+    - t
+    - y
+    - u
+    - i
+    - o
+    - p
+  - - a
+    - s
+    - d
+    - f
+    - g
+    - h
+    - j
+    - k
+    - l
+  - - homophone
+    - z
+    - x
+    - c
+    - v
+    - b
+    - n
+    - m
+    - backspace
+  - - hide
+    - toggle_english
+    - symbols
+    - ','
+    - space
+    - .
+    - enter
+- field: st.row_height
+  operator: approx
+  value: 125
+  tolerance: 1
+- field: st2.preview
+  operator: equals
+  value: null
+- field: st3.feedback
+  operator: equals
+  value:
+    vibrate: 1
+    sound: 1

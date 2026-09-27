@@ -1,0 +1,135 @@
+id: soft-smart-keyboard
+name: 智慧鍵盤：淡化不可能的下一碼
+description: 照官方「智慧鍵盤」（預設開）：組字中不能接的字母鍵淡化，「,」「.'[]」不能接時隱藏、空白鍵加寬，同音鍵留白；上屏後恢復。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: st1
+  action: ime_state
+  target: EMU
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: st2
+  action: ime_state
+  target: EMU
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: st3
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st1.dimmed
+  operator: equals
+  value:
+  - q
+  - w
+  - e
+  - r
+  - t
+  - y
+  - u
+  - i
+  - o
+  - p
+  - s
+  - d
+  - f
+  - g
+  - h
+  - j
+  - k
+  - l
+  - z
+  - x
+  - c
+  - v
+  - b
+  - n
+  - m
+- field: st1.hidden
+  operator: equals
+  value:
+  - homophone
+- field: st1.rows
+  operator: equals
+  value:
+  - - q
+    - w
+    - e
+    - r
+    - t
+    - y
+    - u
+    - i
+    - o
+    - p
+  - - a
+    - s
+    - d
+    - f
+    - g
+    - h
+    - j
+    - k
+    - l
+  - - homophone
+    - z
+    - x
+    - c
+    - v
+    - b
+    - n
+    - m
+    - backspace
+  - - toggle_english
+    - symbols
+    - space
+    - enter
+- field: st2.dimmed
+  operator: equals
+  value:
+  - q
+  - w
+  - e
+  - r
+  - t
+  - y
+  - u
+  - i
+  - o
+  - p
+  - a
+  - s
+  - d
+  - f
+  - g
+  - h
+  - j
+  - k
+  - l
+  - z
+  - x
+  - c
+  - b
+  - n
+  - m
+- field: st3.dimmed
+  operator: equals
+  value: []
+- field: st3.hidden
+  operator: equals
+  value: []

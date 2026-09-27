@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+from typing import Any
 from dataclasses import dataclass, field
 
 
@@ -69,6 +70,13 @@ class ImeState:
     shift: str = "off"
     preview: str | None = None
     feedback: dict[str, int] = field(default_factory=dict)
+    # 智慧鍵盤淡化的鍵與隱藏（留白）的鍵
+    dimmed: list[str] = field(default_factory=list)
+    hidden: list[str] = field(default_factory=list)
+    # 主題色摘要（bg、bar、text、strip、cells）、字體縮放、排高（px）
+    palette: dict[str, Any] = field(default_factory=dict)
+    font_scale: float = 1.0
+    row_height: int = 0
 
     def candidate(self, text: str | None = None, index: int | None = None) -> CandidateView:
         for c in self.candidates:
@@ -118,5 +126,10 @@ def parse_dump(output: str) -> ImeState:
                 shift=d["shift"],
                 preview=d["preview"],
                 feedback=d["feedback"],
+                dimmed=d["dimmed"],
+                hidden=d["hidden"],
+                palette=d["palette"],
+                font_scale=d["fontScale"],
+                row_height=d["rowHeight"],
             )
     raise ValueError("dumpsys 輸出中沒有 LIUKAI_STATE（輸入法未啟動或不是 liu-kai？）")

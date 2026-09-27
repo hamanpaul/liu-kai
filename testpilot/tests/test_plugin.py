@@ -223,3 +223,10 @@ def test_setup_applies_prefs_before_launch_and_teardown_resets(plugin, adb):
 def test_teardown_without_prefs_does_not_reset_prefs(plugin, adb):
     plugin.teardown(case(), None)
     assert all(b[3] != {"reset": "true"} for b in adb.of("broadcast"))
+
+
+def test_teardown_runs_case_cleanup_steps(plugin, adb):
+    # 案例會留下檔案（例如加字加詞）時以 cleanup 清除；即使案例中途失敗 teardown 也會執行
+    c = case(cleanup=[{"action": "shell", "command": "run-as com.hamanpaul.liukai rm -f files/user_phrases.tsv"}])
+    plugin.teardown(c, None)
+    assert adb.of("shell")[-1] == ("shell", "run-as com.hamanpaul.liukai rm -f files/user_phrases.tsv")

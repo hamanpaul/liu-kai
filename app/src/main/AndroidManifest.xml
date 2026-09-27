@@ -35,5 +35,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- 嘸蝦米鍵盤設定與設定主題及配置（照官方的兩層設定頁） -->
+        <activity
+            android:name=".settings.KeyboardSettingsActivity"
+            android:exported="false"
+            android:label="嘸蝦米鍵盤設定"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <activity
+            android:name=".settings.UserPhrasesActivity"
+            android:exported="false"
+            android:label="加字加詞"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <activity
+            android:name=".settings.ThemeSettingsActivity"
+            android:exported="false"
+            android:label="設定主題及配置"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
     </application>
 </manifest>

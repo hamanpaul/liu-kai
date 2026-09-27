@@ -22,7 +22,7 @@ import com.hamanpaul.liukai.data.TableStore
 import com.hamanpaul.liukai.data.readAllAndClose
 import java.util.concurrent.Executors
 
-/** 設定頁：啟用引導、匯入／清除字表、目前字表資訊與試打區。 */
+/** 設定頁：啟用引導、嘸蝦米鍵盤設定、匯入／清除字表、目前字表資訊與試打區。 */
 class SettingsActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var report: TextView
@@ -42,8 +42,10 @@ class SettingsActivity : Activity() {
         }
         status = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f) }
         root.addView(status)
+        button("加字加詞") { startActivity(Intent(this, UserPhrasesActivity::class.java)) }
         button("1. 在系統設定啟用 liu-kai") { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
         button("2. 切換輸入法") { getSystemService(InputMethodManager::class.java).showInputMethodPicker() }
+        button("嘸蝦米鍵盤設定") { startActivity(Intent(this, KeyboardSettingsActivity::class.java)) }
         button("3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）") { pickFiles() }
         button("清除字表") {
             TableStore.clear(this)

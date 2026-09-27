@@ -3,6 +3,10 @@ package com.hamanpaul.liukai.core.engine
 import com.hamanpaul.liukai.core.Fixtures
 import com.hamanpaul.liukai.core.engine.ImeEvent.Key
 import com.hamanpaul.liukai.core.reading.Readings
+import com.hamanpaul.liukai.core.table.CompiledTable
+import com.hamanpaul.liukai.core.table.SectionKind
+import com.hamanpaul.liukai.core.table.UserPhrase
+import com.hamanpaul.liukai.core.table.UserPhrases
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -468,7 +472,8 @@ class LiuEngineTest {
     fun `同音查碼：從同音字清單上屏後提供該字的字碼（短碼在前），下一個事件清除`() {
         type("q`")
         assertEquals(EngineResult(true, "忠"), e.handle(ImeEvent.Select(2)))
-        assertEquals(CodeHint("忠", listOf("qa")), e.codeHint)
+        val hint = e.codeHint!!
+        assertEquals("忠" to listOf("qa"), hint.text to hint.codes)
         e.handle(Key('b'))
         assertNull(e.codeHint)
         e.handle(ImeEvent.HomophoneKey)
@@ -485,5 +490,56 @@ class LiuEngineTest {
         type("ba")
         e.handle(ImeEvent.Space)
         assertNull(e.codeHint)
+    }
+
+    private fun withUserPhrases(): LiuEngine {
+        val phrases = listOf(UserPhrase("liukai", "嘸蝦米輸入法"), UserPhrase("a1", "甲一"), UserPhrase("ba", "巴"))
+        val entries = Fixtures.importResult.bundle.section(SectionKind.TRADITIONAL)!!.entries
+        return LiuEngine(CompiledTable.build(UserPhrases.merge(entries, phrases)), Fixtures.readings)
+    }
+
+    @Test
+    fun `加字加詞：自訂拆碼可比字表最長碼長，同碼時排在字表候選前面`() {
+        val m = withUserPhrases()
+        assertEquals(EngineResult(true, "嘸蝦米輸入法"), m.typeAndSpace("liukai"))
+        "ba".forEach { m.handle(Key(it)) }
+        assertEquals(listOf("巴", "日", "月"), m.candidates.map { it.text })
+    }
+
+    @Test
+    fun `加字加詞：拆碼含數字時數字接續字碼，否則仍是選字；沒有組字時數字交給 App`() {
+        val m = withUserPhrases()
+        assertEquals(EngineResult(true, "甲一"), m.typeAndSpace("a1"))
+        m.handle(Key('a'))
+        assertEquals(EngineResult(true, "丙"), m.handle(Key('2')))
+        assertEquals(EngineResult.PASS, m.handle(Key('1')))
+        assertFalse(m.isComposing)
+    }
+
+    @Test
+    fun `智慧鍵盤：組字中可接的下一碼，加上可選字的 VRSF`() {
+        assertNull(e.nextKeys)
+        type("b")
+        // b 之後只有 ba；b 只有一個候選，VRSF 沒有可選的字
+        assertEquals(setOf('a'), e.nextKeys)
+        e.handle(ImeEvent.Escape)
+        type("ba")
+        // ba 是完整字碼且有 2 個候選：v 可選第 2 個
+        assertEquals(setOf('v'), e.nextKeys)
+        e.handle(ImeEvent.Escape)
+        type("c")
+        assertEquals(setOf('v', 'r'), e.nextKeys)
+    }
+
+    @Test
+    fun `智慧鍵盤：萬用字元與同音字清單時不限制；同音鍵前置查詢照字碼計算`() {
+        type("a*")
+        assertNull(e.nextKeys)
+        e.handle(ImeEvent.Escape)
+        type("q`")
+        assertNull(e.nextKeys)
+        e.handle(ImeEvent.Escape)
+        e.handle(ImeEvent.HomophoneKey)
+        assertEquals(Fixtures.traditional.nextChars(""), e.nextKeys)
     }
 }

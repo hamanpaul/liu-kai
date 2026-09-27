@@ -31,6 +31,11 @@ def state_dump(**overrides) -> str:
         "shift": "off",
         "preview": None,
         "feedback": {"vibrate": 0, "sound": 0},
+        "dimmed": [],
+        "hidden": [],
+        "palette": {},
+        "fontScale": 1.0,
+        "rowHeight": 188,
     }
     state.update(overrides)
     payload = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()

@@ -87,6 +87,21 @@ class LiuEngine(
     /** 同音鍵前置查詢中：打的字碼用來找要查同音的字，選字後列出該字的同音字。 */
     private var homophonePrefix = false
 
+    /**
+     * 智慧鍵盤：組字中可以接的下一個字根，加上可選字的 VRSF 鍵（組字是完整字碼且候選數夠）；
+     * 沒有組字、同音字清單或含萬用字元時為 null（不限制）。
+     */
+    val nextKeys: Set<Char>?
+        get() {
+            if (!isComposing || homophoneOf != null || hasWildcard()) return null
+            val table = currentTable()!!
+            val next = table.nextChars(composing).toMutableSet()
+            if (table.isCode(composing)) {
+                for ((key, index) in config.vrsf) if (index < candidates.size) next += key
+            }
+            return next
+        }
+
     /** 同音模式下組字仍保留原字碼；同音鍵前置查詢剛開始時還沒有字碼。 */
     val isComposing: Boolean get() = composing.isNotEmpty() || homophonePrefix
 
@@ -192,7 +207,8 @@ class LiuEngine(
         }
 
         if (isComposing) {
-            if (isAsciiDigit(c)) return selectDigit(c, table)
+            // 自訂字詞的拆碼可含數字：接得上字碼時當字根，否則為選字
+            if (isAsciiDigit(c) && !table.hasPrefix(composing + c)) return selectDigit(c, table)
             if (c == config.homophoneKey) return homophone(pageStart, table)
             val vrsfIndex = config.vrsf[lower]
             // 含萬用字元的組字不可能是合法字碼，isCode 已排除，不必另外判斷
@@ -207,7 +223,8 @@ class LiuEngine(
                 if (c in config.pageUpKeys) return page(-1)
                 return fail()
             }
-        } else if (lower !in table.alphabet && c != config.wildcard) {
+        } else if ((lower !in table.alphabet && c != config.wildcard) || isAsciiDigit(c)) {
+            // 沒有組字時數字交給 App（自訂拆碼的第一碼不會是數字）
             return EngineResult.PASS
         }
 
@@ -279,7 +296,8 @@ class LiuEngine(
         val text = candidates[index].text
         val fromHomophones = homophoneOf != null
         reset()
-        if (fromHomophones) codeHint = CodeHint(text, table.codesOf(text).sortedWith(compareBy({ it.length }, { it })))
+        // codesOf 已依碼長、字碼排序（短碼在前）
+        if (fromHomophones) codeHint = CodeHint(text, table.codesOf(text))
         return EngineResult(true, text)
     }
 
