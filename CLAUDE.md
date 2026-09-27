@@ -89,7 +89,7 @@ review 變更時，除了 R-22 抓得到的懸空引用，另留意**語意陳�
 MOC 的**狀態語意對齊**（`moc.map` 上某 stage 宣稱 done 是否真 done、被 postpone 的 stage 是否還誤掛 done）同屬此 advisory 層：R-24 只確定性檢查連結懸空／孤兒與靜態鮮度，狀態是否真對齊由 Copilot reviewer 留言提醒。
 
 ## 本專案規範（liu-kai）
-- **字表來源**：使用者自建的字表（2014「LIU FOR LINUX」附件：`liu_ibus_final.txt`、`lime_liu7.txt`、`liu70_*`），嘸蝦米字根授權已廢除，可合法使用（使用者 2026-09-26 確認）。目前字表檔不進 git、不內建進 APK，放在 repo 外 `~/prj_pri/liu-kai-data/`，於手機端匯入；是否改為內建由使用者決定。單元測試與 CI 只用合成字表（`core/src/test/resources/fixtures/`），真實字表由 `scripts/emulator-e2e.sh` 的 `real-*` 案例抽測。
+- **字表來源**：使用者自建的字表（2014「LIU FOR LINUX」附件：`liu_ibus_final.txt`、`lime_liu7.txt`、`liu70_*`），嘸蝦米字根授權已廢除，可合法使用（使用者 2026-09-26 確認）。字表原始檔不進 git，放在 repo 外 `~/prj_pri/liu-kai-data/`；本機建置時由 `app:bundleTable` 編譯內建進 APK（使用者 2026-09-27 決定，test-apks 分支的 APK 因此含字表），沒有字表的建置（CI）不內建、需手動匯入。單元測試與 CI 只用合成字表（`core/src/test/resources/fixtures/`），真實字表由 `scripts/emulator-e2e.sh` 的 `real-*` 案例抽測。
 - **clean-room**：不得複製 rime-liur、openxiami、OhMyBias 等未授權來源的程式碼或資料；只能以其公開文件描述的行為作為黑箱參考。
 - APK（minSdk 30）不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
 - 測試 APK 不建立 GitHub Releases，一律放到 `test-apks` 分支（檔名 `liu-kai-debug-YYYY-MM-DD.apk`，該分支的 APKS.md 記錄最新版、raw 下載連結、SHA-256 與 source commit）；該分支不跑 CI、不做 policy check、不開 PR。

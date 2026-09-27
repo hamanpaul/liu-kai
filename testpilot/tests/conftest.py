@@ -16,6 +16,10 @@ def state_dump(**overrides) -> str:
         "candidateRow": {"x": 0, "y": 2200, "w": 1080, "h": 150},
         "candidates": [],
         "keys": {},
+        "layer": "letters",
+        "rows": [],
+        "enterLabel": "↵",
+        "popup": [],
     }
     state.update(overrides)
     payload = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
@@ -81,10 +85,12 @@ class FakeAdb:
     def shell(self, command, timeout=60):
         self.calls.append(("shell", command))
         self._check(command)
-        for prefix, outputs in self.shell_outputs.items():
-            if command.startswith(prefix) and outputs:
-                return outputs.pop(0) if len(outputs) > 1 else outputs[0]
-        return ""
+        # 最長相符的前綴優先（例如 `dumpsys input_method` 不被 `dumpsys input` 搶走）
+        matches = [p for p, outputs in self.shell_outputs.items() if command.startswith(p) and outputs]
+        if not matches:
+            return ""
+        outputs = self.shell_outputs[max(matches, key=len)]
+        return outputs.pop(0) if len(outputs) > 1 else outputs[0]
 
     def keyevent(self, *codes):
         self._check("input keyevent")

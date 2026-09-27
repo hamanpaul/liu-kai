@@ -108,11 +108,6 @@ class DiffRunner:
             raise RuntimeError(f"{step['action']}：{result['output']}")
         return result
 
-    def _bound(self, target: Target) -> bool:
-        dump = self.adb.shell("dumpsys input_method")
-        host = self.config.host_component.split("/")[0]
-        return f"mCurId={target.component} " in dump and "mBoundToMethod=true" in dump and f"packageName={host} " in dump
-
     def prepare(self, target: Target) -> None:
         """結束輸入法行程並重新選用（回到初始狀態），啟動 testhost 點一般欄，等輸入欄綁到該輸入法。"""
         self.adb.shell(f"am force-stop {target.package}")
@@ -121,7 +116,7 @@ class DiffRunner:
         self._run_step({"action": "launch_host"})
         self._run_step({"action": "tap_field", "field": "plain"})
         polls = 0
-        while not self._bound(target):
+        while not self.executor.ime_bound(target.component):
             polls += 1
             if polls == BIND_POLLS:
                 raise RuntimeError(f"{target.name} 未接上輸入欄")

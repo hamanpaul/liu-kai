@@ -15,7 +15,9 @@ export ANDROID_HOME=~/Android/Sdk
 
 產出的 APK 位於 `app/build/outputs/apk/debug/`。安裝到裝置或模擬器後，於系統「螢幕鍵盤」設定中啟用 liu-kai。
 
-手機側載用的測試 APK 放在 test-apks 分支（不建立 GitHub Releases），下載連結、SHA-256 與對應的 source commit 見該分支的 APKS.md；需要 Android 11 以上，安裝後在設定頁匯入自建字表。
+內建字表：建置時若本機有使用者自建字表（預設 `~/prj_pri/liu-kai-data/`，可用 `-Pliukai.tableDir=<目錄>` 或環境變數 `LIU_KAI_DATA` 指定），會以 `liu-kai-cli bundle` 編譯後內建進 APK，裝好第一次使用就能打中文；沒有字表時（例如 CI）不內建，需在設定頁匯入。設定頁可匯入其他字表覆蓋，「清除字表」會改回內建字表。
+
+手機側載用的測試 APK 放在 test-apks 分支（不建立 GitHub Releases），下載連結、SHA-256 與對應的 source commit 見該分支的 APKS.md；需要 Android 11 以上。
 
 ## Usage
 
@@ -26,6 +28,8 @@ export ANDROID_HOME=~/Android/Sdk
 支援的匯入組合：`liu_ibus_final.txt`＋`lime_liu7.txt`（以後者切分區段、沿用前者頻率）、單一 CIN／LIME 多區段檔、或 `liu-kai-cli convert` 產生的中性 TSV。只有 IBus 檔時無法切分區段，會拒絕匯入。
 
 輸入操作（實體鍵盤）：字碼後按空白上屏首選（空碼時直接出空白）；數字鍵選目前頁候選（0 為預設字，1–9 為其後候選）；字碼後加 `v`／`r`／`s`／`f` 選標籤 1～4 的候選（「字碼＋鍵」本身是字碼時當字根）；`=`／`-` 翻頁；Enter 送出字碼字母、Esc 清除組字；組字中按到標點等非字根鍵、數字超出候選數、打滿四碼後再打字根，都是組字失敗：清除組字、不出字，輸入畫面以紅框提示；`*` 為萬用字元（零到多個字根）；組字後按 `` ` `` 查首選的讀音與同音字；單按 Shift 切換中英，Shift＋字母直接輸出大寫；假名不需切換模式，直接打羅馬拼音加 `,` 為平假名、加 `.` 為片假名（例如 `ka,` → か、`ka.` → カ）。
+
+螢幕鍵盤照官方嘸蝦米的配置：字母層、?123 層、ALT 層；第一排字母長按輸入數字（組字中即選字）；字根 `'` 在 ?123 層、`[` `]` 在 ALT 層，萬用字元 `*` 在 ?123 層、同音鍵 `` ` `` 在 ALT 層；長按「.」彈出常用標點，長按「,」彈出 ⚙ 開啟設定。
 
 開發者工具：
 
@@ -48,6 +52,7 @@ liu-kai-cli <command> [options]
 commands:
   stats   <file>...                         匯入字表並印出各區段統計（不寫檔）
   convert <file>... --out <tsv>             匯入字表並輸出中性 TSV（請寫到 repo 外）
+  bundle  <file>... --out <liutable>        匯入字表並輸出 app 直接載入的二進位字表（建置時內建進 APK）
   gen-readings --unihan <Unihan_Readings.txt> [--grades <Unihan_DictionaryLikeData.txt>] --out <readings.tsv>
                                             由 Unihan kMandarin 產生注音讀音表（可附 kGradeLevel 常用度）
 ```

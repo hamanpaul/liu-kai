@@ -6,6 +6,7 @@ import com.hamanpaul.liukai.core.table.NamedBytes
 import com.hamanpaul.liukai.core.table.TableImportException
 import com.hamanpaul.liukai.core.table.TableImporter
 import java.io.File
+import java.io.FileOutputStream
 import java.io.PrintStream
 
 private const val USAGE = """liu-kai-cli <command> [options]
@@ -13,6 +14,7 @@ private const val USAGE = """liu-kai-cli <command> [options]
 commands:
   stats   <file>...                         匯入字表並印出各區段統計（不寫檔）
   convert <file>... --out <tsv>             匯入字表並輸出中性 TSV（請寫到 repo 外）
+  bundle  <file>... --out <liutable>        匯入字表並輸出 app 直接載入的二進位字表（建置時內建進 APK）
   gen-readings --unihan <Unihan_Readings.txt> [--grades <Unihan_DictionaryLikeData.txt>] --out <readings.tsv>
                                             由 Unihan kMandarin 產生注音讀音表（可附 kGradeLevel 常用度）
 """
@@ -34,6 +36,7 @@ fun run(args: List<String>, out: PrintStream, err: PrintStream): Int {
         when (command) {
             "stats" -> { printStats(importFiles(positional(rest)), out); 0 }
             "convert" -> convert(rest, out)
+            "bundle" -> bundle(rest, out)
             "gen-readings" -> genReadings(rest, out)
             "-h", "--help", "help" -> { out.print(USAGE); 0 }
             else -> { err.print(USAGE); 2 }
@@ -82,6 +85,18 @@ private fun convert(args: List<String>, out: PrintStream): Int {
     val result = importFiles(positional(args))
     target.absoluteFile.parentFile.mkdirs()
     target.writeText(TableImporter.writeNeutral(result.bundle.sections))
+    printStats(result, out)
+    out.println("wrote ${target.path}")
+    return 0
+}
+
+private fun bundle(args: List<String>, out: PrintStream): Int {
+    val target = File(requireNotNull(option(args, "--out")) { "bundle 需要 --out" })
+    val result = importFiles(positional(args))
+    target.absoluteFile.parentFile.mkdirs()
+    val stream = FileOutputStream(target)
+    result.bundle.write(stream)
+    stream.close()
     printStats(result, out)
     out.println("wrote ${target.path}")
     return 0

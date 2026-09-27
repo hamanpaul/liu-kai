@@ -1,4 +1,5 @@
-"""pass_criteria 判定：field 為 `<step id>.<captured 路徑>`，逐條產生可寫入報告的說明。"""
+"""pass_criteria 判定：field 為 `<step id>.<captured 路徑>`，逐條產生可寫入報告的說明。
+operator `equals_field` 的 value 也是欄位路徑（比較兩個 step 的擷取值，例如畫面位置前後不變）。"""
 from __future__ import annotations
 
 from typing import Any, Callable
@@ -36,6 +37,11 @@ def evaluate(criteria: list[dict[str, Any]], results: dict[str, Any]) -> tuple[b
         head = f"{field} {operator} {value!r}"
         try:
             actual = resolve(results, field)
+            if operator == "equals_field":
+                other = resolve(results, value)
+                verdict = "PASS" if actual == other else "FAIL"
+                details.append(f"{verdict} {head}（實際 {actual!r}，{value} 為 {other!r}）")
+                continue
         except KeyError as e:
             details.append(f"FAIL {head}（{e.args[0]}）")
             continue

@@ -11,6 +11,9 @@ preconditions:
   field: multiline
   keyboard: soft
 steps:
+- id: st0
+  action: ime_state
+  target: EMU
 - id: e
   action: tap_key
   target: EMU
@@ -37,3 +40,6 @@ pass_criteria:
   value: '
 
     日'
+- field: st0.enter_label
+  operator: equals
+  value: ↵

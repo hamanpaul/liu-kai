@@ -1,6 +1,6 @@
 id: soft-wildcard-homophone
 name: 軟鍵盤萬用字元與同音字鍵
-description: a * 點「天」；q 後按 ` 查同音字，點「忠」。
+description: a 後切到 ?123 層按 *（萬用字元）點「天」；回字母層打 q，再到 ALT 層按 `（同音字）點「忠」；切換鍵盤層不影響組字。
 topology:
   devices:
     EMU:
@@ -14,7 +14,11 @@ steps:
   action: tap_key
   target: EMU
   key: a
-- id: q1
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: star
   action: tap_key
   target: EMU
   key: '*'
@@ -22,10 +26,22 @@ steps:
   action: tap_candidate
   target: EMU
   text: 天
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
 - id: q
   action: tap_key
   target: EMU
   key: q
+- id: sym2
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: alt
+  action: tap_key
+  target: EMU
+  key: alt
 - id: g
   action: tap_key
   target: EMU

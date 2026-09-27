@@ -11,6 +11,9 @@ preconditions:
   field: search
   keyboard: soft
 steps:
+- id: st0
+  action: ime_state
+  target: EMU
 - id: b
   action: tap_key
   target: EMU
@@ -35,3 +38,6 @@ pass_criteria:
 - field: result.text
   operator: equals
   value: action=3 text=ba
+- field: st0.enter_label
+  operator: equals
+  value: Search

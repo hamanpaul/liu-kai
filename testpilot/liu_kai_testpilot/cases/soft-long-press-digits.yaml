@@ -1,0 +1,32 @@
+id: soft-long-press-digits
+name: 長按第一排字母輸入數字（選字）
+description: q–p 長按輸入 1–9、0：組字 a 後長按 e（3）選第 4 個候選「丁」；沒有組字時長按 q 輸入 1。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: lp3
+  action: long_press_key
+  target: EMU
+  key: e
+- id: lp1
+  action: long_press_key
+  target: EMU
+  key: q
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 丁1

@@ -1,5 +1,6 @@
 package com.hamanpaul.liukai.ime
 
+import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import android.util.Base64
 import android.util.Log
@@ -8,12 +9,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import com.hamanpaul.liukai.core.engine.LiuEngine
+import com.hamanpaul.liukai.core.ime.EditorPolicy
 import com.hamanpaul.liukai.core.ime.IcOp
 import com.hamanpaul.liukai.core.ime.ImeController
 import com.hamanpaul.liukai.core.ime.ImeOutcome
 import com.hamanpaul.liukai.core.ime.SoftKey
 import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.data.TableStore
+import com.hamanpaul.liukai.settings.SettingsActivity
 import org.json.JSONObject
 import java.io.FileDescriptor
 import java.io.PrintWriter
@@ -76,7 +79,8 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        // 換到新的輸入欄：軟鍵盤回到字母層並放開 Shift
+        // 換到新的輸入欄：軟鍵盤回到字母層並放開 Shift；Enter 標籤依欄位動作
+        view.setEnterAction(EditorPolicy.enterAction(info.imeOptions, info.inputType))
         view.resetLayout()
         view.setKeyboardVisible(super.onEvaluateInputViewShown())
         render()
@@ -121,6 +125,12 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
     }
 
     override fun onCandidateTap(index: Int) = execute(controller.tapCandidate(index))
+
+    /** 長按「,」的 ⚙：收起輸入法並開啟 liu-kai 設定頁。 */
+    override fun onOpenSettings() {
+        requestHideSelf(0)
+        startActivity(Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 
 
     // ---- 執行 InputConnection 操作 ----

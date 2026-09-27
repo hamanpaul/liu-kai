@@ -1,7 +1,10 @@
 package com.hamanpaul.liukai.cli
 
+import com.hamanpaul.liukai.core.table.SectionKind
+import com.hamanpaul.liukai.core.table.TableBundle
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.io.PrintStream
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
@@ -38,6 +41,19 @@ class MainTest {
         assertTrue("TRADITIONAL\tab\t天\t120" in lines)
         assertTrue("TRADITIONAL\tka,\tか\t100" in lines)
         assertTrue(lines.none { it.startsWith("JAPANESE") })
+    }
+
+    @Test
+    fun `bundle 輸出 app 直接載入的二進位字表`() {
+        val dir = createTempDirectory().toFile()
+        val bin = File(dir, "out/bundled.liutable")
+        val (code, out, _) = exec("bundle", "$fixtures/synthetic-ibus.txt", "$fixtures/synthetic-lime.txt", "--out", bin.path)
+        assertEquals(0, code)
+        assertTrue("wrote ${bin.path}" in out, out)
+        val read = FileInputStream(bin).let { TableBundle.read(it).also { _ -> it.close() } }
+        assertEquals(listOf(SectionKind.TRADITIONAL), read.sections.map { it.kind })
+        assertTrue(read.sections.single().entries.any { it.code == "ka," && it.text == "か" })
+        assertEquals(listOf("synthetic-ibus.txt", "synthetic-lime.txt"), read.sources.map { it.name })
     }
 
     @Test
@@ -83,6 +99,7 @@ class MainTest {
             listOf("stats") to "需要至少一個字表檔",
             listOf("convert", "$fixtures/synthetic-lime.txt") to "convert 需要 --out",
             listOf("convert", "$fixtures/synthetic-lime.txt", "--out") to "--out 需要值",
+            listOf("bundle", "$fixtures/synthetic-lime.txt") to "bundle 需要 --out",
             listOf("gen-readings", "--out", "x.tsv") to "gen-readings 需要 --unihan",
             listOf("gen-readings", "--unihan", "u.txt") to "gen-readings 需要 --out",
         )

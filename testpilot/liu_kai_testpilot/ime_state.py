@@ -45,6 +45,11 @@ class ImeState:
     candidate_row: Rect
     candidates: list[CandidateView] = field(default_factory=list)
     keys: dict[str, Rect] = field(default_factory=dict)
+    # 螢幕鍵盤：目前的層（letters／symbols／alt）、各排按鍵 id、Enter 鍵標籤、長按彈出的按鍵 id
+    layer: str = "letters"
+    rows: list[list[str]] = field(default_factory=list)
+    enter_label: str = ""
+    popup: list[str] = field(default_factory=list)
 
     def candidate(self, text: str | None = None, index: int | None = None) -> CandidateView:
         for c in self.candidates:
@@ -78,5 +83,9 @@ def parse_dump(output: str) -> ImeState:
                 candidate_row=_rect(d["candidateRow"]),
                 candidates=[CandidateView(c["index"], c["text"], c["annotation"], _rect(c)) for c in d["candidates"]],
                 keys={k: _rect(v) for k, v in d["keys"].items()},
+                layer=d["layer"],
+                rows=d["rows"],
+                enter_label=d["enterLabel"],
+                popup=d["popup"],
             )
     raise ValueError("dumpsys 輸出中沒有 LIUKAI_STATE（輸入法未啟動或不是 liu-kai？）")

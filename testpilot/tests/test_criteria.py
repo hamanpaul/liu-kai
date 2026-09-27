@@ -69,3 +69,17 @@ def test_missing_field_and_unknown_operator_fail_with_reason():
 
 def test_empty_criteria_is_not_a_pass():
     assert evaluate([], RESULTS) == (False, ["FAIL 沒有 pass_criteria"])
+
+
+def test_equals_field_compares_with_another_captured_field():
+    results = {"steps": {
+        "a": {"captured": {"y": 1500}}, "b": {"captured": {"y": 1500}}, "c": {"captured": {"y": 200}},
+    }}
+    ok, details = evaluate([{"field": "b.y", "operator": "equals_field", "value": "a.y"}], results)
+    assert ok is True
+    assert details == ["PASS b.y equals_field 'a.y'（實際 1500，a.y 為 1500）"]
+    ok, details = evaluate([{"field": "c.y", "operator": "equals_field", "value": "a.y"}], results)
+    assert ok is False
+    ok, details = evaluate([{"field": "c.y", "operator": "equals_field", "value": "zz.y"}], results)
+    assert ok is False
+    assert "找不到 step zz" in details[0]

@@ -22,6 +22,7 @@ _SYMBOL_KEYS = {
 MAX_SCROLLS = 8
 ROTATE_POLLS = 20
 TOUCH_POLLS = 20
+BIND_POLLS = 20
 _FOCUS = re.compile(r"mCurrentFocus=Window\{([0-9a-f]+) ")
 _WINDOW_HEADER = re.compile(r"^\s*Window #\d+ Window\{\S+ u\d+ (.+)\}:\s*$")
 _IME_FRAME = re.compile(r"name=\S+ InputMethod, [^\n]*?\bframe=\[-?\d+,(-?\d+)\]")
@@ -139,6 +140,22 @@ class StepExecutor:
             if f"name={focus.group(1)} " in line:
                 return "NOT_VISIBLE" not in line and "NOT_TOUCHABLE" not in line
         return False
+
+    def ime_bound(self, component: str) -> bool:
+        """`dumpsys input_method`：目前輸入法為 component，且已接上 testhost 的輸入欄。"""
+        dump = self.adb.shell("dumpsys input_method")
+        host = self.config.host_component.split("/")[0]
+        return f"mCurId={component} " in dump and "mBoundToMethod=true" in dump and f"packageName={host} " in dump
+
+    def _do_await_bound(self, step):
+        """等系統把 testhost 的輸入欄接上 liu-kai：App 剛啟動時輸入法還沒接上，這時的按鍵送不到輸入法。"""
+        polls = 0
+        while not self.ime_bound(self.config.ime_component):
+            polls += 1
+            if polls == BIND_POLLS:
+                raise LookupError("輸入法未接上 testhost 的輸入欄")
+            self._sleep(0.5)
+        return f"ime bound to {self.config.host_component.split('/')[0]}", {}
 
     def await_touchable(self) -> None:
         """等目前取得焦點的視窗可接收觸控（觸控派送清單中沒有 NOT_VISIBLE／NOT_TOUCHABLE）。
@@ -280,6 +297,11 @@ class StepExecutor:
             "window_shown": s.window_shown,
             "keyboard_visible": s.keyboard_visible,
             "failure_hint": s.failure_hint,
+            "candidate_row_y": s.candidate_row.y,
+            "layer": s.layer,
+            "rows": s.rows,
+            "enter_label": s.enter_label,
+            "popup": s.popup,
             "candidates": s.candidate_texts(),
             "annotations": [c.annotation for c in s.candidates],
         }
@@ -351,8 +373,13 @@ class StepExecutor:
             self.adb.run_as_write(self.config.app_package, "files/table.liutb", b"not a liu-kai table")
             result = "corrupt"
         elif source == "none":
-            self.adb.shell(f"run-as {self.config.app_package} rm -f files/table.liutb")
+            # 同時標記內建字表已套用過，否則下次載入會自動改用 APK 內建字表
+            self.adb.shell(f"run-as {self.config.app_package} sh -c 'rm -f files/table.liutb && touch files/table.seeded'")
             result = "removed"
+        elif source == "bundled":
+            # 等同全新安裝：下次載入時改用 APK 內建字表
+            self.adb.shell(f"run-as {self.config.app_package} rm -f files/table.liutb files/table.seeded")
+            result = "reset to bundled"
         else:
             _, result = self.adb.broadcast("com.hamanpaul.liukai.DEBUG_IMPORT", self.config.import_receiver, {"source": source})
         self.settle()

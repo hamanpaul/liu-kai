@@ -72,6 +72,11 @@ def test_ime_state_captures_summary(ex, adb):
         "window_shown": True,
         "keyboard_visible": False,
         "failure_hint": False,
+        "candidate_row_y": 2200,
+        "layer": "letters",
+        "rows": [],
+        "enter_label": "↵",
+        "popup": [],
         "candidates": ["日", "月"],
         "annotations": [None, "ㄩㄝˋ"],
     }
@@ -166,8 +171,12 @@ def test_import_table_empty_files_list_broadcasts_without_writing(ex, adb):
 def test_corrupt_and_remove_table(ex, adb):
     assert run(ex, action="import_table", source="corrupt")["captured"] == {"result": "corrupt"}
     assert adb.written == {"files/table.liutb": b"not a liu-kai table"}
+    # none：刪除字表並標記「內建字表已套用過」，下次載入不會自動改用內建字表
     assert run(ex, action="import_table", source="none")["captured"] == {"result": "removed"}
-    assert adb.of("shell")[-1][1] == "run-as com.hamanpaul.liukai rm -f files/table.liutb"
+    assert adb.of("shell")[-1][1] == "run-as com.hamanpaul.liukai sh -c 'rm -f files/table.liutb && touch files/table.seeded'"
+    # bundled：刪除字表與標記（等同全新安裝），下次載入改用 APK 內建字表
+    assert run(ex, action="import_table", source="bundled")["captured"] == {"result": "reset to bundled"}
+    assert adb.of("shell")[-1][1] == "run-as com.hamanpaul.liukai rm -f files/table.liutb files/table.seeded"
 
 
 def test_ime_enable_disable(ex, adb):
@@ -367,3 +376,17 @@ def test_tap_text_gives_up_when_focused_window_never_accepts_touches(ex, adb):
     assert adb.of("tap") == []
     adb.shell_outputs["dumpsys window |"] = [FOCUS.replace("a1b2c3", "ffffff")]
     assert run(ex, action="tap_text", text="清除字表")["success"] is False
+
+
+def test_await_bound_waits_until_ime_is_connected_to_host_field(ex, adb):
+    bound = "  mCurId=com.hamanpaul.liukai/.ime.LiuKaiImeService mBoundToMethod=true\n    packageName=com.hamanpaul.liukai.testhost fieldId=1\n"
+    adb.queue("dumpsys input_method", "mCurId=other\n", bound)
+    assert run(ex, action="await_bound")["output"] == "ime bound to com.hamanpaul.liukai.testhost"
+    assert [c[1] for c in adb.of("shell")].count("dumpsys input_method") == 2
+
+
+def test_await_bound_gives_up(ex, adb):
+    adb.queue("dumpsys input_method", "mCurId=other\n")
+    result = run(ex, action="await_bound")
+    assert result["success"] is False
+    assert "未接上" in result["output"]

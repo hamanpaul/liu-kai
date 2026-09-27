@@ -1,6 +1,6 @@
 id: settings-clear-table
-name: 設定頁清除字表
-description: 按「清除字表」後顯示尚未匯入。
+name: 設定頁清除字表後改用內建字表
+description: 按「清除字表」清掉匯入的字表後，改用 APK 內建的字表（狀態顯示「字表：內建」）。
 topology:
   devices:
     EMU:
@@ -26,11 +26,11 @@ steps:
 - id: status
   action: wait_text
   target: EMU
-  contains: 尚未匯入
+  contains: 字表：內建
 pass_criteria:
 - field: status.text
   operator: contains
-  value: 尚未匯入
+  value: 字表：內建
 - field: report.text
   operator: equals
-  value: 已清除字表
+  value: 已清除匯入的字表

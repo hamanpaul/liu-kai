@@ -1,0 +1,171 @@
+id: soft-layout-official
+name: 螢幕鍵盤配置照官方嘸蝦米
+description: 字母層（q–p 附數字提示、a–l、⇧ z–m ⌫、中 ?123 , 空白 . Enter）、?123 層、ALT 層逐排比對官方 PRO 的配置；一般欄的 Enter 標籤為 Next。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: st1
+  action: ime_state
+  target: EMU
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st2
+  action: ime_state
+  target: EMU
+- id: alt
+  action: tap_key
+  target: EMU
+  key: alt
+- id: st3
+  action: ime_state
+  target: EMU
+- id: alt2
+  action: tap_key
+  target: EMU
+  key: alt
+- id: st4
+  action: ime_state
+  target: EMU
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st5
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st1.layer
+  operator: equals
+  value: letters
+- field: st1.rows
+  operator: equals
+  value:
+  - - q
+    - w
+    - e
+    - r
+    - t
+    - y
+    - u
+    - i
+    - o
+    - p
+  - - a
+    - s
+    - d
+    - f
+    - g
+    - h
+    - j
+    - k
+    - l
+  - - shift
+    - z
+    - x
+    - c
+    - v
+    - b
+    - n
+    - m
+    - backspace
+  - &id001
+    - toggle_english
+    - symbols
+    - ','
+    - space
+    - .
+    - enter
+- field: st1.enter_label
+  operator: equals
+  value: Next
+- field: st2.layer
+  operator: equals
+  value: symbols
+- field: st2.rows
+  operator: equals
+  value:
+  - - '1'
+    - '2'
+    - '3'
+    - '4'
+    - '5'
+    - '6'
+    - '7'
+    - '8'
+    - '9'
+    - '0'
+  - - '@'
+    - '#'
+    - $
+    - '%'
+    - '&'
+    - '*'
+    - '-'
+    - +
+    - (
+    - )
+  - - alt
+    - '!'
+    - '"'
+    - ''''
+    - ':'
+    - ;
+    - /
+    - '?'
+    - backspace
+  - *id001
+- field: st3.layer
+  operator: equals
+  value: alt
+- field: st3.rows
+  operator: equals
+  value:
+  - - '~'
+    - '`'
+    - '|'
+    - •
+    - √
+    - π
+    - ÷
+    - ×
+    - '{'
+    - '}'
+  - - tab
+    - £
+    - ¢
+    - €
+    - °
+    - ^
+    - _
+    - '='
+    - '['
+    - ']'
+  - - alt
+    - ™
+    - ®
+    - ©
+    - ¶
+    - \
+    - <
+    - '>'
+    - backspace
+  - - toggle_english
+    - symbols
+    - „
+    - space
+    - …
+    - enter
+- field: st4.layer
+  operator: equals
+  value: symbols
+- field: st5.layer
+  operator: equals
+  value: letters

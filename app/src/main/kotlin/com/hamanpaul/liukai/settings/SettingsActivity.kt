@@ -47,7 +47,7 @@ class SettingsActivity : Activity() {
         button("3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）") { pickFiles() }
         button("清除字表") {
             TableStore.clear(this)
-            report.text = "已清除字表"
+            report.text = "已清除匯入的字表"
             refresh()
         }
         report = TextView(this).apply {
@@ -82,7 +82,7 @@ class SettingsActivity : Activity() {
             runOnUiThread {
                 status.text = "輸入法：" + (if (enabled) "已啟用" else "未啟用") + "／" + (if (selected) "使用中" else "未切換") +
                     "\n字表：" + loaded.fold(
-                        { if (it != null) "已匯入" else "尚未匯入" },
+                        { if (it == null) "尚未匯入" else if (it.bundled) "內建" else "已匯入" },
                         { "損毀（${it.message}），請重新匯入" },
                     )
                 loaded.getOrNull()?.let { if (report.text.isEmpty()) report.text = describe(it.bundle) }

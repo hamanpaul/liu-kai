@@ -1,6 +1,6 @@
 id: soft-symbols
 name: 軟鍵盤符號層
-description: 切到符號層輸入 1、= 與 ?，再切回字母層。
+description: ?123 層輸入 1，ALT 層輸入 =，回 ?123 層輸入 ?，再按 ABC 回字母層。
 topology:
   devices:
     EMU:
@@ -18,10 +18,18 @@ steps:
   action: tap_key
   target: EMU
   key: '1'
+- id: alt
+  action: tap_key
+  target: EMU
+  key: alt
 - id: eq
   action: tap_key
   target: EMU
   key: '='
+- id: alt2
+  action: tap_key
+  target: EMU
+  key: alt
 - id: qm
   action: tap_key
   target: EMU
@@ -44,3 +52,6 @@ pass_criteria:
 - field: st.composing
   operator: equals
   value: ''
+- field: st.layer
+  operator: equals
+  value: letters

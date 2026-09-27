@@ -25,6 +25,10 @@ STATE = {
         {"index": 1, "text": "月", "annotation": "ㄩㄝˋ", "x": 300, "y": 2000, "w": 100, "h": 150},
     ],
     "keys": {"b": {"x": 500, "y": 2300, "w": 90, "h": 140}},
+    "layer": "symbols",
+    "rows": [["1", "2"], ["alt", "backspace"]],
+    "enterLabel": "Next",
+    "popup": ["popup:!", "popup:?"],
 }
 
 
@@ -36,6 +40,9 @@ def test_parse_dump_decodes_state_line():
     assert state.homophone_of is None
     assert state.keyboard_visible is True
     assert state.failure_hint is True
+    assert (state.layer, state.rows, state.enter_label, state.popup) == (
+        "symbols", [["1", "2"], ["alt", "backspace"]], "Next", ["popup:!", "popup:?"]
+    )
     assert [c.text for c in state.candidates] == ["日", "月"]
     assert state.candidates[1].annotation == "ㄩㄝˋ"
     assert state.candidate_row == Rect(0, 2000, 1080, 150)
