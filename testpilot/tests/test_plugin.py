@@ -204,3 +204,22 @@ def test_setup_fails_when_keyboard_area_never_follows_setting(adb):
     adb.queue(DUMPSYS, state_dump(keyboardVisible=False))
     assert p.setup_env(case(preconditions={"keyboard": "soft"}), None) is False
     assert "鍵盤區未跟上設定" in p.evidence["c1"]["setup"][-1]["output"]
+
+
+def test_setup_applies_prefs_before_launch_and_teardown_resets(plugin, adb):
+    c = case(preconditions={"table": "demo", "prefs": {"number_row": "true", "theme": "WHITE"}})
+    assert plugin.setup_env(c, None) is True
+    extras = [b[3] for b in adb.of("broadcast")]
+    assert {"key": "number_row", "value": "true"} in extras
+    assert {"key": "theme", "value": "WHITE"} in extras
+    # 偏好在啟動 testhost 之前設定：輸入法在顯示鍵盤時讀取
+    pref_at = max(i for i, c in enumerate(adb.calls) if c[0] == "broadcast")
+    launch_at = next(i for i, c in enumerate(adb.calls) if c[0] == "shell" and c[1].startswith("am start -W -S"))
+    assert pref_at < launch_at
+    plugin.teardown(c, None)
+    assert adb.of("broadcast")[-1][3] == {"reset": "true"}
+
+
+def test_teardown_without_prefs_does_not_reset_prefs(plugin, adb):
+    plugin.teardown(case(), None)
+    assert all(b[3] != {"reset": "true"} for b in adb.of("broadcast"))

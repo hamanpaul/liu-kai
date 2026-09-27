@@ -1,0 +1,31 @@
+id: soft-key-preview-off
+name: 關閉按鍵預覽
+description: 設定「按鍵時顯示彈出式視窗」關閉時，按住按鍵不顯示預覽。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    key_preview: 'false'
+steps:
+- id: down
+  action: touch_key
+  target: EMU
+  key: g
+  phase: down
+- id: st1
+  action: ime_state
+  target: EMU
+- id: up
+  action: touch_key
+  target: EMU
+  key: g
+  phase: up
+pass_criteria:
+- field: st1.preview
+  operator: equals
+  value: null

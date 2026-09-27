@@ -65,6 +65,10 @@ class ImeState:
     languages: list[str] = field(default_factory=list)
     # 同音查碼：從同音字清單上屏的字與字碼（例如「忠 qa」），沒有時為 None
     code_hint: str | None = None
+    # Shift 狀態（off／once／locked）、按住中的按鍵預覽（按鍵 id）、震動與音效次數
+    shift: str = "off"
+    preview: str | None = None
+    feedback: dict[str, int] = field(default_factory=dict)
 
     def candidate(self, text: str | None = None, index: int | None = None) -> CandidateView:
         for c in self.candidates:
@@ -111,5 +115,8 @@ def parse_dump(output: str) -> ImeState:
                 language=d["language"],
                 languages=d["languages"],
                 code_hint=d["codeHint"],
+                shift=d["shift"],
+                preview=d["preview"],
+                feedback=d["feedback"],
             )
     raise ValueError("dumpsys 輸出中沒有 LIUKAI_STATE（輸入法未啟動或不是 liu-kai？）")

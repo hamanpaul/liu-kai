@@ -107,6 +107,9 @@ class Plugin(PluginBase):
         table = pre.get("table", "demo")
         if table != self._applied_table:
             steps.append({"action": "import_table", "source": table, "files": pre.get("files", [])})
+        # 偏好（例如顯示數字鍵、主題）在啟動 testhost 之前設定：輸入法在顯示鍵盤時讀取
+        for key, value in pre.get("prefs", {}).items():
+            steps.append({"action": "pref", "key": key, "value": value})
         soft = "1" if pre.get("keyboard", "hard") == "soft" else "0"
         steps.append({"action": "setting", "namespace": "secure", "key": "show_ime_with_hard_keyboard", "value": soft})
         launch = pre.get("launch", "host")
@@ -172,10 +175,13 @@ class Plugin(PluginBase):
         return ok
 
     def teardown(self, case: dict[str, Any], topology: Any) -> None:
-        for step in (
+        steps = [
             {"action": "keys", "keys": ["ESCAPE"]},
             {"action": "shell", "command": "settings put system user_rotation 0"},
-        ):
+        ]
+        if case.get("preconditions", {}).get("prefs"):
+            steps.append({"action": "pref", "reset": True})
+        for step in steps:
             self.executor.execute(step)
         if case.get("mutates_table"):
             self._applied_table = None

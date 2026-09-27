@@ -1,0 +1,37 @@
+id: soft-auto-return-off
+name: 關閉自動返回字元輸入模式
+description: 設定關閉時，在 ?123 層打符號後按空白仍留在 ?123 層。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_return: 'false'
+steps:
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: one
+  action: tap_key
+  target: EMU
+  key: '1'
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: st1
+  action: ime_state
+  target: EMU
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+pass_criteria:
+- field: st1.layer
+  operator: equals
+  value: symbols

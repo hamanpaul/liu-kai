@@ -44,6 +44,7 @@ def test_key_and_input_helpers_build_input_commands():
     adb.tap(10, 20)
     adb.long_press(10, 20, 900)
     adb.swipe(100, 20, 10, 20, 300)
+    adb.motionevent("DOWN", 10, 20)
     shells = [c[0][-1] for c in runner.calls]
     assert shells == [
         "input keyevent KEYCODE_B KEYCODE_A",
@@ -52,6 +53,7 @@ def test_key_and_input_helpers_build_input_commands():
         "input tap 10 20",
         "input swipe 10 20 10 20 900",
         "input swipe 100 20 10 20 300",
+        "input motionevent DOWN 10 20",
     ]
 
 

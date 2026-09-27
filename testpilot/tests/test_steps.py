@@ -84,6 +84,9 @@ def test_ime_state_captures_summary(ex, adb):
         "strip": [],
         "language": "TRADITIONAL",
         "code_hint": None,
+        "shift": "off",
+        "preview": None,
+        "feedback": {"vibrate": 0, "sound": 0},
         "candidate_strip": [2200, 150],
         "candidates": ["日", "月"],
         "annotations": [None, "ㄩㄝˋ"],
@@ -621,3 +624,40 @@ def test_tap_key_without_ack_does_not_wait_for_the_ime(ex, adb):
     assert result["success"] is True
     assert adb.of("tap") == [("tap", 1040, 2275)]
     assert len([c for c in adb.of("shell") if c[1].startswith(DUMPSYS)]) == 1
+
+
+PREF = ("com.hamanpaul.liukai.DEBUG_PREF", "com.hamanpaul.liukai/.debug.DebugPrefReceiver")
+
+
+def test_pref_sets_one_value_through_debug_receiver(ex, adb):
+    result = run(ex, action="pref", key="number_row", value="true")
+    assert result["success"] is True
+    assert adb.of("broadcast") == [("broadcast", *PREF, {"key": "number_row", "value": "true"})]
+
+
+def test_pref_reset_and_failure(ex, adb):
+    run(ex, action="pref", reset=True)
+    assert adb.of("broadcast")[-1] == ("broadcast", *PREF, {"reset": "true"})
+    adb.shell_outputs["#broadcast"] = [(0, None)]
+    result = run(ex, action="pref", key="x", value="y")
+    assert result["success"] is False
+    assert "設定偏好失敗" in result["output"]
+
+
+KEY_G = {"g": {"x": 500, "y": 2300, "w": 100, "h": 100}}
+
+
+def test_touch_key_down_holds_and_up_releases(ex, adb):
+    # 按住時才看得到按鍵預覽：down 不等輸入法回應（沒有放開），up 等輸入法處理完
+    adb.queue(DUMPSYS, state_dump(keys=KEY_G))
+    assert run(ex, action="touch_key", key="g", phase="down")["success"] is True
+    assert adb.of("motionevent") == [("motionevent", "DOWN", 550, 2350)]
+    adb.queue(DUMPSYS, state_dump(keys=KEY_G, touches=0), state_dump(keys=KEY_G, touches=1))
+    assert run(ex, action="touch_key", key="g", phase="up")["success"] is True
+    assert adb.of("motionevent")[-1] == ("motionevent", "UP", 550, 2350)
+
+
+def test_swipe_key_moves_horizontally_from_key_center(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"space": {"x": 300, "y": 2300, "w": 400, "h": 100}}))
+    assert run(ex, action="swipe_key", key="space", dx=-300, duration_ms=800)["success"] is True
+    assert adb.of("swipe") == [("swipe", 500, 2350, 200, 2350, 800)]

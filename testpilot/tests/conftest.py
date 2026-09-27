@@ -28,6 +28,9 @@ def state_dump(**overrides) -> str:
         "language": "TRADITIONAL",
         "languages": ["TRADITIONAL"],
         "codeHint": None,
+        "shift": "off",
+        "preview": None,
+        "feedback": {"vibrate": 0, "sound": 0},
     }
     state.update(overrides)
     payload = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
@@ -138,6 +141,10 @@ class FakeAdb:
     def long_press(self, x, y, ms):
         self._check("input swipe")
         self.calls.append(("long_press", x, y, ms))
+
+    def motionevent(self, action, x, y):
+        self._check("input motionevent")
+        self.calls.append(("motionevent", action, x, y))
 
     def swipe(self, x1, y1, x2, y2, ms):
         self._check("input swipe")

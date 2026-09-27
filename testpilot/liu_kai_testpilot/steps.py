@@ -25,7 +25,7 @@ TOUCH_POLLS = 20
 BIND_POLLS = 20
 SHOWN_POLLS = 30
 FIELD_POLLS = 6
-STATE_POLLS = 6
+STATE_POLLS = 12
 BACK_CHECKS = 3
 WINDOW_POLLS = 20
 READ_POLLS = 6
@@ -54,6 +54,7 @@ class DeviceConfig:
     host_component: str = "com.hamanpaul.liukai.testhost/.HostActivity"
     settings_component: str = "com.hamanpaul.liukai/.settings.SettingsActivity"
     import_receiver: str = "com.hamanpaul.liukai/.debug.DebugImportReceiver"
+    pref_receiver: str = "com.hamanpaul.liukai/.debug.DebugPrefReceiver"
     screen_width: int = 1080
     settle_ms: int = 400
 
@@ -326,6 +327,27 @@ class StepExecutor:
             self.settle()
         return f"tap key {step['key']}", {}
 
+    def _do_touch_key(self, step):
+        """按住（phase: down）或放開（phase: up）螢幕鍵盤的鍵，用來檢查按住時的畫面（例如按鍵放大預覽）。
+        放開時等輸入法處理完。"""
+        state = self.shown_state()
+        x, y = state.key(step["key"]).center
+        if step["phase"] == "down":
+            self.adb.motionevent("DOWN", x, y)
+            self.settle()
+        else:
+            self.adb.motionevent("UP", x, y)
+            self._await_touch_handled(state)
+        return f"touch {step['phase']} {step['key']}", {}
+
+    def _do_swipe_key(self, step):
+        """從鍵的中心水平滑動 dx 像素（例如空白鍵左右滑動移動游標），並等輸入法處理完。"""
+        state = self.shown_state()
+        x, y = state.key(step["key"]).center
+        self.adb.swipe(x, y, x + step["dx"], y, step.get("duration_ms", 800))
+        self._await_touch_handled(state)
+        return f"swipe {step['key']} dx={step['dx']}", {}
+
     def _do_long_press_key(self, step):
         state = self.shown_state()
         self.adb.long_press(*state.key(step["key"]).center, step.get("duration_ms", 1000))
@@ -422,6 +444,9 @@ class StepExecutor:
             "strip": s.strip,
             "language": s.language,
             "code_hint": s.code_hint,
+            "shift": s.shift,
+            "preview": s.preview,
+            "feedback": s.feedback,
             "candidate_strip": [s.candidate_row.y, s.candidate_row.h],
             "candidates": s.candidate_texts(),
             "annotations": [c.annotation for c in s.candidates],
@@ -465,6 +490,15 @@ class StepExecutor:
     def _do_shell(self, step):
         out = self.adb.shell(step["command"]).strip()
         return out, {"output": out}
+
+    def _do_pref(self, step):
+        """設定輸入法偏好（debug 版的 DebugPrefReceiver）：key／value 設定一項，reset: true 回到預設值。
+        輸入法在下一次顯示鍵盤時讀取設定。"""
+        extras = {"reset": "true"} if step.get("reset") else {"key": step["key"], "value": str(step["value"])}
+        code, data = self.adb.broadcast("com.hamanpaul.liukai.DEBUG_PREF", self.config.pref_receiver, extras)
+        if code != 1:
+            raise RuntimeError(f"設定偏好失敗：{data}")
+        return data, {}
 
     def _do_current_ime(self, step):
         """目前的輸入法；指定 expect 時等它成為目前輸入法（例如語音鍵切換到語音輸入，最多 WINDOW_POLLS 次）。"""

@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import com.hamanpaul.liukai.core.engine.InputMode
 import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
 import com.hamanpaul.liukai.core.ime.EditorPolicy
@@ -19,6 +20,7 @@ import com.hamanpaul.liukai.core.ime.ImeOutcome
 import com.hamanpaul.liukai.core.ime.SoftKey
 import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.data.ImePrefs
+import com.hamanpaul.liukai.data.KeyboardSettings
 import com.hamanpaul.liukai.data.TableStore
 import com.hamanpaul.liukai.settings.SettingsActivity
 import org.json.JSONObject
@@ -34,6 +36,8 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
 
     /** 輸入畫面在服務建立時就建好，服務存活期間都存在（不需處理「尚未建立」的狀態）。 */
     private lateinit var view: ImeView
+    /** 目前的鍵盤設定（每次顯示鍵盤時讀取）。 */
+    private var settings = KeyboardSettings()
 
     override fun onCreate() {
         super.onCreate()
@@ -87,6 +91,9 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         super.onStartInputView(info, restarting)
         // 換到新的輸入欄：軟鍵盤回到字母層並放開 Shift；Enter 標籤依欄位動作
         view.setEnterAction(EditorPolicy.enterAction(info.imeOptions, info.inputType))
+        // 設定頁的變更在下一次顯示鍵盤時生效
+        settings = ImePrefs.settings(this)
+        view.applySettings(settings)
         view.resetLayout()
         view.setKeyboardVisible(super.onEvaluateInputViewShown())
         render()
@@ -165,6 +172,14 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         execute(controller.selectLanguage(language))
     }
 
+    /** 空白鍵滑動：以方向鍵移動游標。 */
+    override fun onCursor(delta: Int) {
+        sendDownUpKeyEvents(if (delta < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
+    }
+
+    /** 退出鍵盤鍵：收起輸入法。 */
+    override fun onHide() = requestHideSelf(0)
+
     /** 候選列的常用標點：直接上屏（只在沒有組字時顯示）。 */
     override fun onPunctuation(text: String) = execute(listOf(IcOp.Commit(text)))
 
@@ -212,6 +227,11 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
 
     private fun render() {
         view.render(uiState())
+        // 英文自動大寫（設定「自動大寫」）：依欄位的大寫設定與游標位置（句首、欄位開頭等）決定
+        val english = controller.engine.mode == InputMode.ENGLISH || !controller.tableLoaded
+        val caps = english && settings.autoCap &&
+            currentInputConnection.getCursorCapsMode(currentInputEditorInfo.inputType) != 0
+        view.setAutoCaps(caps)
     }
 
     /**

@@ -87,6 +87,10 @@ class Adb:
     def swipe(self, x1: int, y1: int, x2: int, y2: int, duration_ms: int) -> None:
         self.shell(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}")
 
+    def motionevent(self, action: str, x: int, y: int) -> None:
+        """單一觸控事件（DOWN／MOVE／UP），用來按住按鍵檢查按住時的畫面。"""
+        self.shell(f"input motionevent {action} {x} {y}")
+
     def broadcast(self, action: str, component: str, extras: dict[str, str]) -> tuple[int, str | None]:
         args = "".join(f" --es {k} {v}" for k, v in extras.items())
         out = self.shell(f"am broadcast -a {action} -n {component}{args}")
