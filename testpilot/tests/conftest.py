@@ -20,6 +20,9 @@ def state_dump(**overrides) -> str:
         "rows": [],
         "enterLabel": "↵",
         "popup": [],
+        "rowRects": [],
+        "rowColors": [],
+        "probe": {"x": 4, "y": 2204, "color": "#000000"},
     }
     state.update(overrides)
     payload = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
@@ -63,6 +66,13 @@ UI_XML = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 </hierarchy>"""
 
 
+def raw_screen(color, width=8, height=2400, header=16):
+    """Android `screencap` 原始格式：寬、高、格式（Android 12+ 另有 dataspace）＋ RGBA 像素。"""
+    head = width.to_bytes(4, "little") + height.to_bytes(4, "little") + (1).to_bytes(4, "little")
+    head += b"\0" * (header - 12)
+    return head + bytes([*color, 255]) * (width * height)
+
+
 class FakeAdb:
     """假 adb：shell 依指令前綴回傳排好的輸出（佇列），並記錄所有呼叫。"""
 
@@ -72,6 +82,7 @@ class FakeAdb:
         self.files = {}
         self.written = {}
         self.fail_on = None
+        self.screens = [raw_screen((0, 0, 0))]
 
     def queue(self, prefix, *outputs):
         self.shell_outputs.setdefault(prefix, []).extend(outputs)
@@ -90,7 +101,18 @@ class FakeAdb:
         if not matches:
             return ""
         outputs = self.shell_outputs[max(matches, key=len)]
-        return outputs.pop(0) if len(outputs) > 1 else outputs[0]
+        return self._with_touches(outputs.pop(0) if len(outputs) > 1 else outputs[0])
+
+    def _with_touches(self, output):
+        """輸入法狀態沒指定 touches 時，填入目前為止的觸控次數（模擬輸入法立即處理完每次點擊）。"""
+        head, marker, payload = output.partition("LIUKAI_STATE ")
+        if not marker:
+            return output
+        payload, newline, rest = payload.partition("\n")
+        state = json.loads(base64.b64decode(payload))
+        state.setdefault("touches", len([c for c in self.calls if c[0] in ("tap", "long_press", "swipe")]))
+        encoded = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
+        return head + marker + encoded + newline + rest
 
     def keyevent(self, *codes):
         self._check("input keyevent")
@@ -137,6 +159,13 @@ class FakeAdb:
     def screencap(self):
         self.calls.append(("screencap",))
         return b"PNG"
+
+    def screencap_raw(self):
+        """`adb exec-out screencap`（原始 RGBA）：依序回傳 self.screens，最後一個重複使用；預設全黑。"""
+        self.calls.append(("screencap_raw",))
+        if len(self.screens) > 1:
+            return self.screens.pop(0)
+        return self.screens[0]
 
     def of(self, kind):
         return [c for c in self.calls if c[0] == kind]

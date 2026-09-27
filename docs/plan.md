@@ -115,8 +115,14 @@ liu70_jp.* ─────────┘                         └─► neut
   - 長按「.」彈出 `: / & ( ) - + ; @ ' " ? ! ,`，長按「,」彈出 ⚙（開啟設定）與 ,；點彈出區以外只收起；
   - 字根 `'` `[` `]`、萬用字元 `*`、同音鍵 `` ` `` 位置同官方（?123／ALT 層），切換鍵盤層不影響組字；
   - Enter 標籤依欄位動作（Next、Search、Go、Send、Done、Prev），會換行的欄位顯示 ↵；「中」鍵顯示目前模式（中／英，沒有字表時為「無表」）；
-  - 淺色扁平按鍵、綠色強調色（Enter、Shift／ALT 啟用中）。
+  - 外觀照使用者手機上的官方 PRO 設定「經典灰、顯示按鍵、直式按鍵高、字體適中」（官方另有 10 種主題與按鍵高度設定，liu-kai 目前只做這一種）：
+    黑底、按鍵獨立分格（一般鍵 `#8A8A8A→#6F6F6F`、功能鍵 `#4B4C4C→#323232` 上淺下深漸層）、白色粗體字；
+    候選列 42dp、每排 71.65dp（格高約 65dp）、每排 10 等分位置格、格間距約 5dp；Shift／ALT 右上角指示點（啟用時黃綠色）；
+    ⌫、⇧、⎵ 為白色圖示；長按彈出為深色面板、底部橘線、其餘按鍵變暗，面板最右一格（預設字）對齊按下的鍵；
+    `soft-style-official` 以官方截圖量測值逐格比對字母／?123／ALT 三層（容差 ±4px）。
+  - 測試以原始截圖確認鍵盤真的畫在螢幕上（輸入法回報的探測點顏色）：剛切換「實體鍵盤時顯示螢幕鍵盤」後，輸入法視窗可能已顯示但畫面上看不到，此時點擊會落空。截圖一次約 1.6 秒且會加重模擬器繪圖負載，連續操作鍵盤時只在第一次確認，視窗移動或執行其他動作後才重新確認。每次點擊鍵盤或候選後等輸入法狀態中的觸控計數（`touches`）增加才進行下一步：輸入法主執行緒忙碌時點擊還在佇列中，太早讀狀態會讀到舊值，太早點下一鍵可能被當成長按。設定頁的點擊以 `until` 確認目標畫面出現，系統忙碌時點擊會被丟掉（InputDispatcher 的 No new touched window），等不到且按鈕還在就再點一次。
   - 輸入法視窗剛附加時第一次 inset 通知的導覽列高度為 0，以視窗尺寸推算的導覽列高度為下限，避免鍵盤跳動。
+  - 覆寫 `onFinishInputView` 不呼叫預設的 finishComposingText：收起畫面後仍可用實體鍵盤繼續組字，預設行為在收起通知晚到時會把新的組字定案成字母。
 - 設定頁：
   - 啟用輸入法引導、匯入字表（SAF）、顯示匯入報告與目前字表 manifest、清除字表。
   - debug 版另提供「從 app 專屬外部目錄匯入」，供 adb 自動化。
@@ -136,7 +142,7 @@ liu70_jp.* ─────────┘                         └─► neut
 | core 單元測試 | 引擎、字表、讀音、IME 決策（`ImeController` 等） | `./gradlew :core:check`（CI） | JaCoCo 行＋分支 100% |
 | cli 單元測試 | stats／convert／gen-readings、main | `./gradlew :cli:check`（CI） | JaCoCo 行＋分支 100% |
 | TestPilot plugin | adb 包裝、狀態／UI 解析、step、判定、runner、報告 | `pytest`（CI） | 行＋分支 100% |
-| 模擬器端對端 | `testpilot run liu_kai`：60 個 YAML 案例（實體鍵盤、螢幕鍵盤配置與彈出鍵、設定頁、SAF 選檔、字表損毀、內建字表、真實字表抽測） | `scripts/emulator-e2e.sh`（本機 AVD `LiuKai35`） | app JaCoCo 行＋分支 100% |
+| 模擬器端對端 | `testpilot run liu_kai`：61 個 YAML 案例（實體鍵盤、螢幕鍵盤配置與彈出鍵、設定頁、SAF 選檔、字表損毀、內建字表、真實字表抽測） | `scripts/emulator-e2e.sh`（本機 AVD `LiuKai35`） | app JaCoCo 行＋分支 100% |
 | 官方行為對照 | `liu-kai-diff`：同一批實體鍵序列（`testpilot/liu_kai_testpilot/diff_cases.yaml`，對應行為確認清單題號）分別在官方嘸蝦米 PRO 與 liu-kai 上執行，記錄輸入法視窗是否實際顯示與輸入欄最後的文字，可附截圖；依使用者答案推得的預期逐項判定兩邊 | 本機 AVD（需先在模擬器安裝官方 PRO） | 參考用：官方不符使用者答案時視為官方偏差，不據以修改 liu-kai；沒有預期的項目由使用者決定 |
 
 Android 端刻意保持薄：輸入邏輯都在 `core` 的 `ImeController`；服務只轉送事件、執行 `IcOp`。IME 狀態透過 `dumpsys activity service` 的 `LIUKAI_STATE` 診斷輸出供案例讀取。模擬器限制：沒有 LINE／Messenger／Gmail 帳號，這些 App 留待實機驗收。

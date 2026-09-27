@@ -3,9 +3,9 @@ package com.hamanpaul.liukai.ime
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.StateListDrawable
 import android.os.Handler
 import android.os.Looper
@@ -22,8 +22,10 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.hamanpaul.liukai.R
 import com.hamanpaul.liukai.core.engine.Candidate
 import com.hamanpaul.liukai.core.engine.InputMode
 import com.hamanpaul.liukai.core.ime.EnterAction
@@ -91,21 +93,21 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     init {
         orientation = VERTICAL
         setBackgroundColor(BG)
-        addView(buildCandidateBar(), LayoutParams(LayoutParams.MATCH_PARENT, dp(48f)))
+        addView(buildCandidateBar(), LayoutParams(LayoutParams.MATCH_PARENT, dp(42f)))
         rowsView.orientation = VERTICAL
-        rowsView.setPadding(dp(2f), dp(4f), dp(2f), dp(4f))
+        rowsView.setPadding(0, dp(2.3f), 0, dp(0.8f))
         keyboard.addView(rowsView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
         popupCatcher.visibility = GONE
         popupCatcher.contentDescription = "popup_catcher"
         popupCatcher.setOnClickListener { dismissPopup() }
+        // 彈出時其餘按鍵變暗（官方「經典灰」的彈出效果）
+        popupCatcher.setBackgroundColor(POPUP_DIM)
         keyboard.addView(popupCatcher, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
         popupPanel.orientation = VERTICAL
         popupPanel.visibility = GONE
         popupPanel.elevation = dp(6f).toFloat()
-        popupPanel.background = GradientDrawable().apply {
-            cornerRadius = dp(4f).toFloat()
-            setColor(Color.WHITE)
-        }
+        popupPanel.background = GradientDrawable().apply { setColor(POPUP_BG) }
+        popupPanel.setPadding(dp(2f), dp(2f), dp(2f), 0)
         keyboard.addView(popupPanel, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
         addView(keyboard, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         rebuildKeyboard()
@@ -172,7 +174,11 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         windowTop = context.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds.bottom - rootView.height
         json.put("keyboardVisible", keyboard.visibility == VISIBLE)
         json.put("failureHint", foreground != null)
-        json.put("candidateRow", bounds(candidateScroll))
+        val row = bounds(candidateScroll)
+        json.put("candidateRow", row)
+        // 探測點：候選列左上角內縮 20px（避開組字文字與組字失敗的紅框），畫面上一定是候選列底色；
+        // 測試以截圖確認鍵盤真的畫在螢幕上
+        json.put("probe", JSONObject().put("x", PROBE_INSET).put("y", row.getInt("y") + PROBE_INSET).put("color", hex(BAR_BG)))
         val candidates = JSONArray()
         for (i in 0 until candidateRow.childCount) {
             val child = candidateRow.getChildAt(i)
@@ -190,9 +196,23 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         json.put("rows", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { it.id }) }))
         json.put("enterLabel", enterLabel)
         json.put("popup", JSONArray(popupViews.keys.toList()))
+        json.put("rowRects", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { rect(keyViews.getValue(it.id)) }) }))
+        json.put("rowColors", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { hex(if (it.function) FUNCTION_TOP else KEY_TOP) }) }))
+        json.put("touches", touchesHandled)
     }
 
     private var windowTop = 0
+
+    /** 已處理完的觸控次數（每次放開手指）；測試點擊後等它增加，確認輸入法處理完才進行下一步。
+     *  在主執行緒遞增、由 dump 的 binder 執行緒讀取。 */
+    @Volatile private var touchesHandled = 0
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        val handled = super.dispatchTouchEvent(ev)
+        // 放開時的點擊（performClick）另外排入佇列執行，計數排在它之後才算處理完
+        if (ev.actionMasked == MotionEvent.ACTION_UP) post { touchesHandled++ }
+        return handled
+    }
 
     private fun bounds(v: View): JSONObject {
         val loc = IntArray(2)
@@ -200,13 +220,20 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         return JSONObject().put("x", loc[0]).put("y", windowTop + loc[1]).put("w", v.width).put("h", v.height)
     }
 
+    private fun rect(v: View): JSONArray {
+        val b = bounds(v)
+        return JSONArray(listOf(b.getInt("x"), b.getInt("y"), b.getInt("w"), b.getInt("h")))
+    }
+
+    private fun hex(color: Int) = String.format("#%06X", color and 0xFFFFFF)
+
     private fun buildCandidateBar(): View {
         val bar = LinearLayout(context)
         bar.orientation = HORIZONTAL
         bar.gravity = Gravity.CENTER_VERTICAL
         bar.setBackgroundColor(BAR_BG)
         composingView.apply {
-            setTextColor(HINT)
+            setTextColor(COMPOSING_TEXT)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10f), 0, dp(8f), 0)
@@ -229,7 +256,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         if (pageOffset in 0 until state.pageSize) {
             // 選字鍵 0–9：0 為預設字（空白上屏的字）
             val label = "$pageOffset"
-            text.append(label, ForegroundColorSpan(HINT), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.append(label, ForegroundColorSpan(CANDIDATE_LABEL), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             text.setSpan(RelativeSizeSpan(0.55f), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         text.append(cand.text)
@@ -255,7 +282,8 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private fun rebuildKeyboard() {
         rowsView.removeAllViews()
         keyViews.clear()
-        rowsFor(layer).forEach { row -> rowsView.addView(buildRow(row), LayoutParams(LayoutParams.MATCH_PARENT, dp(54f))) }
+        // 每排 71.65dp（按鍵格約 65dp）＝官方「直式按鍵：高」
+        rowsFor(layer).forEach { row -> rowsView.addView(buildRow(row), LayoutParams(LayoutParams.MATCH_PARENT, dp(71.65f))) }
     }
 
     private fun rowsFor(layer: Layer) = when (layer) {
@@ -272,9 +300,14 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         keys.forEach { def ->
             val key = buildKey(def)
             keyViews[def.id] = key
-            val lp = LayoutParams(0, LayoutParams.MATCH_PARENT, def.weight)
-            lp.setMargins(dp(1f), dp(2f), dp(1f), dp(2f))
-            row.addView(key, lp)
+            // 按鍵獨立分格：寬度依比例分給外層的位置格（每排 10 等分，與官方相同），
+            // 按鍵格在位置格內左右各縮 2.5dp、上 5dp 下 1.5dp；若把間隙設在按比例分配的子 View 上，
+            // LinearLayout 會先扣掉間隙再分配，按鍵數不同的排（a–l 只有 9 鍵）格寬就會不一致。
+            val slot = FrameLayout(context)
+            val lp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            lp.setMargins(dp(2.5f), dp(5f), dp(2.5f), dp(1.6f))
+            slot.addView(key, lp)
+            row.addView(slot, LayoutParams(0, LayoutParams.MATCH_PARENT, def.weight))
         }
         return row
     }
@@ -283,19 +316,50 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val frame = FrameLayout(context)
         frame.contentDescription = "key:${def.id}"
         frame.isClickable = true
-        val label = TextView(context)
-        label.text = labelFor(def)
-        label.gravity = Gravity.CENTER
-        label.setTextColor(if (def.id == "enter") Color.WHITE else if (activeFor(def)) ACCENT else KEY_TEXT)
-        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label.text.length > 1) 15f else 22f)
-        frame.addView(label, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        val icon = def.icon
+        if (icon != null) {
+            frame.addView(
+                ImageView(context).apply { setImageResource(icon) },
+                // 空白鍵的 ⎵ 在按鍵下方三分之一處，其他圖示置中
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    if (def.id == "space") Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL else Gravity.CENTER,
+                ).apply { bottomMargin = if (def.id == "space") dp(19.5f) else 0 },
+            )
+        } else {
+            val label = TextView(context)
+            label.text = labelFor(def)
+            label.gravity = Gravity.CENTER
+            label.setTextColor(KEY_TEXT)
+            label.typeface = Typeface.DEFAULT_BOLD
+            // ?123、ABC、ALT、Next 等功能鍵標籤小一號
+            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label.text.length > 1) 15f else 24f)
+            frame.addView(label, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        }
+        if (def.id == "shift" || def.id == "alt") {
+            // Shift、ALT 右上角的指示點；啟用中為黃綠色
+            frame.addView(
+                View(context).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(if (activeFor(def)) INDICATOR_ON else INDICATOR_OFF)
+                    }
+                },
+                FrameLayout.LayoutParams(dp(6f), dp(6f), Gravity.TOP or Gravity.END).apply {
+                    topMargin = dp(4f)
+                    marginEnd = dp(3.5f)
+                },
+            )
+        }
         def.hint?.let { hint ->
             frame.addView(
                 TextView(context).apply {
                     text = hint.toString()
                     setTextColor(HINT)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
-                    setPadding(0, dp(2f), dp(4f), 0)
+                    typeface = Typeface.DEFAULT_BOLD
+                    setPadding(0, dp(1f), dp(3f), 0)
                 },
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END),
             )
@@ -306,26 +370,28 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             }
         }
         def.popup?.let { popup ->
+            // 右下角「…」表示可長按彈出
+            frame.addView(
+                TextView(context).apply {
+                    text = "…"
+                    setTextColor(POPUP_HINT)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+                    setPadding(0, 0, dp(6f), 0)
+                },
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END),
+            )
             frame.setOnLongClickListener {
                 showPopup(frame, popup)
                 true
             }
         }
-        frame.background = when (def.id) {
-            "enter" -> actionBackground()
-            "space" -> spaceBackground()
-            else -> pressedBackground()
-        }
+        frame.background = keyBackground(def.function)
         if (def.id == "backspace") attachRepeat(frame) else frame.setOnClickListener { onKey(def) }
         return frame
     }
 
-    /** Shift 按下、ALT 層時以強調色標示。 */
-    private fun activeFor(def: KeyDef): Boolean = when (def.id) {
-        "shift" -> shifted
-        "alt" -> layer == Layer.ALT
-        else -> false
-    }
+    /** 指示點是否亮起（只用於 Shift 與 ALT）：Shift 按下、目前在 ALT 層。 */
+    private fun activeFor(def: KeyDef): Boolean = if (def.id == "shift") shifted else layer == Layer.ALT
 
     private fun labelFor(def: KeyDef): String = when (def.id) {
         "toggle_english" -> if (!tableLoaded) "無表" else if (mode == InputMode.ENGLISH) "英" else "中"
@@ -366,30 +432,33 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 tv.gravity = Gravity.CENTER
                 tv.setTextColor(KEY_TEXT)
                 tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+                tv.typeface = Typeface.DEFAULT_BOLD
                 tv.contentDescription = "key:popup:${p.id}"
                 tv.isClickable = true
-                tv.background = pressedBackground()
+                tv.background = gradientStates(POPUP_TOP, POPUP_BOTTOM, POPUP_PRESSED_TOP, POPUP_PRESSED_BOTTOM)
                 tv.setOnClickListener {
                     dismissPopup()
                     if (p.id == SETTINGS) actions.onOpenSettings() else actions.onSoftKey(SoftKey.Text(p.label[0]))
                 }
                 popupViews["popup:${p.id}"] = tv
-                row.addView(tv, LayoutParams(dp(44f), dp(52f)))
+                row.addView(tv, LayoutParams(dp(40f), dp(56f)).apply { setMargins(dp(1f), dp(1f), dp(1f), dp(1f)) })
             }
             popupPanel.addView(row)
         }
+        // 彈出面板底部的橘色線
+        popupPanel.addView(View(context).apply { setBackgroundColor(POPUP_LINE) }, LayoutParams(LayoutParams.MATCH_PARENT, dp(2.7f)))
         // 攔截層與按鍵區同高：若用 MATCH_PARENT，wrap_content 的鍵盤區會被撐到整個螢幕高
         popupCatcher.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, rowsView.height)
         popupCatcher.visibility = VISIBLE
         popupPanel.visibility = VISIBLE
         popupPanel.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED)
-        // 彈出區置於按鍵上方、水平對齊按鍵中心，不超出鍵盤區
+        // 彈出區置於按鍵上方；與官方相同，面板最右一格（預設字）對齊按下的鍵、往左展開，不超出鍵盤區
         val anchorLoc = IntArray(2)
         val keyboardLoc = IntArray(2)
         anchor.getLocationInWindow(anchorLoc)
         keyboard.getLocationInWindow(keyboardLoc)
-        val centerX = anchorLoc[0] - keyboardLoc[0] + anchor.width / 2
-        popupPanel.translationX = (centerX - popupPanel.measuredWidth / 2)
+        val anchorRight = anchorLoc[0] - keyboardLoc[0] + anchor.width
+        popupPanel.translationX = (anchorRight - popupPanel.measuredWidth)
             .coerceIn(0, keyboard.width - popupPanel.measuredWidth).toFloat()
         popupPanel.translationY = (anchorLoc[1] - keyboardLoc[1] - popupPanel.measuredHeight).coerceAtLeast(0).toFloat()
     }
@@ -424,36 +493,32 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         }
     }
 
-    /** 扁平按鍵：平時透明、按下時淺灰。 */
+    /** 候選：平時透明、按下時加深。 */
     private fun pressedBackground(): Drawable = StateListDrawable().apply {
-        addState(intArrayOf(android.R.attr.state_pressed), GradientDrawable().apply {
-            cornerRadius = dp(6f).toFloat()
-            setColor(KEY_PRESSED)
-        })
+        addState(intArrayOf(android.R.attr.state_pressed), GradientDrawable().apply { setColor(CANDIDATE_PRESSED) })
         addState(intArrayOf(), GradientDrawable().apply { setColor(Color.TRANSPARENT) })
     }
 
-    /** 空白鍵：灰色長條，按下時加深。 */
-    private fun spaceBackground(): Drawable = StateListDrawable().apply {
-        addState(intArrayOf(android.R.attr.state_pressed), InsetDrawable(GradientDrawable().apply {
-            cornerRadius = dp(4f).toFloat()
-            setColor(SPACE_PRESSED)
-        }, dp(4f), dp(10f), dp(4f), dp(10f)))
-        addState(intArrayOf(), InsetDrawable(GradientDrawable().apply {
-            cornerRadius = dp(4f).toFloat()
-            setColor(KEY_PRESSED)
-        }, dp(4f), dp(10f), dp(4f), dp(10f)))
+    /** 上淺下深的漸層按鍵格（官方「經典灰」），按下時改用較亮的漸層。 */
+    private fun gradientStates(top: Int, bottom: Int, pressedTop: Int, pressedBottom: Int): Drawable = StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_pressed), gradient(pressedTop, pressedBottom))
+        addState(intArrayOf(), gradient(top, bottom))
     }
 
-    /** Enter 鍵：強調色膠囊。 */
-    private fun actionBackground(): Drawable = GradientDrawable().apply {
-        cornerRadius = dp(24f).toFloat()
-        setColor(ACCENT)
-    }
+    private fun gradient(top: Int, bottom: Int) =
+        GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(top, bottom)).apply { cornerRadius = dp(1f).toFloat() }
+
+    /** 按鍵格：一般鍵淺灰漸層、功能鍵深灰漸層。 */
+    private fun keyBackground(function: Boolean): Drawable =
+        if (function) gradientStates(FUNCTION_TOP, FUNCTION_BOTTOM, PRESSED_TOP, PRESSED_BOTTOM)
+        else gradientStates(KEY_TOP, KEY_BOTTOM, PRESSED_TOP, PRESSED_BOTTOM)
 
     private data class PopupDef(val id: String, val label: String)
 
-    /** 按鍵定義；char 為字元鍵送出的字元（Tab 鍵標籤為 ⇥、送出 \t）。 */
+    /**
+     * 按鍵定義；char 為字元鍵送出的字元（Tab 鍵標籤為 ⇥、送出 \t）；function 為功能鍵（淺灰底）；
+     * icon 為以圖示取代文字標籤的按鍵（Shift、Backspace）。
+     */
     private data class KeyDef(
         val id: String,
         val label: String,
@@ -461,19 +526,40 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val hint: Char? = null,
         val popup: List<PopupDef>? = null,
         val char: Char = label[0],
+        val function: Boolean = false,
+        val icon: Int? = null,
     )
 
     companion object {
-        private val BG = Color.rgb(0xEC, 0xEF, 0xF1)
-        private val BAR_BG = Color.rgb(0xDD, 0xE2, 0xE5)
-        private val KEY_TEXT = Color.rgb(0x37, 0x47, 0x4F)
-        private val KEY_PRESSED = Color.rgb(0xCF, 0xD8, 0xDC)
-        private val SPACE_PRESSED = Color.rgb(0xB0, 0xBE, 0xC5)
-        private val HINT = Color.rgb(0x78, 0x90, 0x9C)
+        // 色彩取自官方嘸蝦米 PRO「經典灰＋顯示按鍵」截圖取樣（使用者手機的設定）
+        private val BG = Color.BLACK
+        private val BAR_BG = Color.BLACK
+        private val KEY_TOP = Color.rgb(0x8A, 0x8A, 0x8A)
+        private val KEY_BOTTOM = Color.rgb(0x6F, 0x6F, 0x6F)
+        private val FUNCTION_TOP = Color.rgb(0x4B, 0x4C, 0x4C)
+        private val FUNCTION_BOTTOM = Color.rgb(0x32, 0x32, 0x32)
+        private val PRESSED_TOP = Color.rgb(0x9D, 0x9D, 0x9D)
+        private val PRESSED_BOTTOM = Color.rgb(0x88, 0x88, 0x88)
+        private val KEY_TEXT = Color.WHITE
+        private val HINT = Color.rgb(0xC4, 0xC4, 0xC4)
+        private val POPUP_HINT = Color.rgb(0x76, 0x76, 0x76)
+        private val INDICATOR_OFF = Color.rgb(0x3A, 0x3B, 0x3B)
+        private val INDICATOR_ON = Color.rgb(0xD0, 0xDD, 0x27)
+        private val POPUP_BG = Color.rgb(0x14, 0x14, 0x14)
+        private val POPUP_TOP = Color.rgb(0x68, 0x68, 0x68)
+        private val POPUP_BOTTOM = Color.rgb(0x4B, 0x4B, 0x4B)
+        private val POPUP_PRESSED_TOP = Color.rgb(0xA5, 0xA5, 0xA5)
+        private val POPUP_PRESSED_BOTTOM = Color.rgb(0x74, 0x74, 0x74)
+        private val POPUP_LINE = Color.rgb(0xC3, 0x76, 0x29)
+        private val POPUP_DIM = Color.argb(0x8F, 0, 0, 0)
+        private val COMPOSING_TEXT = Color.rgb(0xBD, 0xBD, 0xBD)
+        private val CANDIDATE_LABEL = Color.rgb(0x9E, 0x9E, 0x9E)
+        private val CANDIDATE_PRESSED = Color.rgb(0x33, 0x33, 0x33)
         private val ACCENT = Color.rgb(0x4D, 0xB6, 0xAC)
         private val FAILURE = Color.rgb(0xE5, 0x39, 0x35)
 
         private const val ROW_WEIGHT = 10f
+        private const val PROBE_INSET = 20
         private const val POPUP_COLUMNS = 7
         private const val SETTINGS = "settings"
 
@@ -493,32 +579,36 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
         /** 各層共用的最下排：中／英 ?123（或 ABC） , 空白 . Enter。 */
         private fun bottomRow(comma: String, period: String, popups: Boolean) = listOf(
-            KeyDef("toggle_english", "中", 1.2f),
-            KeyDef("symbols", "?123", 1.2f),
-            KeyDef(comma, comma, popup = if (popups) COMMA_POPUP else null),
-            KeyDef("space", " ", 4f),
-            KeyDef(period, period, popup = if (popups) PERIOD_POPUP else null),
-            KeyDef("enter", "↵", 1.6f),
+            KeyDef("toggle_english", "中", 1.3f, function = true),
+            KeyDef("symbols", "?123", 1.2f, function = true),
+            KeyDef(comma, comma, popup = if (popups) COMMA_POPUP else null, function = true),
+            KeyDef("space", "␣", 4f, char = ' ', function = true, icon = R.drawable.liukai_ic_space),
+            KeyDef(period, period, popup = if (popups) PERIOD_POPUP else null, function = true),
+            KeyDef("enter", "↵", 1.5f, function = true),
         )
+
+        private val SHIFT = KeyDef("shift", "⇧", 1.5f, function = true, icon = R.drawable.liukai_ic_shift)
+        private val BACKSPACE = KeyDef("backspace", "⌫", 1.5f, function = true, icon = R.drawable.liukai_ic_backspace)
+        private val ALT = KeyDef("alt", "ALT", 1.5f, function = true)
 
         private val LETTER_ROWS = listOf(
             "qwertyuiop".mapIndexed { i, c -> KeyDef(c.toString(), c.toString(), hint = "1234567890"[i]) },
             chars("asdfghjkl"),
-            listOf(KeyDef("shift", "⇧", 1.5f)) + chars("zxcvbnm") + KeyDef("backspace", "⌫", 1.5f),
+            listOf(SHIFT) + chars("zxcvbnm") + BACKSPACE,
             bottomRow(",", ".", popups = true),
         )
 
         private val SYMBOL_ROWS = listOf(
             chars("1234567890"),
             chars("@#$%&*-+()"),
-            listOf(KeyDef("alt", "ALT", 1.5f)) + chars("!\"':;/?") + KeyDef("backspace", "⌫", 1.5f),
+            listOf(ALT) + chars("!\"':;/?") + BACKSPACE,
             bottomRow(",", ".", popups = true),
         )
 
         private val ALT_ROWS = listOf(
             chars("~`|•√π÷×{}"),
             listOf(KeyDef("tab", "⇥", char = '\t')) + chars("£¢€°^_=[]"),
-            listOf(KeyDef("alt", "ALT", 1.5f)) + chars("™®©¶\\<>") + KeyDef("backspace", "⌫", 1.5f),
+            listOf(ALT) + chars("™®©¶\\<>") + BACKSPACE,
             bottomRow("„", "…", popups = false),
         )
     }

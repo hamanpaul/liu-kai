@@ -50,6 +50,13 @@ class ImeState:
     rows: list[list[str]] = field(default_factory=list)
     enter_label: str = ""
     popup: list[str] = field(default_factory=list)
+    # 各排按鍵格的螢幕範圍 [x, y, w, h] 與底色（#RRGGBB），供與官方量測值比對
+    row_rects: list[list[list[int]]] = field(default_factory=list)
+    row_colors: list[list[str]] = field(default_factory=list)
+    # 探測點 (x, y, #RRGGBB)：輸入法畫面上一定是這個顏色的位置，用來確認鍵盤真的畫在螢幕上
+    probe: tuple[int, int, str] = (0, 0, "#000000")
+    # 輸入法已處理完的觸控次數：點擊後等它增加，確認輸入法處理完才進行下一步
+    touches: int = 0
 
     def candidate(self, text: str | None = None, index: int | None = None) -> CandidateView:
         for c in self.candidates:
@@ -87,5 +94,9 @@ def parse_dump(output: str) -> ImeState:
                 rows=d["rows"],
                 enter_label=d["enterLabel"],
                 popup=d["popup"],
+                row_rects=d["rowRects"],
+                row_colors=d["rowColors"],
+                probe=(d["probe"]["x"], d["probe"]["y"], d["probe"]["color"]),
+                touches=d["touches"],
             )
     raise ValueError("dumpsys 輸出中沒有 LIUKAI_STATE（輸入法未啟動或不是 liu-kai？）")

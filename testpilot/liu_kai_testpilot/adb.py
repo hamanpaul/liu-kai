@@ -107,5 +107,9 @@ class Adb:
     def screencap(self) -> bytes:
         return self.run(["exec-out", "screencap", "-p"]).stdout
 
+    def screencap_raw(self) -> bytes:
+        """原始 RGBA 截圖（無 PNG 壓縮）：標頭為寬、高、格式（Android 12+ 另有 dataspace）。"""
+        return self.run(["exec-out", "screencap"]).stdout
+
     def install(self, apk_path: str) -> None:
         self.run(["install", "-r", "-t", self._path_mapper(apk_path)], timeout=300)

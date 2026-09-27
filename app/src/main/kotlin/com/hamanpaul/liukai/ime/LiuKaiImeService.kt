@@ -86,6 +86,13 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         render()
     }
 
+    /**
+     * 預設實作在輸入畫面收起時呼叫 finishComposingText，把組字定案成字母。liu-kai 在畫面收起後仍可用實體鍵盤
+     * 繼續組字（打字會重新顯示畫面）；若收起通知晚於接著打的字碼抵達，預設行為會把新的組字定案、與引擎狀態脫節
+     * （點候選後欄位變成「ba月」）。因此收起畫面時保留組字，由引擎決定何時上屏或清除。
+     */
+    override fun onFinishInputView(finishingInput: Boolean) = Unit
+
     override fun onFinishInput() {
         super.onFinishInput()
         controller.finishInput()

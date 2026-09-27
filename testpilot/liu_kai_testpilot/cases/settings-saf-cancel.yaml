@@ -14,6 +14,7 @@ steps:
   action: tap_text
   target: EMU
   text: 3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）
+  until: Files in Download
 - id: picker
   action: wait_text
   target: EMU

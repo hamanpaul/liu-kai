@@ -36,6 +36,7 @@ steps:
 - id: win
   action: ime_window
   target: EMU
+  expect: true
 - id: after
   action: ime_state
   target: EMU

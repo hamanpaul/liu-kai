@@ -19,6 +19,7 @@ steps:
   action: tap_text
   target: EMU
   text: 3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）
+  until: liukai-bad.txt
 - id: picker
   action: wait_text
   target: EMU
@@ -27,6 +28,7 @@ steps:
   action: tap_text
   target: EMU
   text: liukai-bad.txt
+  until: 匯入失敗
 - id: report
   action: wait_text
   target: EMU

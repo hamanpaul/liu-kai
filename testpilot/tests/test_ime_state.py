@@ -29,6 +29,10 @@ STATE = {
     "rows": [["1", "2"], ["alt", "backspace"]],
     "enterLabel": "Next",
     "popup": ["popup:!", "popup:?"],
+    "rowRects": [[[7, 1722, 95, 140]], [[61, 1879, 95, 140]]],
+    "rowColors": [["#FDFDFE"], ["#F4F5F7"]],
+    "probe": {"x": 4, "y": 2004, "color": "#000000"},
+    "touches": 7,
 }
 
 
@@ -43,6 +47,10 @@ def test_parse_dump_decodes_state_line():
     assert (state.layer, state.rows, state.enter_label, state.popup) == (
         "symbols", [["1", "2"], ["alt", "backspace"]], "Next", ["popup:!", "popup:?"]
     )
+    assert state.row_rects == [[[7, 1722, 95, 140]], [[61, 1879, 95, 140]]]
+    assert state.row_colors == [["#FDFDFE"], ["#F4F5F7"]]
+    assert state.probe == (4, 2004, "#000000")
+    assert state.touches == 7
     assert [c.text for c in state.candidates] == ["日", "月"]
     assert state.candidates[1].annotation == "ㄩㄝˋ"
     assert state.candidate_row == Rect(0, 2000, 1080, 150)

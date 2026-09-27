@@ -25,6 +25,7 @@ steps:
   action: tap_text
   target: EMU
   text: 3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）
+  until: liukai-ibus.txt
 - id: picker
   action: wait_text
   target: EMU
@@ -45,6 +46,7 @@ steps:
   action: tap_text
   target: EMU
   text: Select
+  until: 匯入成功
 - id: report
   action: wait_text
   target: EMU

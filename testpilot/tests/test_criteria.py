@@ -83,3 +83,18 @@ def test_equals_field_compares_with_another_captured_field():
     ok, details = evaluate([{"field": "c.y", "operator": "equals_field", "value": "zz.y"}], results)
     assert ok is False
     assert "找不到 step zz" in details[0]
+
+
+def test_approx_compares_nested_numbers_within_tolerance():
+    results = {"steps": {"st": {"captured": {"rows": [[[7, 95], [115, 95]], [[61, 95]]], "y": 1593, "colors": ["#FDFDFE"]}}}}
+    ok, details = evaluate([{"field": "st.rows", "operator": "approx", "value": [[[8, 94], [113, 97]], [[60, 95]]], "tolerance": 3}], results)
+    assert ok is True
+    assert details[0].startswith("PASS st.rows approx")
+    assert evaluate([{"field": "st.y", "operator": "approx", "value": 1600}], results)[0] is False  # 預設容差 2
+    assert evaluate([{"field": "st.y", "operator": "approx", "value": 1595}], results)[0] is True
+    # 結構不同（長度不一）或非數值元素須完全相等
+    assert evaluate([{"field": "st.rows", "operator": "approx", "value": [[[7, 95]], [[61, 95]]]}], results)[0] is False
+    assert evaluate([{"field": "st.colors", "operator": "approx", "value": ["#FDFDFE"]}], results)[0] is True
+    assert evaluate([{"field": "st.colors", "operator": "approx", "value": ["#F4F5F7"]}], results)[0] is False
+    assert evaluate([{"field": "st.y", "operator": "approx", "value": [1593]}], results)[0] is False
+    assert evaluate([{"field": "st.colors", "operator": "approx", "value": [1]}], results)[0] is False

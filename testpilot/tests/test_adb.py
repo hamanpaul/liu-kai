@@ -135,3 +135,9 @@ def test_screencap_reads_png_bytes():
     runner = FakeRunner(ok(b"\x89PNG"))
     assert Adb("adb", "s", runner=runner).screencap() == b"\x89PNG"
     assert runner.calls[0][0] == ["adb", "-s", "s", "exec-out", "screencap", "-p"]
+
+
+def test_screencap_raw_reads_rgba_bytes():
+    runner = FakeRunner(ok(b"RAW"))
+    assert Adb("adb", "s", runner=runner).screencap_raw() == b"RAW"
+    assert runner.calls[0][0] == ["adb", "-s", "s", "exec-out", "screencap"]

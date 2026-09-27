@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backspace：白色實心刪除鍵（外觀對照官方嘸蝦米「經典灰」） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="27dp"
+    android:height="13dp"
+    android:viewportWidth="27"
+    android:viewportHeight="13">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7,0 L26,0 Q27,0 27,1 L27,12 Q27,13 26,13 L7,13 L0,6.5 Z" />
+    <path
+        android:strokeColor="#FF404141"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M13,3 L20,10 M20,3 L13,10" />
+</vector>

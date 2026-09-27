@@ -28,6 +28,11 @@ steps:
   action: wait_text
   target: EMU
   contains: 輸入法：
+- id: close
+  action: keys
+  target: EMU
+  keys:
+  - BACK
 pass_criteria:
 - field: st.popup
   operator: equals

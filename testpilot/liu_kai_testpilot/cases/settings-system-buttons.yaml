@@ -14,6 +14,7 @@ steps:
   action: tap_text
   target: EMU
   text: 1. 在系統設定啟用 liu-kai
+  until: liu-kai 嘸蝦米
 - id: sys
   action: wait_text
   target: EMU
@@ -31,6 +32,7 @@ steps:
   action: tap_text
   target: EMU
   text: 2. 切換輸入法
+  until: Choose input method
 - id: dialog
   action: wait_text
   target: EMU

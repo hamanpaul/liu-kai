@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from liu_kai_testpilot.steps import DeviceConfig, StepExecutor, keycode
+from liu_kai_testpilot.steps import TAP_TRIES, UNTIL_CHECKS, DeviceConfig, StepExecutor, keycode
 
-from .conftest import FOCUS, UI_XML, cand, ime_window_block, state_dump, window_dump
+from .conftest import FOCUS, UI_XML, cand, ime_window_block, raw_screen, state_dump, window_dump
 
 DUMPSYS = "dumpsys activity service"
 UI_DUMP = "uiautomator dump"
@@ -38,6 +38,7 @@ def test_keys_text_and_combo(ex, adb):
 
 
 def test_launch_host_and_settings_do_not_force_stop_ime(ex, adb):
+    adb.queue(UI_DUMP, UI_XML.format(plain=""))
     run(ex, action="launch_host")
     run(ex, action="launch_settings")
     shells = [c[1] for c in adb.of("shell")]
@@ -77,6 +78,9 @@ def test_ime_state_captures_summary(ex, adb):
         "rows": [],
         "enter_label": "↵",
         "popup": [],
+        "row_rects": [],
+        "row_colors": [],
+        "candidate_strip": [2200, 150],
         "candidates": ["日", "月"],
         "annotations": [None, "ㄩㄝˋ"],
     }
@@ -166,6 +170,8 @@ def test_import_table_empty_files_list_broadcasts_without_writing(ex, adb):
     run(ex, action="import_table", source="files", files=[])
     assert adb.written == {}
     assert adb.of("broadcast")[0][3] == {"source": "files"}
+    # 先清空暫存匯入目錄：前一次匯入若中斷，殘留的檔案會混進這次匯入
+    assert ("shell", "run-as com.hamanpaul.liukai rm -rf files/import") in adb.calls
 
 
 def test_corrupt_and_remove_table(ex, adb):
@@ -256,7 +262,8 @@ def test_ui_dump_is_retried_when_uiautomator_fails(ex, adb):
 
     adb._check = flaky
     assert run(ex, action="read_field", field="plain")["captured"] == {"text": "日"}
-    assert len(attempts) == 3
+    # 第一次讀取：失敗 2 次後成功；read_field 再讀一次確認內容穩定
+    assert len(attempts) == 4
 
 
 def test_ui_dump_gives_up_after_three_failures(ex, adb):
@@ -319,7 +326,8 @@ def test_ime_frame_missing_from_window_dump_fails(ex, adb):
 
 
 def test_back_until_presses_back_until_text_appears(ex, adb):
-    adb.queue(UI_DUMP, "<hierarchy/>", "<hierarchy/>", UI_XML.format(plain=""))
+    # 每按一次 BACK 前先檢查 3 次（畫面可能還在換）
+    adb.queue(UI_DUMP, *(["<hierarchy/>"] * 6), UI_XML.format(plain=""))
     result = run(ex, action="back_until", contains="清除字表")
     assert result["captured"] == {"text": "清除字表"}
     assert adb.of("keyevent") == [("keyevent", ("KEYCODE_BACK",)), ("keyevent", ("KEYCODE_BACK",))]
@@ -390,3 +398,183 @@ def test_await_bound_gives_up(ex, adb):
     result = run(ex, action="await_bound")
     assert result["success"] is False
     assert "未接上" in result["output"]
+
+
+def test_pixel_reads_raw_screencap_with_either_header_size(ex, adb):
+    adb.screens = [raw_screen((10, 20, 30), header=16), raw_screen((40, 50, 60), header=12)]
+    assert ex.pixel(3, 100) == (10, 20, 30)
+    assert ex.pixel(3, 100) == (40, 50, 60)
+
+
+def test_ime_taps_wait_until_keyboard_is_drawn_on_screen(ex, adb):
+    # 設定剛切換時，輸入法視窗已「顯示」但畫面上還看不到（探測點仍是 App 的底色）
+    adb.queue(DUMPSYS, state_dump(keys={"b": {"x": 500, "y": 2300, "w": 100, "h": 100}}))
+    adb.screens = [raw_screen((241, 240, 247)), raw_screen((241, 240, 247)), raw_screen((3, 2, 1))]
+    run(ex, action="tap_key", key="b")
+    assert adb.of("tap") == [("tap", 550, 2350)]
+    assert len(adb.of("screencap_raw")) == 3
+
+
+def test_soft_taps_in_a_row_check_the_screen_only_once(ex, adb):
+    # 截圖一次約 1.6 秒、10 MB，會拖垮模擬器；連續操作鍵盤之間視窗不變，確認一次畫在畫面上即可
+    keys = {"b": {"x": 500, "y": 2300, "w": 100, "h": 100}}
+    adb.queue(DUMPSYS, state_dump(keys=keys, candidates=[cand(0, "日", 0)]))
+    run(ex, action="tap_key", key="b")
+    run(ex, action="long_press_key", key="b")
+    run(ex, action="ime_state")
+    run(ex, action="tap_candidate", index=0)
+    assert len(adb.of("tap")) == 2
+    assert len(adb.of("screencap_raw")) == 1
+
+
+def test_other_actions_make_the_next_soft_tap_check_the_screen_again(ex, adb):
+    # 其他動作（實體鍵、點輸入欄、切換設定等）可能讓輸入法視窗收起或重新顯示
+    keys = {"b": {"x": 500, "y": 2300, "w": 100, "h": 100}}
+    adb.queue(DUMPSYS, state_dump(keys=keys))
+    run(ex, action="tap_key", key="b")
+    run(ex, action="keys", keys=["BACK"])
+    run(ex, action="tap_key", key="b")
+    assert len(adb.of("screencap_raw")) == 2
+
+
+def test_soft_tap_checks_the_screen_again_when_window_moves(ex, adb):
+    keys = {"b": {"x": 500, "y": 2300, "w": 100, "h": 100}}
+    moved = {"x": 0, "y": 1400, "w": 1080, "h": 150}
+    adb.queue(DUMPSYS, state_dump(keys=keys), state_dump(keys=keys, candidateRow=moved))
+    adb.shell_outputs["dumpsys input"] = [window_dump(2200), window_dump(1400)]
+    run(ex, action="tap_key", key="b")
+    run(ex, action="tap_key", key="b")
+    assert len(adb.of("tap")) == 2
+    assert len(adb.of("screencap_raw")) == 2
+
+
+def test_ime_taps_fail_when_keyboard_never_appears_on_screen(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"b": {"x": 500, "y": 2300, "w": 100, "h": 100}}))
+    adb.screens = [raw_screen((241, 240, 247))]
+    result = run(ex, action="tap_key", key="b")
+    assert result["success"] is False
+    assert "尚未畫在畫面上" in result["output"]
+
+
+def test_tap_field_waits_for_host_screen_during_transition(ex, adb):
+    # 前一個畫面（例如設定頁）轉場中，輸入欄還沒出現在 UI 樹上
+    adb.shell_outputs[UI_DUMP] = ['<hierarchy rotation="0"></hierarchy>', '<hierarchy rotation="0"></hierarchy>', UI_XML.format(plain="")]
+    assert run(ex, action="tap_field", field="plain")["success"] is True
+    assert adb.of("tap") == [("tap", 540, 180)]
+
+
+def test_tap_field_gives_up_when_field_never_appears(ex, adb):
+    adb.shell_outputs[UI_DUMP] = ['<hierarchy rotation="0"></hierarchy>']
+    result = run(ex, action="tap_field", field="plain")
+    assert result["success"] is False
+    assert "desc=plain" in result["output"]
+
+
+STALE_HOST = '<hierarchy rotation="0"><node index="0" text="" content-desc="plain" package="com.hamanpaul.liukai.testhost" bounds="[0,120][1080,240]" /></hierarchy>'
+
+
+def test_launch_settings_waits_until_settings_page_is_in_ui_tree(ex, adb):
+    # 切到設定頁後第一次 UI 擷取可能還是前一個畫面（testhost）
+    adb.shell_outputs[UI_DUMP] = [STALE_HOST, UI_XML.format(plain="")]
+    assert run(ex, action="launch_settings")["output"] == "launched settings"
+    assert len([c for c in adb.of("shell") if c[1].startswith(UI_DUMP)]) == 2
+
+
+def test_launch_settings_gives_up_when_page_never_appears(ex, adb):
+    adb.shell_outputs[UI_DUMP] = [STALE_HOST]
+    assert run(ex, action="launch_settings")["success"] is False
+
+
+def test_tap_text_retries_lookup_during_transition(ex, adb):
+    adb.shell_outputs[UI_DUMP] = [STALE_HOST, UI_XML.format(plain="")]
+    assert run(ex, action="tap_text", text="清除字表")["success"] is True
+    assert adb.of("tap") == [("tap", 540, 660)]
+
+
+def test_back_until_waits_for_stale_screen_before_pressing_again(ex, adb):
+    # 按 BACK 後第一次擷取還是前一個畫面：不可以立刻再按（會離開 App），要等畫面換好
+    adb.queue(UI_DUMP, "<hierarchy/>", "<hierarchy/>", "<hierarchy/>", "<hierarchy/>", UI_XML.format(plain=""))
+    result = run(ex, action="back_until", contains="清除字表")
+    assert result["output"] == "found 清除字表 after 1 BACK"
+    assert len(adb.of("keyevent")) == 1
+
+
+def test_ime_window_can_wait_for_expected_visibility(ex, adb):
+    adb.queue("dumpsys window windows", ime_window_block(False), ime_window_block(False), ime_window_block(True))
+    assert run(ex, action="ime_window", expect=True)["captured"] == {"visible": True}
+    adb.shell_outputs["dumpsys window windows"] = [ime_window_block(True)]
+    assert run(ex, action="ime_window", expect=False)["captured"] == {"visible": True}
+
+
+def test_state_retries_while_ime_service_is_restarting(ex, adb):
+    # 旋轉等情況下輸入法服務重建中，dumpsys 暫時沒有 LIUKAI_STATE
+    adb.queue(DUMPSYS, "SERVICE restarting", state_dump(composing="b"))
+    assert ex.state().composing == "b"
+
+
+def test_read_field_waits_until_text_is_stable(ex, adb):
+    # 上屏時編輯器先刪除組字再插入：中間可能讀到空字串，連續兩次相同才採用
+    adb.shell_outputs[UI_DUMP] = [UI_XML.format(plain="ba"), UI_XML.format(plain=""), UI_XML.format(plain="月"), UI_XML.format(plain="月")]
+    assert run(ex, action="read_field", field="plain")["captured"] == {"text": "月"}
+
+
+def test_read_field_gives_up_waiting_for_stable_text(ex, adb):
+    adb.shell_outputs[UI_DUMP] = [UI_XML.format(plain=t) for t in ("a", "b", "c", "d", "e", "f", "g")]
+    assert run(ex, action="read_field", field="plain")["captured"] == {"text": "f"}
+
+
+def test_ime_taps_wait_until_the_ime_has_handled_the_touch(ex, adb):
+    # 輸入法主執行緒忙碌時點擊還在佇列中；觸控計數增加才算點完，否則下一步會讀到舊狀態
+    keys = {"b": {"x": 500, "y": 2300, "w": 100, "h": 100}}
+    adb.queue(DUMPSYS, *[state_dump(keys=keys, touches=n) for n in (4, 4, 4, 5)])
+    assert run(ex, action="tap_key", key="b")["success"] is True
+    assert len([c for c in adb.of("shell") if c[1].startswith(DUMPSYS)]) == 4
+
+
+def test_ime_taps_fail_when_the_ime_never_handles_the_touch(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"b": {"x": 500, "y": 2300, "w": 100, "h": 100}}, touches=4))
+    result = run(ex, action="tap_key", key="b")
+    assert result["success"] is False
+    assert "沒有處理這次點擊" in result["output"]
+
+
+PICKER_XML = '<hierarchy rotation="0"><node index="0" text="Files in Download" content-desc="" bounds="[0,400][1080,500]" /></hierarchy>'
+
+
+def test_tap_text_until_stops_when_target_screen_appears(ex, adb):
+    adb.shell_outputs[UI_DUMP] = [UI_XML.format(plain=""), PICKER_XML]
+    assert run(ex, action="tap_text", text="清除字表", until="Files in Download")["success"] is True
+    assert len(adb.of("tap")) == 1
+
+
+def test_tap_text_taps_again_when_the_tap_was_dropped(ex, adb):
+    # 系統忙碌時點擊可能被丟掉（InputDispatcher：No new touched window）：等不到目標畫面且按鈕還在就再點一次
+    settings = UI_XML.format(plain="")
+    # 點擊前找按鈕、等目標 UNTIL_CHECKS 次、確認按鈕還在、再點前找按鈕，之後才出現選檔畫面
+    adb.shell_outputs[UI_DUMP] = [settings] * (1 + UNTIL_CHECKS + 1 + 1) + [PICKER_XML]
+    assert run(ex, action="tap_text", text="清除字表", until="Files in Download")["success"] is True
+    assert len(adb.of("tap")) == 2
+
+
+def test_tap_text_gives_up_after_repeated_dropped_taps(ex, adb):
+    adb.queue(UI_DUMP, UI_XML.format(plain=""))
+    result = run(ex, action="tap_text", text="清除字表", until="Files in Download")
+    assert result["success"] is False
+    assert f"點了 {TAP_TRIES} 次" in result["output"]
+    assert len(adb.of("tap")) == TAP_TRIES
+
+
+def test_ui_dump_file_is_removed_after_reading(ex, adb):
+    # uiautomator 偶爾印出錯誤（null root node）卻沒寫檔；讀完就刪，下次失敗時才不會讀到上一個畫面
+    adb.queue(UI_DUMP, UI_XML.format(plain=""))
+    run(ex, action="read_text", contains="輸入法：")
+    assert adb.of("shell")[-1][1].endswith("&& rm /sdcard/liukai-ui.xml")
+
+
+def test_tap_text_stops_retrying_when_the_screen_has_changed(ex, adb):
+    # 第一次點擊有效但目標畫面很慢：原本的按鈕已不在畫面上就不再點，交給下一步判定
+    settings = UI_XML.format(plain="")
+    other = '<hierarchy rotation="0"><node index="0" text="Loading" content-desc="" bounds="[0,400][1080,500]" /></hierarchy>'
+    adb.shell_outputs[UI_DUMP] = [settings] + [other] * 20
+    assert run(ex, action="tap_text", text="清除字表", until="Files in Download")["success"] is True
+    assert len(adb.of("tap")) == 1

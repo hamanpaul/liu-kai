@@ -19,6 +19,7 @@ steps:
   action: tap_text
   target: EMU
   text: 清除字表
+  until: 已清除
 - id: report
   action: wait_text
   target: EMU

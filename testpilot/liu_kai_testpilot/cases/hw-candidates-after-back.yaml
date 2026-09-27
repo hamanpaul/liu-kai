@@ -16,6 +16,7 @@ steps:
 - id: hidden
   action: ime_window
   target: EMU
+  expect: false
 - id: type
   action: keys
   target: EMU
@@ -29,6 +30,7 @@ steps:
 - id: shown
   action: ime_window
   target: EMU
+  expect: true
 - id: st
   action: ime_state
   target: EMU

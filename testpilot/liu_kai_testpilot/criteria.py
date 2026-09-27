@@ -1,5 +1,6 @@
 """pass_criteria 判定：field 為 `<step id>.<captured 路徑>`，逐條產生可寫入報告的說明。
-operator `equals_field` 的 value 也是欄位路徑（比較兩個 step 的擷取值，例如畫面位置前後不變）。"""
+operator `equals_field` 的 value 也是欄位路徑（比較兩個 step 的擷取值，例如畫面位置前後不變）；
+operator `approx` 逐元素比較數值（可巢狀清單），容許 ±tolerance（預設 2），非數值須完全相等。"""
 from __future__ import annotations
 
 from typing import Any, Callable
@@ -13,6 +14,18 @@ _OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
     "length": lambda actual, value: len(actual) == value,
     "in": lambda actual, value: actual in value,
 }
+
+
+def _approx(actual: Any, expected: Any, tolerance: float) -> bool:
+    if isinstance(expected, list):
+        return (
+            isinstance(actual, list)
+            and len(actual) == len(expected)
+            and all(_approx(a, e, tolerance) for a, e in zip(actual, expected))
+        )
+    if isinstance(expected, (int, float)):
+        return isinstance(actual, (int, float)) and abs(actual - expected) <= tolerance
+    return actual == expected
 
 
 def resolve(results: dict[str, Any], field: str) -> Any:
@@ -37,6 +50,11 @@ def evaluate(criteria: list[dict[str, Any]], results: dict[str, Any]) -> tuple[b
         head = f"{field} {operator} {value!r}"
         try:
             actual = resolve(results, field)
+            if operator == "approx":
+                tolerance = c.get("tolerance", 2)
+                verdict = "PASS" if _approx(actual, value, tolerance) else "FAIL"
+                details.append(f"{verdict} {head}（實際 {actual!r}，容差 ±{tolerance}）")
+                continue
             if operator == "equals_field":
                 other = resolve(results, value)
                 verdict = "PASS" if actual == other else "FAIL"
