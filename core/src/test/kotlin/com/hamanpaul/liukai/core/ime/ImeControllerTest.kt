@@ -124,6 +124,23 @@ class ImeControllerTest {
     }
 
     @Test
+    fun `軟鍵盤同音鍵：前置查詢的組字帶「'」，選字後欄位組字清空並列出同音字`() {
+        assertEquals(listOf(IcOp.SetComposing("'")), c.softKey(SoftKey.Homophone, 0, classText))
+        assertEquals(listOf(IcOp.SetComposing("'q")), c.softKey(SoftKey.Text('q'), 0, classText))
+        assertEquals(listOf(IcOp.SetComposing("")), c.softKey(SoftKey.Space, 0, classText))
+        assertEquals("中", c.engine.homophoneOf)
+        assertEquals(listOf(IcOp.Commit("鐘")), c.tapCandidate(1))
+    }
+
+    @Test
+    fun `英文模式與輸入法不介入時同音鍵不送出任何東西`() {
+        c.softKey(SoftKey.ToggleEnglish, 0, classText)
+        assertEquals(emptyList(), c.softKey(SoftKey.Homophone, 0, classText))
+        c.startInput(classText or textPassword)
+        assertEquals(emptyList(), c.softKey(SoftKey.Homophone, 0, classText or textPassword))
+    }
+
+    @Test
     fun `軟鍵盤：引擎不處理的鍵直接送出`() {
         assertEquals(listOf(IcOp.Commit(" ")), c.softKey(SoftKey.Space, 0, classText))
         assertEquals(listOf(IcOp.SendKey(del)), c.softKey(SoftKey.Backspace, 0, classText))

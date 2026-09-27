@@ -1,0 +1,43 @@
+id: soft-root-popup
+name: 中文模式長按「.'[]」彈出字根
+description: 中文模式的句點鍵長按彈出其餘字根 ' [ ]；點「[」輸入字根（欄位出現「[」）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: lp
+  action: long_press_key
+  target: EMU
+  key: .
+- id: st1
+  action: ime_state
+  target: EMU
+- id: pick
+  action: tap_key
+  target: EMU
+  key: popup:[
+- id: st2
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.popup
+  operator: equals
+  value:
+  - popup:'
+  - popup:[
+  - popup:]
+- field: st2.popup
+  operator: equals
+  value: []
+- field: read.text
+  operator: equals
+  value: '['

@@ -33,6 +33,8 @@ STATE = {
     "rowColors": [["#FDFDFE"], ["#F4F5F7"]],
     "probe": {"x": 4, "y": 2004, "color": "#000000"},
     "touches": 7,
+    "rowLabels": [["1", "2"], ["ALT", "⌫"]],
+    "strip": ["punct:!", "punct:?"],
 }
 
 
@@ -51,6 +53,8 @@ def test_parse_dump_decodes_state_line():
     assert state.row_colors == [["#FDFDFE"], ["#F4F5F7"]]
     assert state.probe == (4, 2004, "#000000")
     assert state.touches == 7
+    assert state.row_labels == [["1", "2"], ["ALT", "⌫"]]
+    assert state.strip == ["punct:!", "punct:?"]
     assert [c.text for c in state.candidates] == ["日", "月"]
     assert state.candidates[1].annotation == "ㄩㄝˋ"
     assert state.candidate_row == Rect(0, 2000, 1080, 150)

@@ -1,6 +1,6 @@
 id: soft-popup-period
-name: 長按句點彈出標點
-description: '長按「.」彈出 : / & ( ) - + ; @ '' " ? ! ,，點「!」輸入；再次彈出後點彈出區以外（空白鍵）只收起、不輸入。彈出時輸入法畫面位置不變（候選列不移動）。'
+name: 英文模式長按句點彈出標點
+description: '英文模式長按「.」彈出 : / & ( ) - + ; @ '' " ? ! ,，點「!」輸入；再次彈出後點彈出區以外（空白鍵）只收起、不輸入。彈出時輸入法畫面位置不變（候選列不移動）。'
 topology:
   devices:
     EMU:
@@ -10,6 +10,10 @@ topology:
 preconditions:
   keyboard: soft
 steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
 - id: st0
   action: ime_state
   target: EMU

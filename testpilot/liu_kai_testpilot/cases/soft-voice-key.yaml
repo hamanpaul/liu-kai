@@ -1,0 +1,39 @@
+id: soft-voice-key
+name: 語音鍵切換到語音輸入
+description: 照官方：候選列右端的麥克風切換到系統的語音輸入（Google 語音輸入）；結束後切回 liu-kai。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: st0
+  action: ime_state
+  target: EMU
+- id: mic
+  action: tap_key
+  target: EMU
+  key: voice
+  ack: false
+- id: cur
+  action: current_ime
+  target: EMU
+  expect: com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+- id: back
+  action: ime
+  target: EMU
+  enabled: true
+- id: cur2
+  action: current_ime
+  target: EMU
+  expect: com.hamanpaul.liukai/.ime.LiuKaiImeService
+pass_criteria:
+- field: cur.ime
+  operator: equals
+  value: com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+- field: cur2.ime
+  operator: equals
+  value: com.hamanpaul.liukai/.ime.LiuKaiImeService

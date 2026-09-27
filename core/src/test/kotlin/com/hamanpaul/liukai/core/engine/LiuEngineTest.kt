@@ -178,6 +178,80 @@ class LiuEngineTest {
     }
 
     @Test
+    fun `同音鍵前置查詢：按同音鍵後打字碼，空白選字列出該字的同音字，組字區清空`() {
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.HomophoneKey))
+        assertTrue(e.isComposing)
+        assertEquals("'", e.displayComposing)
+        type("q")
+        assertEquals("'q", e.displayComposing)
+        assertEquals(listOf("中", "仲"), texts())
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Space))
+        assertEquals("中", e.homophoneOf)
+        assertEquals(listOf("中", "鐘", "忠"), texts())
+        assertTrue(e.isComposing)
+        assertEquals("", e.displayComposing)
+        assertEquals(EngineResult(true, "忠"), e.handle(ImeEvent.Select(2)))
+        assertNull(e.homophoneOf)
+        assertFalse(e.isComposing)
+    }
+
+    @Test
+    fun `同音鍵前置查詢：數字鍵與觸控選的是要查同音的字`() {
+        e.handle(ImeEvent.HomophoneKey)
+        type("q1")
+        assertEquals("仲", e.homophoneOf)
+        e.handle(ImeEvent.Escape)
+        assertFalse(e.isComposing)
+        e.handle(ImeEvent.HomophoneKey)
+        type("q")
+        e.handle(ImeEvent.Select(0))
+        assertEquals("中", e.homophoneOf)
+    }
+
+    @Test
+    fun `同音鍵前置查詢：Backspace 從同音字回到字碼，再刪光字碼後離開查詢`() {
+        e.handle(ImeEvent.HomophoneKey)
+        type("q")
+        e.handle(ImeEvent.Space)
+        e.handle(ImeEvent.Backspace)
+        assertNull(e.homophoneOf)
+        assertEquals("'q", e.displayComposing)
+        e.handle(ImeEvent.Backspace)
+        assertEquals("'", e.displayComposing)
+        assertTrue(e.isComposing)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Backspace))
+        assertFalse(e.isComposing)
+        assertEquals("", e.displayComposing)
+    }
+
+    @Test
+    fun `同音鍵前置查詢：還沒打字碼時 Enter 只離開查詢，打了字碼時送出字碼`() {
+        e.handle(ImeEvent.HomophoneKey)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Enter))
+        assertFalse(e.isComposing)
+        e.handle(ImeEvent.HomophoneKey)
+        type("q")
+        assertEquals(EngineResult(true, "q"), e.handle(ImeEvent.Enter))
+    }
+
+    @Test
+    fun `組字中按同音鍵與反引號相同，查首選的同音字；同音字列表中再按不動作`() {
+        type("q")
+        e.handle(ImeEvent.HomophoneKey)
+        assertEquals("中", e.homophoneOf)
+        assertEquals("q", e.displayComposing)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.HomophoneKey))
+        assertEquals("中", e.homophoneOf)
+        assertEquals(listOf("中", "鐘", "忠"), texts())
+    }
+
+    @Test
+    fun `英文模式同音鍵交給 App`() {
+        e.handle(EngineEvent.ToggleEnglish)
+        assertEquals(EngineResult.PASS, e.handle(ImeEvent.HomophoneKey))
+    }
+
+    @Test
     fun `同音模式 Backspace 回到原字碼候選`() {
         type("q`")
         assertEquals("中", e.homophoneOf)

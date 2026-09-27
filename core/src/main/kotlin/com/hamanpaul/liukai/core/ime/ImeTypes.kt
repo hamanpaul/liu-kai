@@ -21,6 +21,8 @@ sealed interface SoftKey {
     data object Space : SoftKey
     data object Enter : SoftKey
     data object ToggleEnglish : SoftKey
+    /** 中文模式的「同音」鍵。 */
+    data object Homophone : SoftKey
 }
 
 /** 要對 App 的 InputConnection 執行的操作，依序執行。 */

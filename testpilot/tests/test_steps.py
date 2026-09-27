@@ -80,6 +80,8 @@ def test_ime_state_captures_summary(ex, adb):
         "popup": [],
         "row_rects": [],
         "row_colors": [],
+        "row_labels": [],
+        "strip": [],
         "candidate_strip": [2200, 150],
         "candidates": ["日", "月"],
         "annotations": [None, "ㄩㄝˋ"],
@@ -578,3 +580,42 @@ def test_tap_text_stops_retrying_when_the_screen_has_changed(ex, adb):
     adb.shell_outputs[UI_DUMP] = [settings] + [other] * 20
     assert run(ex, action="tap_text", text="清除字表", until="Files in Download")["success"] is True
     assert len(adb.of("tap")) == 1
+
+
+def test_ime_state_captures_key_labels_and_punctuation_strip(ex, adb):
+    adb.queue(DUMPSYS, state_dump(rowLabels=[["Q", "W"], ["同音", "Z"]], strip=["punct:!"]))
+    captured = run(ex, action="ime_state")["captured"]
+    assert captured["row_labels"] == [["Q", "W"], ["同音", "Z"]]
+    assert captured["strip"] == ["punct:!"]
+
+
+VOICE = "com.google.android.tts/.VoiceInputMethodService"
+
+
+def test_current_ime_reads_default_input_method(ex, adb):
+    adb.queue("settings get secure default_input_method", "com.hamanpaul.liukai/.ime.LiuKaiImeService\n")
+    assert run(ex, action="current_ime")["captured"] == {"ime": "com.hamanpaul.liukai/.ime.LiuKaiImeService"}
+
+
+def test_current_ime_waits_for_expected_input_method(ex, adb):
+    # 語音鍵切換輸入法需要一點時間：等到預期的輸入法成為目前輸入法
+    adb.queue("settings get secure default_input_method", "com.hamanpaul.liukai/.ime.LiuKaiImeService\n", "com.hamanpaul.liukai/.ime.LiuKaiImeService\n", VOICE + "\n")
+    result = run(ex, action="current_ime", expect=VOICE)
+    assert result["success"] is True
+    assert result["captured"] == {"ime": VOICE}
+
+
+def test_current_ime_gives_up_waiting(ex, adb):
+    adb.queue("settings get secure default_input_method", "com.hamanpaul.liukai/.ime.LiuKaiImeService\n")
+    result = run(ex, action="current_ime", expect=VOICE)
+    assert result["success"] is False
+    assert VOICE in result["output"]
+
+
+def test_tap_key_without_ack_does_not_wait_for_the_ime(ex, adb):
+    # 語音鍵會切換到其他輸入法，liu-kai 的狀態可能再也讀不到：ack: false 時點完就結束
+    adb.queue(DUMPSYS, state_dump(keys={"voice": {"x": 1000, "y": 2200, "w": 80, "h": 150}}, touches=4))
+    result = run(ex, action="tap_key", key="voice", ack=False)
+    assert result["success"] is True
+    assert adb.of("tap") == [("tap", 1040, 2275)]
+    assert len([c for c in adb.of("shell") if c[1].startswith(DUMPSYS)]) == 1

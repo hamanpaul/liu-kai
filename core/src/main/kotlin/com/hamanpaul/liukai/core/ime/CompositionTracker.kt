@@ -18,7 +18,7 @@ class CompositionTracker {
             shown = false
         }
         if (engine.isComposing) {
-            ops += IcOp.SetComposing(engine.composing)
+            ops += IcOp.SetComposing(engine.displayComposing)
             shown = true
         } else if (shown) {
             ops += IcOp.ClearComposing

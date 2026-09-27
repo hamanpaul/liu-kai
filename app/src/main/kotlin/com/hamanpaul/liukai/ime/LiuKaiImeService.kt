@@ -8,6 +8,8 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import com.hamanpaul.liukai.core.engine.LiuEngine
 import com.hamanpaul.liukai.core.ime.EditorPolicy
 import com.hamanpaul.liukai.core.ime.IcOp
@@ -139,6 +141,23 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         startActivity(Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    /**
+     * 語音鍵：與官方相同切換到系統已啟用的語音輸入法（例如 Google 語音輸入），語音輸入結束後由它切回。
+     * 沒有啟用任何語音輸入時提示使用者到系統設定啟用。
+     */
+    override fun onVoice() {
+        val imm = getSystemService(InputMethodManager::class.java)
+        for (imi in imm.enabledInputMethodList) {
+            val voice = imm.getEnabledInputMethodSubtypeList(imi, true).firstOrNull { it.mode == "voice" } ?: continue
+            switchInputMethod(imi.id, voice)
+            return
+        }
+        Toast.makeText(this, "請先在系統的螢幕鍵盤設定啟用語音輸入", Toast.LENGTH_SHORT).show()
+    }
+
+    /** 候選列的常用標點：直接上屏（只在沒有組字時顯示）。 */
+    override fun onPunctuation(text: String) = execute(listOf(IcOp.Commit(text)))
+
 
     // ---- 執行 InputConnection 操作 ----
 
@@ -168,7 +187,8 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
 
     private fun uiState() = UiState(
         mode = controller.engine.mode,
-        composing = controller.engine.composing,
+        // 欄位內顯示的組字（同音鍵前置查詢時帶「'」）
+        composing = controller.engine.displayComposing,
         candidates = controller.engine.candidates,
         pageStart = controller.engine.pageStart,
         pageSize = controller.engine.config.pageSize,

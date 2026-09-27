@@ -82,6 +82,7 @@ class ImeController(val engine: LiuEngine) {
             SoftKey.Backspace -> ImeEvent.Backspace
             SoftKey.Space -> ImeEvent.Space
             SoftKey.Enter -> ImeEvent.Enter
+            SoftKey.Homophone -> ImeEvent.HomophoneKey
             SoftKey.ToggleEnglish -> return tracker.sync(engine.handle(EngineEvent.ToggleEnglish), engine)
         }
         if (!imeActive) return passThrough(key, imeOptions, inputType)
@@ -98,18 +99,19 @@ class ImeController(val engine: LiuEngine) {
         return listOf(IcOp.FinishComposing)
     }
 
-    /** 軟鍵盤沒有對應的 App 端 KeyEvent，未被引擎消耗的鍵由此直接送出。 */
-    private fun passThrough(key: SoftKey, imeOptions: Int, inputType: Int): List<IcOp> = listOf(
-        when (key) {
-            is SoftKey.Text -> IcOp.Commit(key.char.toString())
-            SoftKey.Space -> IcOp.Commit(" ")
-            SoftKey.Backspace -> IcOp.SendKey(HardwareKeys.KEYCODE_DEL)
-            else -> when (val enter = EditorPolicy.enterAction(imeOptions, inputType)) {
+    /** 軟鍵盤沒有對應的 App 端 KeyEvent，未被引擎消耗的鍵由此直接送出；同音鍵沒有要送出的內容。 */
+    private fun passThrough(key: SoftKey, imeOptions: Int, inputType: Int): List<IcOp> = when (key) {
+        is SoftKey.Text -> listOf(IcOp.Commit(key.char.toString()))
+        SoftKey.Space -> listOf(IcOp.Commit(" "))
+        SoftKey.Backspace -> listOf(IcOp.SendKey(HardwareKeys.KEYCODE_DEL))
+        SoftKey.Homophone -> emptyList()
+        else -> listOf(
+            when (val enter = EditorPolicy.enterAction(imeOptions, inputType)) {
                 is EnterAction.EditorAction -> IcOp.EditorAction(enter.actionId)
                 EnterAction.NewLine -> IcOp.SendKey(HardwareKeys.KEYCODE_ENTER)
-            }
-        },
-    )
+            },
+        )
+    }
 }
 
 private val PASS = ImeOutcome(false, emptyList())

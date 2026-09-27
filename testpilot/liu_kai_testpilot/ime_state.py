@@ -57,6 +57,9 @@ class ImeState:
     probe: tuple[int, int, str] = (0, 0, "#000000")
     # 輸入法已處理完的觸控次數：點擊後等它增加，確認輸入法處理完才進行下一步
     touches: int = 0
+    # 各排按鍵顯示的標籤（以圖示顯示的鍵為其代表字元）、候選列的常用標點（punct:X）
+    row_labels: list[list[str]] = field(default_factory=list)
+    strip: list[str] = field(default_factory=list)
 
     def candidate(self, text: str | None = None, index: int | None = None) -> CandidateView:
         for c in self.candidates:
@@ -98,5 +101,7 @@ def parse_dump(output: str) -> ImeState:
                 row_colors=d["rowColors"],
                 probe=(d["probe"]["x"], d["probe"]["y"], d["probe"]["color"]),
                 touches=d["touches"],
+                row_labels=d["rowLabels"],
+                strip=d["strip"],
             )
     raise ValueError("dumpsys 輸出中沒有 LIUKAI_STATE（輸入法未啟動或不是 liu-kai？）")

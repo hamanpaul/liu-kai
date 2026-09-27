@@ -1,0 +1,86 @@
+id: soft-punct-strip
+name: 中文模式閒置時候選列顯示常用標點
+description: '照官方：中文字母層沒有組字時，候選列顯示 ! ? , " : ( ) -，點選直接上屏；組字中、?123 層與英文模式不顯示。'
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: st1
+  action: ime_state
+  target: EMU
+- id: paren
+  action: tap_key
+  target: EMU
+  key: punct:(
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: st2
+  action: ime_state
+  target: EMU
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st3
+  action: ime_state
+  target: EMU
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st4
+  action: ime_state
+  target: EMU
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st5
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.strip
+  operator: equals
+  value: &id001
+  - punct:!
+  - punct:?
+  - punct:,
+  - punct:"
+  - 'punct::'
+  - punct:(
+  - punct:)
+  - punct:-
+- field: st2.strip
+  operator: equals
+  value: []
+- field: st3.strip
+  operator: equals
+  value: []
+- field: st4.strip
+  operator: equals
+  value: []
+- field: st5.strip
+  operator: equals
+  value: *id001
+- field: read.text
+  operator: equals
+  value: (木

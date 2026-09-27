@@ -24,6 +24,8 @@ sealed interface ImeEvent : EngineEvent {
     data object PageUp : ImeEvent
     /** 觸控點選候選（絕對索引）。 */
     data class Select(val index: Int) : ImeEvent
+    /** 螢幕鍵盤的「同音」鍵：沒有組字時開始同音查詢（先打字碼、選字，再列同音字）；組字中與反引號相同。 */
+    data object HomophoneKey : ImeEvent
 }
 
 /** 處理結果：commit 為要上屏的文字；consumed=false 表示這個按鍵要交給 App 處理。 */
@@ -67,9 +69,22 @@ class LiuEngine(
     /** 上一個事件是組字失敗（組字已清除、不出字，畫面以紅框提示）；下一個事件或重置時清除。 */
     var failed: Boolean = false
         private set
+    /** 同音鍵前置查詢中：打的字碼用來找要查同音的字，選字後列出該字的同音字。 */
+    private var homophonePrefix = false
 
-    /** 同音模式下組字仍保留原字碼，因此只看組字是否為空。 */
-    val isComposing: Boolean get() = composing.isNotEmpty()
+    /** 同音模式下組字仍保留原字碼；同音鍵前置查詢剛開始時還沒有字碼。 */
+    val isComposing: Boolean get() = composing.isNotEmpty() || homophonePrefix
+
+    /**
+     * 欄位內顯示的組字：前置查詢時字碼前加「'」（與官方相同）；前置查詢選字後列出同音字時不顯示組字，
+     * 一般的同音模式仍顯示原字碼。
+     */
+    val displayComposing: String
+        get() = when {
+            !homophonePrefix -> composing
+            homophoneOf != null -> ""
+            else -> "'$composing"
+        }
 
     /** table 為繁中字表（匯入時已併入日文區段的假名字碼）。 */
     fun setTables(table: CompiledTable?, readings: Readings) {
@@ -83,6 +98,7 @@ class LiuEngine(
         candidates = emptyList()
         pageStart = 0
         homophoneOf = null
+        homophonePrefix = false
         failed = false
     }
 
@@ -105,13 +121,23 @@ class LiuEngine(
 
     private fun handleIme(event: ImeEvent, table: CompiledTable): EngineResult = when (event) {
         is ImeEvent.Key -> onKey(event.char, table)
-        ImeEvent.Space -> onSpace()
+        ImeEvent.Space -> onSpace(table)
         ImeEvent.Backspace -> onBackspace(table)
         ImeEvent.Enter -> onEnter()
         ImeEvent.Escape -> if (isComposing) { reset(); EngineResult.CONSUMED } else EngineResult.PASS
         ImeEvent.PageDown -> page(+1)
         ImeEvent.PageUp -> page(-1)
-        is ImeEvent.Select -> select(event.index)
+        is ImeEvent.Select -> select(event.index, table)
+        ImeEvent.HomophoneKey -> onHomophoneKey(table)
+    }
+
+    private fun onHomophoneKey(table: CompiledTable): EngineResult = when {
+        homophoneOf != null -> EngineResult.CONSUMED
+        composing.isNotEmpty() -> homophone(pageStart, table)
+        else -> {
+            homophonePrefix = true
+            EngineResult.CONSUMED
+        }
     }
 
     private fun isAsciiDigit(c: Char) = c in '0'..'9'
@@ -126,22 +152,22 @@ class LiuEngine(
 
         if (homophoneOf != null) {
             return when {
-                isAsciiDigit(c) -> selectDigit(c)
+                isAsciiDigit(c) -> selectDigit(c, table)
                 c in config.pageDownKeys -> page(+1)
                 c in config.pageUpKeys -> page(-1)
                 else -> fail()
             }
         }
 
-        if (composing.isNotEmpty()) {
-            if (isAsciiDigit(c)) return selectDigit(c)
+        if (isComposing) {
+            if (isAsciiDigit(c)) return selectDigit(c, table)
             if (c == config.homophoneKey) return homophone(pageStart, table)
             val vrsfIndex = config.vrsf[lower]
             // 含萬用字元的組字不可能是合法字碼，isCode 已排除，不必另外判斷
             if (vrsfIndex != null) {
                 val extended = composing + lower
                 if (!table.hasPrefix(extended) && table.isCode(composing) && vrsfIndex < candidates.size) {
-                    return commitAt(vrsfIndex)
+                    return commitAt(vrsfIndex, table)
                 }
             }
             if (lower !in table.alphabet && c != config.wildcard) {
@@ -164,14 +190,14 @@ class LiuEngine(
 
     private fun hasWildcard() = config.wildcard in composing
 
-    private fun onSpace(): EngineResult {
+    private fun onSpace(table: CompiledTable): EngineResult {
         if (!isComposing) return EngineResult.PASS
         if (candidates.isEmpty()) {
             // 空碼：清除組字，直接出空白
             reset()
             return EngineResult(true, " ")
         }
-        return commitAt(pageStart)
+        return commitAt(pageStart, table)
     }
 
     private fun onBackspace(table: CompiledTable): EngineResult {
@@ -180,7 +206,12 @@ class LiuEngine(
             refreshCandidates(table)
             return EngineResult.CONSUMED
         }
-        if (composing.isEmpty()) return EngineResult.PASS
+        if (composing.isEmpty()) {
+            if (!homophonePrefix) return EngineResult.PASS
+            // 前置查詢還沒打字碼：離開查詢
+            reset()
+            return EngineResult.CONSUMED
+        }
         composing = composing.dropLast(1)
         refreshCandidates(table)
         return EngineResult.CONSUMED
@@ -190,7 +221,7 @@ class LiuEngine(
         if (!isComposing) return EngineResult.PASS
         val raw = composing
         reset()
-        return EngineResult(true, raw)
+        return EngineResult(true, raw.ifEmpty { null })
     }
 
     private fun page(direction: Int): EngineResult {
@@ -201,16 +232,18 @@ class LiuEngine(
     }
 
     /** 數字鍵 0–9 選目前頁第 1–10 個候選：0 為預設字（即空白上屏的字），1–9 依序為其後候選；超出候選數為組字失敗。 */
-    private fun selectDigit(c: Char): EngineResult {
+    private fun selectDigit(c: Char, table: CompiledTable): EngineResult {
         val offset = c - '0'
         val index = pageStart + offset
-        return if (offset < config.pageSize && index < candidates.size) commitAt(index) else fail()
+        return if (offset < config.pageSize && index < candidates.size) commitAt(index, table) else fail()
     }
 
-    private fun select(index: Int): EngineResult =
-        if (index in candidates.indices) commitAt(index) else EngineResult.CONSUMED
+    private fun select(index: Int, table: CompiledTable): EngineResult =
+        if (index in candidates.indices) commitAt(index, table) else EngineResult.CONSUMED
 
-    private fun commitAt(index: Int): EngineResult {
+    /** 上屏第 index 個候選；同音鍵前置查詢中選的是要查同音的字，改列出同音字。 */
+    private fun commitAt(index: Int, table: CompiledTable): EngineResult {
+        if (homophonePrefix && homophoneOf == null) return homophone(index, table)
         val text = candidates[index].text
         reset()
         return EngineResult(true, text)

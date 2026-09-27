@@ -317,9 +317,13 @@ class StepExecutor:
         return f"tap candidate {c.index}:{c.text}", {}
 
     def _do_tap_key(self, step):
+        """點螢幕鍵盤的鍵並等輸入法處理完；ack: false 時不等（例如語音鍵會切換到其他輸入法）。"""
         state = self.shown_state()
         self.adb.tap(*state.key(step["key"]).center)
-        self._await_touch_handled(state)
+        if step.get("ack", True):
+            self._await_touch_handled(state)
+        else:
+            self.settle()
         return f"tap key {step['key']}", {}
 
     def _do_long_press_key(self, step):
@@ -414,6 +418,8 @@ class StepExecutor:
             "popup": s.popup,
             "row_rects": s.row_rects,
             "row_colors": s.row_colors,
+            "row_labels": s.row_labels,
+            "strip": s.strip,
             "candidate_strip": [s.candidate_row.y, s.candidate_row.h],
             "candidates": s.candidate_texts(),
             "annotations": [c.annotation for c in s.candidates],
@@ -457,6 +463,18 @@ class StepExecutor:
     def _do_shell(self, step):
         out = self.adb.shell(step["command"]).strip()
         return out, {"output": out}
+
+    def _do_current_ime(self, step):
+        """目前的輸入法；指定 expect 時等它成為目前輸入法（例如語音鍵切換到語音輸入，最多 WINDOW_POLLS 次）。"""
+        polls = 0
+        while True:
+            ime = self.adb.shell("settings get secure default_input_method").strip()
+            if "expect" not in step or ime == step["expect"]:
+                return f"ime={ime}", {"ime": ime}
+            polls += 1
+            if polls == WINDOW_POLLS:
+                raise LookupError(f"目前輸入法一直不是 {step['expect']}（實際 {ime}）")
+            self._sleep(0.5)
 
     def _do_ime(self, step):
         if step["enabled"]:

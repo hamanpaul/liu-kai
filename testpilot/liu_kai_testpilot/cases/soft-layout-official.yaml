@@ -1,6 +1,6 @@
 id: soft-layout-official
 name: 螢幕鍵盤配置照官方嘸蝦米
-description: 字母層（q–p 附數字提示、a–l、⇧ z–m ⌫、中 ?123 , 空白 . Enter）、?123 層、ALT 層逐排比對官方 PRO 的配置；一般欄的 Enter 標籤為 Next。
+description: 中文模式字母層（Q–P 附數字提示、A–L、同音 Z–M ⌫、En ?123 , 嘸蝦米 .'[] Enter）、?123 層、ALT 層逐排比對官方 PRO 的配置；一般欄的 Enter 標籤為 Next。
 topology:
   devices:
     EMU:
@@ -67,7 +67,7 @@ pass_criteria:
     - j
     - k
     - l
-  - - shift
+  - - homophone
     - z
     - x
     - c

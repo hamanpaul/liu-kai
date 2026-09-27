@@ -1,0 +1,147 @@
+id: soft-chinese-keycaps
+name: 中文模式鍵帽大寫、同音鍵與模式標籤
+description: 照官方：中文模式鍵帽大寫、Shift 位置是「同音」、中英鍵顯示 En、空白鍵標「嘸蝦米」、句點鍵為「.'[]」；英文模式鍵帽小寫、⇧、中、空白鍵圖示、「.」；?123
+  層左下為「中」、空白與句點鍵同中文模式。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: zh
+  action: ime_state
+  target: EMU
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st_en
+  action: ime_state
+  target: EMU
+- id: back
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st_sym
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: zh.row_labels
+  operator: equals
+  value:
+  - - Q
+    - W
+    - E
+    - R
+    - T
+    - Y
+    - U
+    - I
+    - O
+    - P
+  - - A
+    - S
+    - D
+    - F
+    - G
+    - H
+    - J
+    - K
+    - L
+  - - 同音
+    - Z
+    - X
+    - C
+    - V
+    - B
+    - N
+    - M
+    - ⌫
+  - - En
+    - ?123
+    - ','
+    - 嘸蝦米
+    - .'[]
+    - Next
+- field: st_en.row_labels
+  operator: equals
+  value:
+  - - q
+    - w
+    - e
+    - r
+    - t
+    - y
+    - u
+    - i
+    - o
+    - p
+  - - a
+    - s
+    - d
+    - f
+    - g
+    - h
+    - j
+    - k
+    - l
+  - - ⇧
+    - z
+    - x
+    - c
+    - v
+    - b
+    - n
+    - m
+    - ⌫
+  - - 中
+    - ?123
+    - ','
+    - ␣
+    - .
+    - Next
+- field: st_sym.row_labels
+  operator: equals
+  value:
+  - - '1'
+    - '2'
+    - '3'
+    - '4'
+    - '5'
+    - '6'
+    - '7'
+    - '8'
+    - '9'
+    - '0'
+  - - '@'
+    - '#'
+    - $
+    - '%'
+    - '&'
+    - '*'
+    - '-'
+    - +
+    - (
+    - )
+  - - ALT
+    - '!'
+    - '"'
+    - ''''
+    - ':'
+    - ;
+    - /
+    - '?'
+    - ⌫
+  - - 中
+    - ABC
+    - ','
+    - 嘸蝦米
+    - .'[]
+    - Next

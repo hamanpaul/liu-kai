@@ -37,6 +37,10 @@ interface ImeActions {
     fun onSoftKey(key: SoftKey)
     fun onCandidateTap(index: Int)
     fun onOpenSettings()
+    /** 候選列右端的麥克風：切換到系統的語音輸入。 */
+    fun onVoice()
+    /** 中文模式閒置時候選列的常用標點：直接上屏。 */
+    fun onPunctuation(text: String)
 }
 
 /** 畫面需要的引擎狀態快照。 */
@@ -55,9 +59,12 @@ data class UiState(
 /**
  * 輸入畫面：上方候選列、下方螢幕鍵盤。偵測到實體鍵盤時只顯示候選列。
  *
- * 螢幕鍵盤照官方嘸蝦米 PRO 的配置：字母層（q–p 附數字提示、長按輸入數字；a–l；⇧ z–m ⌫；
- * 中 ?123 , 空白 . Enter）、?123 層與 ALT 層；長按「.」彈出標點、長按「,」彈出設定。
- * 字根 ' [ ]、萬用字元 *、同音鍵 ` 與官方相同放在 ?123／ALT 層，切換鍵盤層不影響組字。
+ * 螢幕鍵盤照官方嘸蝦米 PRO 的配置：
+ * - 中文模式字母層：鍵帽大寫（q–p 附數字提示、長按輸入數字）；同音 Z–M ⌫；En ?123 , 嘸蝦米 .'[] Enter。
+ *   「.'[]」鍵點按為字根「.」、長按彈出字根 ' [ ]；閒置時候選列顯示常用標點。
+ * - 英文模式字母層：鍵帽小寫；⇧ z–m ⌫；中 ?123 , 空白 . Enter；長按「.」彈出標點。
+ * - ?123 層與 ALT 層：左下為「中」、ABC 回字母層；中文模式時空白鍵與「.'[]」鍵同中文字母層。
+ * 長按「,」彈出設定；候選列右端為語音鍵。萬用字元 *、反引號 ` 與官方相同放在 ?123／ALT 層，切換鍵盤層不影響組字。
  * 候選與按鍵都是獨立的標準 View（含 contentDescription），確保點擊判定可靠、也可被 UiAutomator 定位。
  */
 @SuppressLint("ViewConstructor")
@@ -84,6 +91,10 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private var shownCandidates: List<Candidate> = emptyList()
     private val keyViews = LinkedHashMap<String, View>()
     private val popupViews = LinkedHashMap<String, View>()
+    private val punctViews = LinkedHashMap<String, View>()
+    private val voiceKey = ImageView(context)
+    /** 最近一次 render 的狀態（候選列依它重建；切換鍵盤層時也要重建常用標點）。 */
+    private var lastState: UiState? = null
     private val repeatHandler = Handler(Looper.getMainLooper())
     private val failureFrame = GradientDrawable().apply {
         setColor(Color.TRANSPARENT)
@@ -125,6 +136,9 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         context.getSystemService(WindowManager::class.java).currentWindowMetrics.windowInsets
             .getInsets(WindowInsets.Type.navigationBars()).bottom
 
+    /** 中文模式（有字表）：字母層用中文配置、鍵帽大寫。 */
+    private val chinese: Boolean get() = tableLoaded && mode == InputMode.CHINESE
+
     /** 回到字母層、放開 Shift、收起彈出鍵盤（換到新的輸入欄時呼叫）。 */
     fun resetLayout() {
         layer = Layer.LETTERS
@@ -148,21 +162,53 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
     fun render(state: UiState) {
         foreground = if (state.failed) failureFrame else null
+        lastState = state
         if (state.mode != mode || state.tableLoaded != tableLoaded) {
             mode = state.mode
             tableLoaded = state.tableLoaded
+            // 中文模式沒有 Shift；切換模式時放開，避免回到英文時仍是大寫
+            shifted = false
             rebuildKeyboard()
         }
         composingView.text = when {
             state.homophoneOf != null -> "音:${state.homophoneOf}"
             else -> state.composing
         }
+        refreshBar()
+        candidateScroll.post { candidateScroll.scrollTo(0, 0) }
+    }
+
+    /** 重建候選列：有候選時列出候選；中文字母層閒置時列出常用標點（與官方相同）。 */
+    private fun refreshBar() {
         candidateRow.removeAllViews()
-        shownCandidates = state.candidates
+        punctViews.clear()
+        val state = lastState
+        shownCandidates = state?.candidates.orEmpty()
+        if (state == null) return
         state.candidates.forEachIndexed { index, cand ->
             candidateRow.addView(candidateView(index, cand, state))
         }
-        candidateScroll.post { candidateScroll.scrollTo(0, 0) }
+        if (state.candidates.isEmpty() && state.composing.isEmpty() && chinese && layer == Layer.LETTERS) {
+            PUNCTUATION.forEachIndexed { i, p ->
+                if (i > 0) candidateRow.addView(View(context).apply { setBackgroundColor(STRIP_DIVIDER) }, LayoutParams(dp(1f), dp(20f)))
+                candidateRow.addView(punctView(p))
+            }
+        }
+    }
+
+    private fun punctView(p: String): View {
+        val tv = TextView(context)
+        tv.text = p
+        tv.setTextColor(KEY_TEXT)
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+        tv.gravity = Gravity.CENTER
+        tv.minWidth = dp(38f)
+        tv.contentDescription = "key:punct:$p"
+        tv.isClickable = true
+        tv.setOnClickListener { actions.onPunctuation(p) }
+        tv.background = pressedBackground()
+        punctViews["punct:$p"] = tv
+        return tv
     }
 
     /**
@@ -180,7 +226,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         // 測試以截圖確認鍵盤真的畫在螢幕上
         json.put("probe", JSONObject().put("x", PROBE_INSET).put("y", row.getInt("y") + PROBE_INSET).put("color", hex(BAR_BG)))
         val candidates = JSONArray()
-        for (i in 0 until candidateRow.childCount) {
+        for (i in shownCandidates.indices) {
             val child = candidateRow.getChildAt(i)
             val cand = shownCandidates[i]
             candidates.put(
@@ -191,9 +237,14 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val keys = JSONObject()
         for ((id, view) in keyViews) keys.put(id, bounds(view))
         for ((id, view) in popupViews) keys.put(id, bounds(view))
+        for ((id, view) in punctViews) keys.put(id, bounds(view))
+        keys.put("voice", bounds(voiceKey))
         json.put("keys", keys)
         json.put("layer", layer.name.lowercase())
         json.put("rows", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { it.id }) }))
+        // 各鍵顯示的標籤；以圖示顯示的鍵（⇧ ⌫ ␣）為其代表字元
+        json.put("rowLabels", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { if (iconFor(it) != null) it.label else labelFor(it) }) }))
+        json.put("strip", JSONArray(punctViews.keys.toList()))
         json.put("enterLabel", enterLabel)
         json.put("popup", JSONArray(popupViews.keys.toList()))
         json.put("rowRects", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { rect(keyViews.getValue(it.id)) }) }))
@@ -246,6 +297,13 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         candidateScroll.contentDescription = "candidates"
         candidateScroll.addView(candidateRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         bar.addView(candidateScroll, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        voiceKey.setImageResource(R.drawable.liukai_ic_mic)
+        voiceKey.scaleType = ImageView.ScaleType.CENTER
+        voiceKey.contentDescription = "key:voice"
+        voiceKey.isClickable = true
+        voiceKey.setOnClickListener { actions.onVoice() }
+        voiceKey.background = pressedBackground()
+        bar.addView(voiceKey, LayoutParams(dp(44f), LayoutParams.MATCH_PARENT))
         return bar
     }
 
@@ -284,13 +342,18 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         keyViews.clear()
         // 每排 71.65dp（按鍵格約 65dp）＝官方「直式按鍵：高」
         rowsFor(layer).forEach { row -> rowsView.addView(buildRow(row), LayoutParams(LayoutParams.MATCH_PARENT, dp(71.65f))) }
+        // 常用標點只在中文字母層顯示，切換鍵盤層或模式時跟著更新
+        refreshBar()
     }
 
     private fun rowsFor(layer: Layer) = when (layer) {
-        Layer.LETTERS -> LETTER_ROWS
-        Layer.SYMBOLS -> SYMBOL_ROWS
+        Layer.LETTERS -> if (chinese) CHINESE_ROWS else LETTER_ROWS
+        Layer.SYMBOLS -> if (chinese) CHINESE_SYMBOL_ROWS else SYMBOL_ROWS
         Layer.ALT -> ALT_ROWS
     }
+
+    /** 以圖示顯示的鍵；中文模式的空白鍵改顯示「嘸蝦米」文字。 */
+    private fun iconFor(def: KeyDef): Int? = if (def.id == "space" && chinese) null else def.icon
 
     private fun buildRow(keys: List<KeyDef>): View {
         val row = LinearLayout(context)
@@ -316,7 +379,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val frame = FrameLayout(context)
         frame.contentDescription = "key:${def.id}"
         frame.isClickable = true
-        val icon = def.icon
+        val icon = iconFor(def)
         if (icon != null) {
             frame.addView(
                 ImageView(context).apply { setImageResource(icon) },
@@ -393,16 +456,26 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     /** 指示點是否亮起（只用於 Shift 與 ALT）：Shift 按下、目前在 ALT 層。 */
     private fun activeFor(def: KeyDef): Boolean = if (def.id == "shift") shifted else layer == Layer.ALT
 
+    /**
+     * 按鍵標籤。中英鍵與官方相同顯示「要切去的模式」：中文字母層顯示 En、英文字母層與 ?123／ALT 層顯示「中」；
+     * 沒有字表時顯示「無表」。中文模式與 Shift 時字母鍵帽大寫。
+     */
     private fun labelFor(def: KeyDef): String = when (def.id) {
-        "toggle_english" -> if (!tableLoaded) "無表" else if (mode == InputMode.ENGLISH) "英" else "中"
+        "toggle_english" -> when {
+            !tableLoaded -> "無表"
+            layer == Layer.LETTERS && mode == InputMode.CHINESE -> "En"
+            else -> "中"
+        }
         "symbols" -> if (layer == Layer.LETTERS) "?123" else "ABC"
         "enter" -> enterLabel
-        else -> if (shifted && def.label[0].isLetter()) def.label.uppercase() else def.label
+        "space" -> "嘸蝦米"
+        else -> if ((chinese || shifted) && def.label.length == 1 && def.label[0] in 'a'..'z') def.label.uppercase() else def.label
     }
 
     private fun onKey(def: KeyDef) {
         when (def.id) {
             "shift" -> { shifted = !shifted; rebuildKeyboard() }
+            "homophone" -> actions.onSoftKey(SoftKey.Homophone)
             "symbols" -> { layer = if (layer == Layer.LETTERS) Layer.SYMBOLS else Layer.LETTERS; shifted = false; rebuildKeyboard() }
             "alt" -> { layer = if (layer == Layer.ALT) Layer.SYMBOLS else Layer.ALT; rebuildKeyboard() }
             "space" -> actions.onSoftKey(SoftKey.Space)
@@ -557,6 +630,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         private val CANDIDATE_PRESSED = Color.rgb(0x33, 0x33, 0x33)
         private val ACCENT = Color.rgb(0x4D, 0xB6, 0xAC)
         private val FAILURE = Color.rgb(0xE5, 0x39, 0x35)
+        private val STRIP_DIVIDER = Color.rgb(0x3A, 0x3B, 0x3B)
 
         private const val ROW_WEIGHT = 10f
         private const val PROBE_INSET = 20
@@ -576,40 +650,60 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
         private val PERIOD_POPUP = listOf(":", "/", "&", "(", ")", "-", "+", ";", "@", "'", "\"", "?", "!", ",").map { PopupDef(it, it) }
         private val COMMA_POPUP = listOf(PopupDef(SETTINGS, "⚙"), PopupDef(",", ","))
+        /** 中文模式「.'[]」鍵長按：其餘的字根 ' [ ]。 */
+        private val ROOT_POPUP = listOf("'", "[", "]").map { PopupDef(it, it) }
+        /** 中文模式閒置時候選列的常用標點（官方手冊截圖）。 */
+        private val PUNCTUATION = listOf("!", "?", ",", "\"", ":", "(", ")", "-")
 
-        /** 各層共用的最下排：中／英 ?123（或 ABC） , 空白 . Enter。 */
-        private fun bottomRow(comma: String, period: String, popups: Boolean) = listOf(
+        /** 各層共用的最下排：中英鍵 ?123（或 ABC） 逗號鍵 空白 句點鍵 Enter。 */
+        private fun bottomRow(comma: KeyDef, period: KeyDef) = listOf(
             KeyDef("toggle_english", "中", 1.3f, function = true),
             KeyDef("symbols", "?123", 1.2f, function = true),
-            KeyDef(comma, comma, popup = if (popups) COMMA_POPUP else null, function = true),
+            comma,
             KeyDef("space", "␣", 4f, char = ' ', function = true, icon = R.drawable.liukai_ic_space),
-            KeyDef(period, period, popup = if (popups) PERIOD_POPUP else null, function = true),
+            period,
             KeyDef("enter", "↵", 1.5f, function = true),
         )
 
+        private val COMMA = KeyDef(",", ",", popup = COMMA_POPUP, function = true)
+        private val PERIOD = KeyDef(".", ".", popup = PERIOD_POPUP, function = true)
+        /** 中文模式的句點鍵：點按為字根「.」，長按彈出 ' [ ]。 */
+        private val ROOT_PERIOD = KeyDef(".", ".'[]", popup = ROOT_POPUP, char = '.', function = true)
+
         private val SHIFT = KeyDef("shift", "⇧", 1.5f, function = true, icon = R.drawable.liukai_ic_shift)
+        private val HOMOPHONE = KeyDef("homophone", "同音", 1.5f, function = true)
         private val BACKSPACE = KeyDef("backspace", "⌫", 1.5f, function = true, icon = R.drawable.liukai_ic_backspace)
         private val ALT = KeyDef("alt", "ALT", 1.5f, function = true)
 
+        private val TOP_LETTERS = "qwertyuiop".mapIndexed { i, c -> KeyDef(c.toString(), c.toString(), hint = "1234567890"[i]) }
+
         private val LETTER_ROWS = listOf(
-            "qwertyuiop".mapIndexed { i, c -> KeyDef(c.toString(), c.toString(), hint = "1234567890"[i]) },
+            TOP_LETTERS,
             chars("asdfghjkl"),
             listOf(SHIFT) + chars("zxcvbnm") + BACKSPACE,
-            bottomRow(",", ".", popups = true),
+            bottomRow(COMMA, PERIOD),
         )
 
-        private val SYMBOL_ROWS = listOf(
+        private val CHINESE_ROWS = listOf(
+            TOP_LETTERS,
+            chars("asdfghjkl"),
+            listOf(HOMOPHONE) + chars("zxcvbnm") + BACKSPACE,
+            bottomRow(COMMA, ROOT_PERIOD),
+        )
+
+        private val SYMBOL_KEYS = listOf(
             chars("1234567890"),
             chars("@#$%&*-+()"),
             listOf(ALT) + chars("!\"':;/?") + BACKSPACE,
-            bottomRow(",", ".", popups = true),
         )
+        private val SYMBOL_ROWS = SYMBOL_KEYS + listOf(bottomRow(COMMA, PERIOD))
+        private val CHINESE_SYMBOL_ROWS = SYMBOL_KEYS + listOf(bottomRow(COMMA, ROOT_PERIOD))
 
         private val ALT_ROWS = listOf(
             chars("~`|•√π÷×{}"),
             listOf(KeyDef("tab", "⇥", char = '\t')) + chars("£¢€°^_=[]"),
             listOf(ALT) + chars("™®©¶\\<>") + BACKSPACE,
-            bottomRow("„", "…", popups = false),
+            bottomRow(KeyDef("„", "„", function = true), KeyDef("…", "…", function = true)),
         )
     }
 }
