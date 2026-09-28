@@ -261,6 +261,24 @@ def test_push_file_writes_repo_file_to_device(ex, adb, tmp_path):
     assert adb.of("write_file") == [("write_file", "/sdcard/Download/bad.txt", b"hello")]
 
 
+def test_field_visible_checks_the_field_is_above_the_ime_window(ex, adb):
+    # 欄位 plain 的範圍是 y 120–240：輸入法視窗頂端在 2200 時看得到，在 200 時被蓋住
+    adb.queue(UI_DUMP, UI_XML.format(plain="ba"))
+    adb.shell_outputs["dumpsys input"] = [window_dump(2200), window_dump(200), "  Windows:\n"]
+    assert run(ex, action="field_visible", field="plain")["captured"] == {"visible": True}
+    result = run(ex, action="field_visible", field="plain")
+    assert result["captured"] == {"visible": False}
+    assert result["output"] == "field plain visible=False"
+    # 沒有輸入法視窗時不會被蓋住
+    assert run(ex, action="field_visible", field="plain")["captured"] == {"visible": True}
+
+
+def test_field_scrolled_out_of_view_is_not_visible(ex, adb):
+    # 欄位被捲出畫面時 UI 擷取找不到節點
+    adb.queue(UI_DUMP, UI_XML.format(plain="ba"))
+    assert run(ex, action="field_visible", field="try_area")["captured"] == {"visible": False}
+
+
 def test_tap_field_at_horizontal_ratio(ex, adb):
     adb.queue(UI_DUMP, UI_XML.format(plain="ba"))
     run(ex, action="tap_field", field="plain", x_ratio=0.02)

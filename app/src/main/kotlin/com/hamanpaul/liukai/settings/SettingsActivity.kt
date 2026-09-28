@@ -12,6 +12,7 @@ import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -58,15 +59,18 @@ class SettingsActivity : Activity() {
         }
         root.addView(report)
         root.addView(TextView(this).apply { text = "試打區" })
-        root.addView(EditText(this).apply { minLines = 3 })
+        root.addView(EditText(this).apply { minLines = 3; contentDescription = "try_area" })
         val scroll = ScrollView(this).apply { addView(root) }
-        // targetSdk 35 強制 edge-to-edge：以系統列與輸入法的 insets 補 padding。
-        scroll.setOnApplyWindowInsetsListener { v, insets ->
+        // targetSdk 35 強制 edge-to-edge：以系統列與輸入法的 insets 補 padding。padding 加在外層容器而不是 ScrollView：
+        // ScrollView 判斷焦點欄位與游標是否可見時不扣自己的 padding，鍵盤較高時試打區會被蓋住也不捲動；
+        // 讓 ScrollView 實際縮小，才會把焦點欄位捲到鍵盤上方。
+        val frame = FrameLayout(this).apply { addView(scroll) }
+        frame.setOnApplyWindowInsetsListener { v, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
-        setContentView(scroll)
+        setContentView(frame)
     }
 
     override fun onResume() {

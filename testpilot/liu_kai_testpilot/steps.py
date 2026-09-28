@@ -177,6 +177,17 @@ class StepExecutor:
         self.settle()
         return f"tap field {step['field']}", {}
 
+    def _do_field_visible(self, step):
+        """輸入欄是否完整顯示在輸入法視窗上方（沒被鍵盤蓋住）。欄位被捲出畫面時 UI 擷取找不到節點，視為看不到；
+        輸入法視窗的頂端取觸控派送器的 frame（任何輸入法都適用）。"""
+        try:
+            rect = find_node(self.ui_xml(), desc=step["field"]).rect
+        except LookupError:
+            rect = None
+        top = self.ime_frame_top()
+        visible = rect is not None and (top is None or rect.y + rect.h <= top)
+        return f"field {step['field']} visible={visible}", {"visible": visible}
+
     def _focused_window_touchable(self) -> bool:
         focus = _FOCUS.search(self.adb.shell("dumpsys window | grep mCurrentFocus"))
         if focus is None:
