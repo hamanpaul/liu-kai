@@ -75,6 +75,10 @@ object TableStore {
         invalidate()
     }
 
+    /**
+     * 先寫到同目錄的暫存檔，再以原子搬移（ATOMIC_MOVE＋REPLACE_EXISTING）取代字表檔：寫入途中當機或被結束時
+     * 原字表檔不受影響；搬移失敗時丟出例外（不像 renameTo 只回傳 false、各裝置覆蓋行為不一）。
+     */
     private fun writeAtomically(target: File, bytes: ByteArray) {
         val tmp = File(target.parentFile, "$FILE_NAME.tmp")
         tmp.writeBytes(bytes)
