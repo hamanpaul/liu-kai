@@ -1,0 +1,39 @@
+id: settings-saf-single-bad
+name: SAF 單選無法辨識的檔案
+description: 從下載資料夾選一個不是字表的檔案：顯示匯入失敗。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: settings
+steps:
+- id: push
+  action: push_file
+  target: EMU
+  src: testpilot/fixtures/bad.txt
+  dest: /sdcard/Download/liukai-bad.txt
+- id: open
+  action: tap_text
+  target: EMU
+  text: 3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）
+  until: liukai-bad.txt
+- id: picker
+  action: wait_text
+  target: EMU
+  contains: liukai-bad.txt
+- id: pick
+  action: tap_text
+  target: EMU
+  text: liukai-bad.txt
+  until: 匯入失敗
+- id: report
+  action: wait_text
+  target: EMU
+  contains: 匯入失敗
+pass_criteria:
+- field: report.text
+  operator: contains
+  value: 匯入失敗

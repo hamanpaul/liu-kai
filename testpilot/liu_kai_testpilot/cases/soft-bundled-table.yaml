@@ -1,0 +1,43 @@
+id: soft-bundled-table
+name: 全新安裝以螢幕鍵盤打中文
+description: 手機的實際使用情境：全新安裝、沒有匯入字表，用螢幕鍵盤打 d o 空白，內建字表上屏「日」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: bundled
+  keyboard: soft
+mutates_table: true
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+- id: d
+  action: tap_key
+  target: EMU
+  key: d
+- id: o
+  action: tap_key
+  target: EMU
+  key: o
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.table_loaded
+  operator: equals
+  value: true
+- field: st.keyboard_visible
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: 日

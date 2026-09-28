@@ -1,0 +1,32 @@
+id: hw-corrupt-table
+name: 字表檔損毀時視為未匯入
+description: 寫入損毀的字表檔：載入失敗（記錄錯誤），輸入法不介入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: corrupt
+mutates_table: true
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.table_loaded
+  operator: equals
+  value: false
+- field: read.text
+  operator: equals
+  value: b

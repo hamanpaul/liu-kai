@@ -1,0 +1,77 @@
+id: soft-auto-cap
+name: 英文自動大寫
+description: 照官方「自動大寫」（預設開）：句首大寫的欄位在欄位開頭與句號空白之後自動單次大寫；游標處不再需要大寫時放開自動設的大寫。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  field: sentence
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st1
+  action: ime_state
+  target: EMU
+- id: h
+  action: tap_key
+  target: EMU
+  key: h
+- id: st2
+  action: ime_state
+  target: EMU
+- id: i
+  action: tap_key
+  target: EMU
+  key: i
+- id: dot
+  action: tap_key
+  target: EMU
+  key: .
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: st3
+  action: ime_state
+  target: EMU
+- id: one
+  action: long_press_key
+  target: EMU
+  key: q
+- id: st4
+  action: ime_state
+  target: EMU
+- id: t
+  action: tap_key
+  target: EMU
+  key: t
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: read
+  action: read_field
+  target: EMU
+  field: sentence
+pass_criteria:
+- field: st1.shift
+  operator: equals
+  value: once
+- field: st2.shift
+  operator: equals
+  value: 'off'
+- field: st3.shift
+  operator: equals
+  value: once
+- field: st4.shift
+  operator: equals
+  value: 'off'
+- field: read.text
+  operator: equals
+  value: Hi. 1t

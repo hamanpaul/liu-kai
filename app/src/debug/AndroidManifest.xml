@@ -11,5 +11,23 @@
                 <action android:name="com.hamanpaul.liukai.DEBUG_IMPORT" />
             </intent-filter>
         </receiver>
+        <!-- 僅 debug 版：供 adb 自動化設定偏好（TestPilot plugin 的 pref 步驟）；需 DUMP 權限 -->
+        <receiver
+            android:name=".debug.DebugPrefReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.hamanpaul.liukai.DEBUG_PREF" />
+            </intent-filter>
+        </receiver>
+        <!-- 僅 debug 版：匯出 JaCoCo 覆蓋率資料（TestPilot plugin 使用）；需 DUMP 權限 -->
+        <receiver
+            android:name=".debug.CoverageDumpReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.hamanpaul.liukai.DUMP_COVERAGE" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

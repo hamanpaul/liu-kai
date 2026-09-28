@@ -1,0 +1,167 @@
+id: soft-smart-keyboard
+name: 智慧鍵盤：不可能的下一碼留白
+description: 照官方「智慧鍵盤」（預設開）：組字中不能接的字母鍵、「,」「.'[]」與同音鍵留白（只剩鍵格、不顯示標籤），版面不變；點或長按留白的鍵都沒有反應（不算組字失敗）；上屏後恢復。a 可接「,」「.」（假名 a, a.），兩鍵不留白。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: st1
+  action: ime_state
+  target: EMU
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: st2
+  action: ime_state
+  target: EMU
+- id: lpq
+  action: long_press_key
+  target: EMU
+  key: q
+- id: st2b
+  action: ime_state
+  target: EMU
+- id: w
+  action: tap_key
+  target: EMU
+  key: w
+- id: st3
+  action: ime_state
+  target: EMU
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: st4
+  action: ime_state
+  target: EMU
+- id: a2
+  action: tap_key
+  target: EMU
+  key: a
+- id: st5
+  action: ime_state
+  target: EMU
+- id: sp2
+  action: tap_key
+  target: EMU
+  key: space
+pass_criteria:
+- field: st1.blank
+  operator: equals
+  value:
+  - q
+  - w
+  - e
+  - r
+  - t
+  - y
+  - u
+  - i
+  - o
+  - p
+  - s
+  - d
+  - f
+  - g
+  - h
+  - j
+  - k
+  - l
+  - homophone
+  - z
+  - x
+  - c
+  - v
+  - b
+  - n
+  - m
+  - ','
+  - .
+- field: st1.rows
+  operator: equals
+  value:
+  - - q
+    - w
+    - e
+    - r
+    - t
+    - y
+    - u
+    - i
+    - o
+    - p
+  - - a
+    - s
+    - d
+    - f
+    - g
+    - h
+    - j
+    - k
+    - l
+  - - homophone
+    - z
+    - x
+    - c
+    - v
+    - b
+    - n
+    - m
+    - backspace
+  - - toggle_english
+    - symbols
+    - ','
+    - space
+    - .
+    - enter
+- field: st1.row_labels
+  operator: contains
+  value:
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+- field: st2.blank
+  operator: contains
+  value: homophone
+- field: st2.blank
+  operator: not_contains
+  value: v
+- field: st3.composing
+  operator: equals
+  value: ba
+- field: st3.failure_hint
+  operator: equals
+  value: false
+- field: st4.blank
+  operator: equals
+  value: []
+- field: st4.composing
+  operator: equals
+  value: ''
+- field: st5.blank
+  operator: not_contains
+  value: ','
+- field: st5.blank
+  operator: not_contains
+  value: .
+- field: st2b.composing
+  operator: equals
+  value: ba

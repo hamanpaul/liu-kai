@@ -1,0 +1,39 @@
+id: soft-voice-none
+name: 沒有啟用語音輸入時麥克風鍵不切換
+description: 系統沒有啟用任何語音輸入時，點英文模式的 🎤 只提示到系統設定啟用，輸入法維持 liu-kai；結束後重新啟用語音輸入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: 'off'
+  action: shell
+  target: EMU
+  command: ime disable com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: mic
+  action: tap_key
+  target: EMU
+  key: mic
+- id: cur
+  action: current_ime
+  target: EMU
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: 'on'
+  action: shell
+  target: EMU
+  command: ime enable com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+pass_criteria:
+- field: cur.ime
+  operator: equals
+  value: com.hamanpaul.liukai/.ime.LiuKaiImeService

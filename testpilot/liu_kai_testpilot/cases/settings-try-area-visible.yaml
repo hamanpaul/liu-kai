@@ -1,0 +1,50 @@
+id: settings-try-area-visible
+name: 試打區不被鍵盤蓋住
+description: 使用者回報：直式鍵盤高度「稍高」以上時，設定頁的試打區被鍵盤蓋住、看不到輸出的字。鍵盤高度設為「高」，點試打區並以螢幕鍵盤打 b a，試打區必須完整顯示在鍵盤上方，且看得到組字 BA。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  launch: settings
+  prefs:
+    portrait_height: HIGH
+steps:
+- id: field
+  action: tap_field
+  target: EMU
+  field: try_area
+- id: win
+  action: ime_window
+  target: EMU
+  expect: true
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: vis
+  action: field_visible
+  target: EMU
+  field: try_area
+- id: read
+  action: read_field
+  target: EMU
+  field: try_area
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+pass_criteria:
+- field: vis.visible
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: BA

@@ -1,0 +1,50 @@
+id: hw-digit-select
+name: 數字鍵選字：0 為預設字、超出候選數為組字失敗
+description: c 有 3 個候選（選字標籤 0–2）：0 選預設字「水」、2 選「土」；再次 c 後按 3 超出候選數為組字失敗：清除組字、不出字並顯示紅框。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: t0
+  action: keys
+  target: EMU
+  keys:
+  - c
+  - '0'
+- id: t1
+  action: keys
+  target: EMU
+  keys:
+  - c
+  - '2'
+- id: t2
+  action: keys
+  target: EMU
+  keys:
+  - c
+  - '3'
+- id: st
+  action: ime_state
+  target: EMU
+- id: esc
+  action: keys
+  target: EMU
+  keys:
+  - ESCAPE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.composing
+  operator: equals
+  value: ''
+- field: st.failure_hint
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: 水土

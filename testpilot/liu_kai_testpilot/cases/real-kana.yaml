@@ -1,0 +1,32 @@
+id: real-kana
+name: 真實字表：假名
+description: 一般模式以羅馬拼音加 , 出平假名、加 . 出片假名（假名字碼由日文區段併入）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: real
+steps:
+- id: kana
+  action: keys
+  target: EMU
+  keys:
+  - k
+  - a
+  - ','
+  - SPACE
+  - k
+  - a
+  - .
+  - SPACE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: かカ

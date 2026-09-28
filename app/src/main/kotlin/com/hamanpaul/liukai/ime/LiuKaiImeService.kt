@@ -1,57 +1,82 @@
 package com.hamanpaul.liukai.ime
 
-import android.content.res.Configuration
+import android.content.Intent
+import android.graphics.Color
+import android.text.TextUtils
 import android.inputmethodservice.InputMethodService
-import android.provider.Settings
-import android.text.InputType
+import android.util.Base64
 import android.util.Log
-import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
-import com.hamanpaul.liukai.core.engine.EngineEvent
-import com.hamanpaul.liukai.core.engine.EngineResult
+import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
+import com.hamanpaul.liukai.core.engine.InputMode
+import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
+import com.hamanpaul.liukai.core.ime.EditorPolicy
+import com.hamanpaul.liukai.core.ime.IcOp
+import com.hamanpaul.liukai.core.ime.ImeController
+import com.hamanpaul.liukai.core.ime.ImeOutcome
+import com.hamanpaul.liukai.core.ime.SoftKey
+import com.hamanpaul.liukai.core.reading.Readings
+import com.hamanpaul.liukai.data.ImePrefs
+import com.hamanpaul.liukai.data.KeyboardSettings
 import com.hamanpaul.liukai.data.TableStore
+import com.hamanpaul.liukai.settings.SettingsActivity
+import org.json.JSONObject
+import java.io.FileDescriptor
+import java.io.PrintWriter
 
 /**
- * liu-kai 輸入法服務：把實體鍵盤 KeyEvent 與軟鍵盤觸控轉成引擎事件，
- * 再把引擎結果轉成 InputConnection 的 commitText／setComposingText。
+ * liu-kai 輸入法服務：只負責把 Android 事件轉給 [ImeController]，
+ * 並依序執行它回傳的 InputConnection 操作。輸入邏輯都在 core（純 Kotlin，JVM 單元測試）。
  */
 class LiuKaiImeService : InputMethodService(), ImeActions {
-    private val engine = LiuEngine(null)
-    private var view: ImeView? = null
-    private var tableLoaded = false
-    private var passwordField = false
+    private val controller = ImeController(LiuEngine(null))
 
-    /** 目前 App 欄位內是否有 liu-kai 設定的組字區。 */
-    private var composingShown = false
-
-    /** keyDown 被輸入法消耗的鍵，其 keyUp 也要攔下，避免 App 收到不成對的事件。 */
-    private val consumedKeys = HashSet<Int>()
-
-    /** 單按 Shift 切換中英：Shift 按下期間若有其他鍵，就不算單按。 */
-    private var shiftDown = false
-    private var shiftUsedWithOtherKey = false
+    /** 輸入畫面在服務建立時就建好，服務存活期間都存在（不需處理「尚未建立」的狀態）。 */
+    private lateinit var view: ImeView
+    /** 目前的鍵盤設定（每次顯示鍵盤時讀取）。 */
+    private var settings = KeyboardSettings()
 
     override fun onCreate() {
         super.onCreate()
+        view = ImeView(this, this)
         reloadTables()
+        // 還原上次選的語言模式（字表沒有該模式時維持繁中）
+        controller.engine.selectLanguage(ImePrefs.language(this))
     }
 
     private fun reloadTables() {
         val loaded = runCatching { TableStore.load(this) }
             .onFailure { Log.e(TAG, "字表載入失敗", it) }
             .getOrNull()
-        tableLoaded = loaded != null
-        engine.setTables(loaded?.traditional, loaded?.japanese, loaded?.readings ?: com.hamanpaul.liukai.core.reading.Readings.EMPTY)
+        controller.tableLoaded = loaded != null
+        if (loaded == null) {
+            controller.engine.setTables(null, Readings.EMPTY)
+        } else {
+            controller.engine.setTables(loaded.traditional, loaded.readings, loaded.others)
+        }
     }
 
-    override fun onCreateInputView(): View = ImeView(this, this).also { view = it }
+    /** 橫式全螢幕的編輯區：照官方為純白底（系統預設為淺灰漸層）。 */
+    override fun onCreateExtractTextView(): View = super.onCreateExtractTextView().apply { setBackgroundColor(Color.WHITE) }
 
-    /** 實體鍵盤模式也顯示輸入畫面（只有候選列），讓候選可以被點選。 */
+    /** 框架重建輸入畫面（例如螢幕旋轉）時會再次呼叫：先把 View 從舊的父容器移除再交回。 */
+    override fun onCreateInputView(): View {
+        (view.parent as ViewGroup?)?.removeView(view)
+        return view
+    }
+
+    /**
+     * 輸入畫面一律顯示（實體鍵盤模式只有候選列，讓候選可以被點選）；鍵盤區是否顯示沿用框架的判斷
+     * （沒有實體鍵盤，或使用者開啟「實體鍵盤時也顯示螢幕鍵盤」）。框架在設定變更、螢幕旋轉、
+     * 視窗顯示時都會重新呼叫本方法，因此在這裡同步鍵盤區。
+     */
     override fun onEvaluateInputViewShown(): Boolean {
-        super.onEvaluateInputViewShown()
+        view.setKeyboardVisible(super.onEvaluateInputViewShown())
         return true
     }
 
@@ -61,218 +86,190 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
      */
     override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean = true
 
-    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+    override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        if (!restarting) {
-            reloadTables()
-        }
-        engine.reset()
-        composingShown = false
-        passwordField = attribute != null && isPassword(attribute.inputType)
-        consumedKeys.clear()
+        reloadTables()
+        controller.startInput(attribute.inputType)
     }
 
-    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+    override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        view?.setKeyboardVisible(shouldShowSoftKeyboard())
+        // 換到新的輸入欄：軟鍵盤回到字母層並放開 Shift；Enter 標籤依欄位動作
+        view.setEnterAction(EditorPolicy.enterAction(info.imeOptions, info.inputType))
+        // 設定頁的變更在下一次顯示鍵盤時生效
+        settings = ImePrefs.settings(this)
+        view.applySettings(settings)
+        view.resetLayout()
+        view.setKeyboardVisible(super.onEvaluateInputViewShown())
         render()
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        view?.setKeyboardVisible(shouldShowSoftKeyboard())
-    }
+    /**
+     * 預設實作在輸入畫面收起時呼叫 finishComposingText，把組字定案成字母。liu-kai 在畫面收起後仍可用實體鍵盤
+     * 繼續組字（打字會重新顯示畫面）；若收起通知晚於接著打的字碼抵達，預設行為會把新的組字定案、與引擎狀態脫節
+     * （點候選後欄位變成「ba月」）。因此收起畫面時保留組字，由引擎決定何時上屏或清除。
+     */
+    override fun onFinishInputView(finishingInput: Boolean) = Unit
 
     override fun onFinishInput() {
         super.onFinishInput()
-        engine.reset()
-        composingShown = false
+        controller.finishInput()
     }
 
-    /** 組字中游標被移到組字區以外（例如點擊文字其他位置）時結束組字。 */
     override fun onUpdateSelection(
         oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int,
         candidatesStart: Int, candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
-        if (!composingShown || candidatesStart < 0) return
-        if (newSelStart != candidatesEnd || newSelEnd != candidatesEnd) {
-            engine.reset()
-            currentInputConnection?.finishComposingText()
-            composingShown = false
-            render()
-        }
+        execute(controller.selectionMoved(newSelStart, newSelEnd, candidatesStart, candidatesEnd))
     }
-
-    private fun shouldShowSoftKeyboard(): Boolean {
-        val config = resources.configuration
-        val hardKeyboard = config.keyboard != Configuration.KEYBOARD_NOKEYS &&
-            config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
-        val showWithHard = Settings.Secure.getInt(contentResolver, "show_ime_with_hard_keyboard", 0) == 1
-        return !hardKeyboard || showWithHard
-    }
-
-    private fun isPassword(inputType: Int): Boolean {
-        val cls = inputType and InputType.TYPE_MASK_CLASS
-        val variation = inputType and InputType.TYPE_MASK_VARIATION
-        return (cls == InputType.TYPE_CLASS_TEXT && variation in setOf(
-            InputType.TYPE_TEXT_VARIATION_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
-        )) || (cls == InputType.TYPE_CLASS_NUMBER && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD)
-    }
-
-    private val imeActive: Boolean get() = !passwordField && tableLoaded
 
     // ---- 實體鍵盤 ----
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_SHIFT_LEFT || keyCode == KeyEvent.KEYCODE_SHIFT_RIGHT) {
-            if (event.repeatCount == 0) {
-                shiftDown = true
-                shiftUsedWithOtherKey = false
-            }
-            return super.onKeyDown(keyCode, event)
-        }
-        if (shiftDown) shiftUsedWithOtherKey = true
-        if (!imeActive) return super.onKeyDown(keyCode, event)
-
-        if (event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_J) {
-            return consume(keyCode, apply(engine.handle(EngineEvent.ToggleJapanese)))
-        }
-        if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) return super.onKeyDown(keyCode, event)
-
-        val engineEvent = when (keyCode) {
-            KeyEvent.KEYCODE_SPACE -> EngineEvent.Space
-            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> EngineEvent.Enter
-            KeyEvent.KEYCODE_DEL -> EngineEvent.Backspace
-            KeyEvent.KEYCODE_ESCAPE -> EngineEvent.Escape
-            KeyEvent.KEYCODE_PAGE_DOWN -> EngineEvent.PageDown
-            KeyEvent.KEYCODE_PAGE_UP -> EngineEvent.PageUp
-            else -> {
-                val unicode = event.getUnicodeChar(event.metaState)
-                if (unicode == 0 || unicode and KeyCharacterMap.COMBINING_ACCENT != 0) {
-                    return super.onKeyDown(keyCode, event)
-                }
-                EngineEvent.Key(unicode.toChar())
-            }
-        }
-        val result = engine.handle(engineEvent)
-        return if (apply(result)) consume(keyCode, true) else super.onKeyDown(keyCode, event)
+        val outcome = controller.keyDown(
+            keyCode, event.repeatCount, event.getUnicodeChar(event.metaState),
+            event.isCtrlPressed, event.isAltPressed, event.isMetaPressed,
+        )
+        return handled(outcome, event) || super.onKeyDown(keyCode, event)
     }
 
-    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_SHIFT_LEFT || keyCode == KeyEvent.KEYCODE_SHIFT_RIGHT) {
-            val single = shiftDown && !shiftUsedWithOtherKey
-            shiftDown = false
-            if (single && imeActive) {
-                apply(engine.handle(EngineEvent.ToggleEnglish))
-            }
-            return super.onKeyUp(keyCode, event)
-        }
-        if (consumedKeys.remove(keyCode)) return true
-        return super.onKeyUp(keyCode, event)
-    }
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean =
+        handled(controller.keyUp(keyCode), event) || super.onKeyUp(keyCode, event)
 
-    private fun consume(keyCode: Int, consumed: Boolean): Boolean {
-        if (consumed) consumedKeys += keyCode
-        return consumed
+    private fun handled(outcome: ImeOutcome, event: KeyEvent): Boolean {
+        execute(outcome.ops, event)
+        return outcome.consumed
     }
 
     // ---- 軟鍵盤與候選列 ----
 
     override fun onSoftKey(key: SoftKey) {
-        when (key) {
-            SoftKey.ToggleEnglish -> { apply(engine.handle(EngineEvent.ToggleEnglish)); return }
-            SoftKey.ToggleJapanese -> { apply(engine.handle(EngineEvent.ToggleJapanese)); return }
-            else -> Unit
-        }
-        if (!imeActive) {
-            passThroughSoft(key)
+        val info = currentInputEditorInfo
+        execute(controller.softKey(key, info.imeOptions, info.inputType))
+    }
+
+    override fun onCandidateTap(index: Int) = execute(controller.tapCandidate(index))
+
+    /**
+     * 長按「,」的 ⚙：收起輸入法並開啟 liu-kai 設定主頁。設定頁的工作若還停在子頁（例如加字加詞），
+     * CLEAR_TOP 會回到主頁，而不是只把停在子頁的工作帶到前景。
+     */
+    override fun onOpenSettings() {
+        requestHideSelf(0)
+        startActivity(
+            Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        )
+    }
+
+    /**
+     * 語音鍵：與官方相同切換到系統已啟用的語音輸入法（例如 Google 語音輸入），語音輸入結束後由它切回。
+     * 沒有啟用任何語音輸入時提示使用者到系統設定啟用。
+     */
+    override fun onVoice() {
+        val imm = getSystemService(InputMethodManager::class.java)
+        for (imi in imm.enabledInputMethodList) {
+            val voice = imm.getEnabledInputMethodSubtypeList(imi, true).firstOrNull { it.mode == "voice" } ?: continue
+            switchInputMethod(imi.id, voice)
             return
         }
-        val event = when (key) {
-            is SoftKey.Text -> EngineEvent.Key(key.char)
-            SoftKey.Backspace -> EngineEvent.Backspace
-            SoftKey.Space -> EngineEvent.Space
-            SoftKey.Enter -> EngineEvent.Enter
-            else -> return
-        }
-        if (!apply(engine.handle(event))) passThroughSoft(key)
+        Toast.makeText(this, "請先在系統的螢幕鍵盤設定啟用語音輸入", Toast.LENGTH_SHORT).show()
     }
 
-    override fun onCandidateTap(index: Int) {
-        apply(engine.handle(EngineEvent.Select(index)))
+    /** 中文模式左右滑動空白鍵：切換語言模式並記住。 */
+    override fun onLanguage(language: Language) {
+        ImePrefs.setLanguage(this, language)
+        execute(controller.selectLanguage(language))
     }
 
-    override fun onCandidateLongPress(index: Int) {
-        apply(engine.handle(EngineEvent.Homophone(index)))
-    }
+    /** 退出鍵盤鍵：收起輸入法。 */
+    override fun onHide() = requestHideSelf(0)
 
-    /** 軟鍵盤沒有對應的 App 端 KeyEvent，未被引擎消耗的鍵由這裡直接送出。 */
-    private fun passThroughSoft(key: SoftKey) {
-        val ic = currentInputConnection ?: return
-        when (key) {
-            is SoftKey.Text -> ic.commitText(key.char.toString(), 1)
-            SoftKey.Space -> ic.commitText(" ", 1)
-            SoftKey.Backspace -> sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
-            SoftKey.Enter -> sendEnter()
-            else -> Unit
-        }
-    }
+    /** 閒置時候選列的常用標點（選用設定）：直接上屏（只在沒有組字時顯示）。 */
+    override fun onPunctuation(text: String) = execute(listOf(IcOp.Commit(text)))
 
-    private fun sendEnter() {
-        val info = currentInputEditorInfo
-        val action = info?.imeOptions?.and(EditorInfo.IME_MASK_ACTION) ?: EditorInfo.IME_ACTION_NONE
-        val noEnterAction = info != null && info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
-        val multiLine = info != null && info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
-        if (!noEnterAction && !multiLine && action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
-            currentInputConnection?.performEditorAction(action)
-        } else {
-            sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
-        }
-    }
 
-    // ---- 套用引擎結果 ----
+    // ---- 執行 InputConnection 操作 ----
 
-    /** 上屏與更新組字、候選；回傳引擎是否消耗了這個按鍵。 */
-    private fun apply(result: EngineResult): Boolean {
+    /** 依序執行操作；event 為目前的實體鍵事件（只有 ForwardKey 會用到，軟鍵盤與候選列不會產生 ForwardKey）。 */
+    private fun execute(ops: List<IcOp>, event: KeyEvent? = null) {
         val ic = currentInputConnection
-        if (ic != null) {
-            ic.beginBatchEdit()
-            result.commit?.let {
-                ic.commitText(it, 1)
-                composingShown = false
+        ic.beginBatchEdit()
+        for (op in ops) {
+            when (op) {
+                is IcOp.Commit -> ic.commitText(op.text, 1)
+                is IcOp.SetComposing -> ic.setComposingText(op.text, 1)
+                IcOp.ClearComposing -> {
+                    ic.setComposingText("", 1)
+                    ic.finishComposingText()
+                }
+                IcOp.FinishComposing -> ic.finishComposingText()
+                is IcOp.SendKey -> sendDownUpKeyEvents(op.keyCode)
+                is IcOp.EditorAction -> ic.performEditorAction(op.actionId)
+                IcOp.ForwardKey -> ic.sendKeyEvent(event!!)
             }
-            if (engine.isComposing) {
-                ic.setComposingText(engine.composing.ifEmpty { engine.homophoneOf ?: "" }, 1)
-                composingShown = true
-            } else if (composingShown) {
-                // 組字被清空（Esc、刪光字根）：移除畫面上的組字文字，而不是把它定案留在欄位裡。
-                ic.setComposingText("", 1)
-                ic.finishComposingText()
-                composingShown = false
-            }
-            ic.endBatchEdit()
         }
+        ic.endBatchEdit()
         // 實體鍵盤直接打字時輸入畫面可能尚未顯示；開始組字就主動顯示候選列。
-        if (engine.isComposing && !isInputViewShown) requestShowSelf(0)
+        if (controller.needsCandidates && !isInputViewShown) requestShowSelf(0)
         render()
-        return result.consumed
     }
+
+    private fun uiState() = UiState(
+        mode = controller.engine.mode,
+        // 欄位內顯示的組字（同音鍵前置查詢時帶「'」）
+        composing = controller.engine.displayComposing,
+        candidates = controller.engine.candidates,
+        pageStart = controller.engine.pageStart,
+        pageSize = controller.engine.config.pageSize,
+        homophoneOf = controller.engine.homophoneOf,
+        tableLoaded = controller.tableLoaded,
+        failed = controller.engine.failed,
+        language = controller.engine.language,
+        languages = controller.engine.languages,
+        codeHint = controller.engine.codeHint,
+        nextKeys = controller.engine.nextKeys,
+        fieldHasText = fieldHasText,
+    )
+
+    /** 輸入欄有文字（含組字）：每次 render 時由 InputConnection 讀取（中文模式空白鍵的底線）。 */
+    private var fieldHasText = false
 
     private fun render() {
-        view?.render(
-            UiState(
-                mode = engine.mode,
-                composing = engine.composing,
-                candidates = engine.candidates,
-                pageStart = engine.pageStart,
-                pageSize = engine.config.pageSize,
-                homophoneOf = engine.homophoneOf,
-                tableLoaded = tableLoaded,
-            ),
-        )
+        val ic = currentInputConnection
+        fieldHasText = controller.engine.isComposing ||
+            !TextUtils.isEmpty(ic.getTextBeforeCursor(1, 0)) || !TextUtils.isEmpty(ic.getTextAfterCursor(1, 0))
+        view.render(uiState())
+        // 英文自動大寫（設定「自動大寫」）：依欄位的大寫設定與游標位置（句首、欄位開頭等）決定
+        val english = controller.engine.mode == InputMode.ENGLISH || !controller.tableLoaded
+        val caps = english && settings.autoCap &&
+            currentInputConnection.getCursorCapsMode(currentInputEditorInfo.inputType) != 0
+        view.setAutoCaps(caps)
+    }
+
+    /**
+     * 診斷輸出（`adb shell dumpsys activity service <本服務>`）：以 base64 JSON 輸出模式、組字、
+     * 候選與按鍵的螢幕座標，供端對端測試與問題回報使用。
+     */
+    override fun dump(fd: FileDescriptor, fout: PrintWriter, args: Array<out String>) {
+        super.dump(fd, fout, args)
+        val state = uiState()
+        val json = JSONObject()
+            .put("mode", state.mode.name)
+            .put("tableLoaded", state.tableLoaded)
+            .put("composing", state.composing)
+            .put("homophoneOf", state.homophoneOf ?: JSONObject.NULL)
+            .put("windowShown", isInputViewShown)
+            .put("language", controller.engine.language.name)
+            .put("languages", org.json.JSONArray(controller.engine.languages.map { it.name }))
+            .put("codeHint", codeHintText())
+        view.describe(json)
+        fout.println("LIUKAI_STATE " + Base64.encodeToString(json.toString().toByteArray(), Base64.NO_WRAP))
+    }
+
+    private fun codeHintText(): Any {
+        val hint = controller.engine.codeHint
+        return if (hint == null) JSONObject.NULL else view.hintText(hint)
     }
 
     companion object {

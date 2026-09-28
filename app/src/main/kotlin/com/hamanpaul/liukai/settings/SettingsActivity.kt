@@ -4,14 +4,15 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.TypedValue
-import android.os.Build
 import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -19,11 +20,12 @@ import com.hamanpaul.liukai.core.table.ImportResult
 import com.hamanpaul.liukai.core.table.NamedBytes
 import com.hamanpaul.liukai.core.table.TableBundle
 import com.hamanpaul.liukai.data.TableStore
+import com.hamanpaul.liukai.data.readAllAndClose
 import java.io.FileNotFoundException
 import java.util.Optional
 import java.util.concurrent.Executors
 
-/** 設定頁：啟用引導、匯入／清除字表、目前字表資訊與試打區。 */
+/** 設定頁：啟用引導、嘸蝦米鍵盤設定、匯入／清除字表、目前字表資訊與試打區。 */
 class SettingsActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var report: TextView
@@ -43,12 +45,14 @@ class SettingsActivity : Activity() {
         }
         status = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f) }
         root.addView(status)
+        button("加字加詞") { startActivity(Intent(this, UserPhrasesActivity::class.java)) }
         button("1. 在系統設定啟用 liu-kai") { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
         button("2. 切換輸入法") { getSystemService(InputMethodManager::class.java).showInputMethodPicker() }
+        button("嘸蝦米鍵盤設定") { startActivity(Intent(this, KeyboardSettingsActivity::class.java)) }
         button("3. 匯入字表（可多選：liu_ibus_final.txt + lime_liu7.txt）") { pickFiles() }
         button("清除字表") {
             TableStore.clear(this)
-            report.text = "已清除字表"
+            report.text = "已清除匯入的字表"
             refresh()
         }
         report = TextView(this).apply {
@@ -57,20 +61,18 @@ class SettingsActivity : Activity() {
         }
         root.addView(report)
         root.addView(TextView(this).apply { text = "試打區" })
-        root.addView(EditText(this).apply { hint = "在這裡測試輸入"; minLines = 3 })
+        root.addView(EditText(this).apply { minLines = 3; contentDescription = "try_area" })
         val scroll = ScrollView(this).apply { addView(root) }
-        // targetSdk 35 強制 edge-to-edge：以系統列與輸入法的 insets 補 padding。
-        scroll.setOnApplyWindowInsetsListener { v, insets ->
-            if (Build.VERSION.SDK_INT >= 30) {
-                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
-                v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            } else {
-                @Suppress("DEPRECATION")
-                v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-            }
+        // targetSdk 35 強制 edge-to-edge：以系統列與輸入法的 insets 補 padding。padding 加在外層容器而不是 ScrollView：
+        // ScrollView 判斷焦點欄位與游標是否可見時不扣自己的 padding，鍵盤較高時試打區會被蓋住也不捲動；
+        // 讓 ScrollView 實際縮小，才會把焦點欄位捲到鍵盤上方。
+        val frame = FrameLayout(this).apply { addView(scroll) }
+        frame.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
-        setContentView(scroll)
+        setContentView(frame)
     }
 
     override fun onResume() {
@@ -87,20 +89,17 @@ class SettingsActivity : Activity() {
     private fun refresh() {
         val imm = getSystemService(InputMethodManager::class.java)
         val enabled = imm.enabledInputMethodList.any { it.packageName == packageName }
-        val selected = if (Build.VERSION.SDK_INT >= 34) {
-            imm.currentInputMethodInfo?.packageName == packageName
-        } else {
-            Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD).orEmpty().startsWith("$packageName/")
-        }
+        val current = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+        val selected = current.startsWith("$packageName/")
         io.execute {
-            val loaded = runCatching { TableStore.load(this) }.getOrNull()
+            val loaded = runCatching { TableStore.load(this) }
             runOnUiThread {
-                status.text = buildString {
-                    append("輸入法：").append(if (enabled) "已啟用" else "未啟用")
-                    append("／").append(if (selected) "使用中" else "未切換").append('\n')
-                    append("字表：").append(if (loaded != null) "已匯入" else "尚未匯入")
-                }
-                if (loaded != null && report.text.isNullOrEmpty()) report.text = describe(loaded.bundle)
+                status.text = "輸入法：" + (if (enabled) "已啟用" else "未啟用") + "／" + (if (selected) "使用中" else "未切換") +
+                    "\n字表：" + loaded.fold(
+                        { if (it == null) "尚未匯入" else if (it.bundled) "內建" else "已匯入" },
+                        { "損毀（${it.message}），請重新匯入" },
+                    )
+                loaded.getOrNull()?.let { if (report.text.isEmpty()) report.text = describe(it.bundle) }
             }
         }
     }
@@ -110,18 +109,19 @@ class SettingsActivity : Activity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            // 字表檔通常下載到內部儲存的 Download 資料夾，直接從那裡開始選
+            putExtra(DocumentsContract.EXTRA_INITIAL_URI, DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE, "primary:Download"))
         }
-        startActivityForResult(intent, REQUEST_PICK)
+        startActivityForResult(intent, 1)
     }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_PICK || resultCode != RESULT_OK || data == null) return
-        val uris = buildList {
-            data.clipData?.let { clip -> for (i in 0 until clip.itemCount) add(clip.getItemAt(i).uri) }
-            if (isEmpty()) data.data?.let { add(it) }
-        }
+        if (resultCode != RESULT_OK) return
+        // 本頁只發出一種請求（選檔），RESULT_OK 時必有 data；多選時在 clipData，單選時在 data。
+        val clip = data!!.clipData
+        val uris = if (clip != null) List(clip.itemCount) { clip.getItemAt(it).uri } else listOf(data.data!!)
         report.text = "匯入中…"
         io.execute {
             val message = runCatching {
@@ -129,7 +129,7 @@ class SettingsActivity : Activity() {
                     val name = displayName(it)
                     // 文件提供者暫時無法開啟時回傳 null：以明確訊息失敗（顯示「匯入失敗：無法開啟檔案：…」）
                     val stream = Optional.ofNullable(contentResolver.openInputStream(it)).orElseThrow { FileNotFoundException("無法開啟檔案：$name") }
-                    NamedBytes(name, stream.use { s -> s.readBytes() })
+                    NamedBytes(name, stream.readAllAndClose())
                 }
                 describe(TableStore.import(this, files))
             }.getOrElse { "匯入失敗：${it.message}" }
@@ -140,13 +140,17 @@ class SettingsActivity : Activity() {
         }
     }
 
-    private fun displayName(uri: Uri): String =
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-            if (c.moveToFirst()) c.getString(0) else null
-        } ?: uri.lastPathSegment.orEmpty()
+    /** SAF 文件必有 DISPLAY_NAME 欄位。 */
+    private fun displayName(uri: Uri): String {
+        val cursor = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)!!
+        cursor.moveToFirst()
+        val name = cursor.getString(0)
+        cursor.close()
+        return name
+    }
 
     companion object {
-        private const val REQUEST_PICK = 1
+        private const val EXTERNAL_STORAGE = "com.android.externalstorage.documents"
 
         fun describe(result: ImportResult): String = buildString {
             append("匯入成功\n")

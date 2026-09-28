@@ -1,0 +1,53 @@
+id: hw-max-length-and-comma-root
+name: 打滿最長碼後再打字根為組字失敗；標點字根
+description: abcd 為最長碼（四碼），再打 a 為組字失敗：清除組字、不出字並顯示紅框；x, 的逗號是字根。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: full
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - b
+  - c
+  - d
+- id: st0
+  action: ime_state
+  target: EMU
+- id: over
+  action: keys
+  target: EMU
+  keys:
+  - a
+- id: st
+  action: ime_state
+  target: EMU
+- id: comma
+  action: keys
+  target: EMU
+  keys:
+  - x
+  - ','
+  - SPACE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st0.composing
+  operator: equals
+  value: abcd
+- field: st.composing
+  operator: equals
+  value: ''
+- field: st.failure_hint
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: 雲

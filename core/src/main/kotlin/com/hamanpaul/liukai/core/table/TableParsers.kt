@@ -75,7 +75,8 @@ object CinParser {
             val trimmed = line.trim()
             if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
             if (inKeyname) {
-                if (trimmed.startsWith("%keyname") && trimmed.endsWith("end")) {
+                // 區塊內任何 %keyname 指令（正常為 %keyname end）都結束區塊
+                if (trimmed.startsWith("%keyname")) {
                     inKeyname = false
                 } else {
                     val cols = splitColumns(line)

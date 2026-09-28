@@ -1,0 +1,48 @@
+id: hw-wildcard
+name: 萬用字元查字
+description: 萬用字元只有 *（零到多個字根）：a* 列出 a 開頭的所有字碼、*d 為 d 結尾；萬用字元候選附字碼。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: q
+  action: text
+  target: EMU
+  text: a*
+- id: st
+  action: ime_state
+  target: EMU
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 天
+- id: star
+  action: text
+  target: EMU
+  text: '*d'
+- id: st2
+  action: ime_state
+  target: EMU
+- id: space
+  action: keys
+  target: EMU
+  keys:
+  - SPACE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.annotations
+  operator: contains
+  value: ab
+- field: st2.candidates
+  operator: equals
+  value:
+  - 和
+- field: read.text
+  operator: equals
+  value: 天和

@@ -1,0 +1,28 @@
+id: soft-feedback
+name: 按鍵時震動與播放音效
+description: 照官方「按鍵時震動」「按鍵時播放音效」：開啟後每次按鍵各觸發一次。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    vibrate: 'true'
+    sound: 'true'
+steps:
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: st1
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st1.feedback
+  operator: equals
+  value:
+    vibrate: 1
+    sound: 1

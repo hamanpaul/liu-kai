@@ -1,0 +1,57 @@
+id: soft-symbols
+name: 軟鍵盤符號層
+description: ?123 層輸入 1，ALT 層輸入 =，回 ?123 層輸入 ?，再按 ABC 回字母層。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: one
+  action: tap_key
+  target: EMU
+  key: '1'
+- id: alt
+  action: tap_key
+  target: EMU
+  key: alt
+- id: eq
+  action: tap_key
+  target: EMU
+  key: '='
+- id: alt2
+  action: tap_key
+  target: EMU
+  key: alt
+- id: qm
+  action: tap_key
+  target: EMU
+  key: '?'
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 1=?
+- field: st.composing
+  operator: equals
+  value: ''
+- field: st.layer
+  operator: equals
+  value: letters

@@ -1,0 +1,22 @@
+id: soft-font-size
+name: 按鍵字體：大
+description: 照官方量測：字體「大」為「適中」的 1.2 倍。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    portrait_font: LARGE
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st.font_scale
+  operator: approx
+  value: 1.2
+  tolerance: 0.01

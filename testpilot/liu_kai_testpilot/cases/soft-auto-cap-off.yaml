@@ -1,0 +1,30 @@
+id: soft-auto-cap-off
+name: 關閉英文自動大寫
+description: 設定「自動大寫」關閉時，句首大寫的欄位開頭也不自動大寫。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  field: sentence
+  prefs:
+    auto_cap: 'false'
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st1
+  action: ime_state
+  target: EMU
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+pass_criteria:
+- field: st1.shift
+  operator: equals
+  value: 'off'

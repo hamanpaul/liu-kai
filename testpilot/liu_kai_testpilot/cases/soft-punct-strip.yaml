@@ -1,0 +1,119 @@
+id: soft-punct-strip
+name: 閒置常用標點列（選用設定）
+description: '官方 PRO 的功能，使用者 2026-09-28 決定保留為選用設定「閒置時顯示常用標點」（預設關）：開啟時字母層（中英文模式皆同）沒有組字時，候選列顯示 ! ? , " : ( ) -，點選直接上屏；組字中與 ?123
+  層不顯示。'
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    idle_strip: 'true'
+steps:
+- id: st1
+  action: ime_state
+  target: EMU
+- id: homo
+  action: tap_key
+  target: EMU
+  key: homophone
+- id: st_homo
+  action: ime_state
+  target: EMU
+- id: homo_clear
+  action: tap_key
+  target: EMU
+  key: backspace
+- id: paren
+  action: tap_key
+  target: EMU
+  key: punct:(
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: st2
+  action: ime_state
+  target: EMU
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st3
+  action: ime_state
+  target: EMU
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st4
+  action: ime_state
+  target: EMU
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st5
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.strip
+  operator: equals
+  value:
+  - punct:!
+  - punct:?
+  - punct:,
+  - punct:"
+  - 'punct::'
+  - punct:(
+  - punct:)
+  - punct:-
+- field: st2.strip
+  operator: equals
+  value: []
+- field: st3.strip
+  operator: equals
+  value: []
+- field: st4.strip
+  operator: equals
+  value:
+  - punct:!
+  - punct:?
+  - punct:,
+  - punct:"
+  - 'punct::'
+  - punct:(
+  - punct:)
+  - punct:-
+- field: st5.strip
+  operator: equals
+  value:
+  - punct:!
+  - punct:?
+  - punct:,
+  - punct:"
+  - 'punct::'
+  - punct:(
+  - punct:)
+  - punct:-
+- field: read.text
+  operator: equals
+  value: (木
+- field: st_homo.strip
+  operator: equals
+  value: []

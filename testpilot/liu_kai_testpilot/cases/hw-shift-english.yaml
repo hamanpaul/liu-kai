@@ -1,0 +1,47 @@
+id: hw-shift-english
+name: 單按 Shift 切換英文
+description: 單按 Shift 切英文，字母與空白直接交給 App；再單按 Shift 回中文。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: shift
+  action: keys
+  target: EMU
+  keys:
+  - SHIFT_LEFT
+- id: st1
+  action: ime_state
+  target: EMU
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - b
+  - SPACE
+- id: back
+  action: keys
+  target: EMU
+  keys:
+  - SHIFT_LEFT
+- id: st2
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.mode
+  operator: equals
+  value: ENGLISH
+- field: st2.mode
+  operator: equals
+  value: CHINESE
+- field: read.text
+  operator: equals
+  value: 'ab '

@@ -1,0 +1,83 @@
+id: soft-backspace
+name: 軟鍵盤 Backspace 單按與長按連續刪除
+description: 英文模式打 hello；單按刪一字、長按連續刪光。刪光時鍵盤會重建（空白鍵底線依輸入欄是否有字），連續刪除必須隨之停止：之後打的字不會被刪掉。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: k0
+  action: tap_key
+  target: EMU
+  key: h
+- id: k1
+  action: tap_key
+  target: EMU
+  key: e
+- id: k2
+  action: tap_key
+  target: EMU
+  key: l
+- id: k3
+  action: tap_key
+  target: EMU
+  key: l
+- id: k4
+  action: tap_key
+  target: EMU
+  key: o
+- id: del
+  action: tap_key
+  target: EMU
+  key: backspace
+- id: r1
+  action: read_field
+  target: EMU
+  field: plain
+- id: hold
+  action: long_press_key
+  target: EMU
+  key: backspace
+  duration_ms: 2000
+- id: x
+  action: tap_key
+  target: EMU
+  key: x
+- id: pause
+  action: wait
+  target: EMU
+  ms: 1500
+- id: after
+  action: read_field
+  target: EMU
+  field: plain
+- id: clear
+  action: tap_key
+  target: EMU
+  key: backspace
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: r1.text
+  operator: equals
+  value: hell
+- field: after.text
+  operator: equals
+  value: x
+- field: read.text
+  operator: equals
+  value: ''

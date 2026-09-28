@@ -1,0 +1,33 @@
+id: soft-paging-labels
+name: 候選翻頁後的選字標籤
+description: a 有 12 個候選；PageDown 後點第 11 個「子」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: pd
+  action: keys
+  target: EMU
+  keys:
+  - PAGE_DOWN
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 子
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 子

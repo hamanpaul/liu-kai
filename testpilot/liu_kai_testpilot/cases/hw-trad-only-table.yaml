@@ -1,0 +1,35 @@
+id: hw-trad-only-table
+name: 只有繁中區段的字表
+description: 匯入只有繁中的中性 TSV（沒有日文區段，也就沒有假名字碼）：仍可正常組字上屏。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: files
+  files:
+  - testpilot/fixtures/trad-only.tsv
+mutates_table: true
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - SPACE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.table_loaded
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: 木

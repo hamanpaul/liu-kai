@@ -1,0 +1,48 @@
+id: soft-popup-settings
+name: 長按「,」的 ⚙ 開啟設定
+description: 照官方：長按「,」彈出 ⚙ 🎤；點 ⚙ 開啟 liu-kai 設定頁。彈出時輸入法畫面位置不變（候選列不移動）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: st0
+  action: ime_state
+  target: EMU
+- id: lp
+  action: long_press_key
+  target: EMU
+  key: ','
+- id: st
+  action: ime_state
+  target: EMU
+- id: gear
+  action: tap_key
+  target: EMU
+  key: popup:settings
+- id: opened
+  action: wait_text
+  target: EMU
+  contains: 輸入法：
+  timeout_ms: 15000
+- id: close
+  action: keys
+  target: EMU
+  keys:
+  - BACK
+pass_criteria:
+- field: st.popup
+  operator: equals
+  value:
+  - popup:settings
+  - popup:voice
+- field: opened.text
+  operator: contains
+  value: 輸入法：
+- field: st.candidate_row_y
+  operator: equals_field
+  value: st0.candidate_row_y

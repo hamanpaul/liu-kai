@@ -1,0 +1,64 @@
+id: soft-done-key
+name: 顯示退出鍵盤鍵
+description: 照官方「顯示退出鍵盤鍵：永遠顯示」：字母層最下排最左邊出現退出鍵，點選收起輸入法。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    done_key: 'true'
+steps:
+- id: st1
+  action: ime_state
+  target: EMU
+- id: hide
+  action: tap_key
+  target: EMU
+  key: hide
+- id: win
+  action: ime_window
+  target: EMU
+  expect: false
+pass_criteria:
+- field: st1.rows
+  operator: equals
+  value:
+  - - q
+    - w
+    - e
+    - r
+    - t
+    - y
+    - u
+    - i
+    - o
+    - p
+  - - a
+    - s
+    - d
+    - f
+    - g
+    - h
+    - j
+    - k
+    - l
+  - - homophone
+    - z
+    - x
+    - c
+    - v
+    - b
+    - n
+    - m
+    - backspace
+  - - hide
+    - toggle_english
+    - symbols
+    - ','
+    - space
+    - .
+    - enter

@@ -1,0 +1,28 @@
+id: hw-shift-with-other-key
+name: Shift 搭配其他鍵不算單按
+description: Shift+A 輸出大寫 A，模式維持中文。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: upper
+  action: text
+  target: EMU
+  text: A
+- id: st
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.mode
+  operator: equals
+  value: CHINESE
+- field: read.text
+  operator: equals
+  value: A

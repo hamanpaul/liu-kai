@@ -1,0 +1,454 @@
+# 官方嘸蝦米與 liu-kai 的對照案例（liu-kai-diff 使用）。checklist 為行為確認清單題號，expect 為使用者的答案。
+# expect_text／expect_visible：依使用者答案推得的預期（真實字表）；沒有預期的案例由使用者決定。
+- id: space-first
+  name: 空白上屏首選
+  checklist: 1
+  expect: 預設送出第一個候選字
+  steps:
+  - action: keys
+    keys:
+    - d
+    - o
+    - SPACE
+  expect_text: 日
+- id: space-empty-code
+  name: 空碼（xqz）按空白
+  checklist: 1
+  expect: 空碼按空白就直接出空白
+  steps:
+  - action: keys
+    keys:
+    - x
+    - q
+    - z
+    - SPACE
+  expect_text: ' '
+- id: space-idle
+  name: 沒有組字時按空白
+  steps:
+  - action: keys
+    keys:
+    - SPACE
+  expect_text: ' '
+- id: candidates-view
+  name: 候選與選字標籤（截圖）
+  checklist: 2
+  expect: 0 是預設字，1–9 就是 1–9
+  screenshot: true
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+  expect_text: vx
+  expect_visible: true
+- id: candidates-after-back
+  name: 按 BACK 收起輸入法後打字碼，候選列要出現（截圖）
+  expect: 官方常見問題：候選字沒出現，無法選字；liu-kai 必須正常顯示
+  expect_text: vx
+  expect_visible: true
+  screenshot: true
+  steps:
+  - action: keys
+    keys:
+    - BACK
+  - action: keys
+    keys:
+    - v
+    - x
+- id: digit-0
+  name: 數字 0 選字
+  checklist: 2
+  expect: 0 是預設字
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - '0'
+  expect_text: 敏
+- id: digit-1
+  name: 數字 1 選字
+  checklist: 2
+  expect: 1–9 就是 1–9
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - '1'
+  expect_text: 複
+- id: digit-4
+  name: 數字 4 選字
+  checklist: 2
+  expect: 1–9 就是 1–9
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - '4'
+  expect_text: 复
+- id: digit-out-of-range
+  name: 數字超出候選數後按空白
+  checklist: 2
+  expect: 數字超出候選數為組字失敗（不出字）；之後的空白直接出空白
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - '9'
+    - SPACE
+  expect_text: ' '
+- id: digits-idle
+  name: 沒有組字時按數字
+  steps:
+  - action: keys
+    keys:
+    - '1'
+    - '2'
+  expect_text: '12'
+- id: vrsf-v
+  name: v 選字
+  checklist: 3
+  expect: v 是第 1 個字
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - v
+  expect_text: 複
+- id: vrsf-r
+  name: r 選字
+  checklist: 3
+  expect: r 是 2
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - r
+  expect_text: 復
+- id: vrsf-s
+  name: s 選字
+  checklist: 3
+  expect: s 是 3
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - s
+  expect_text: 覆
+- id: vrsf-f
+  name: f 選字
+  checklist: 3
+  expect: f 是 4
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - f
+  expect_text: 复
+- id: vrsf-conflict
+  name: 字碼＋v 仍是字碼時當字根
+  checklist: 3
+  expect: v 本身是字碼的話以字碼為主
+  steps:
+  - action: keys
+    keys:
+    - a
+    - e
+    - v
+    - SPACE
+  expect_text: 鏙
+- id: page-view
+  name: 翻頁後的候選（截圖）
+  checklist: 4
+  expect: 用 = / -
+  screenshot: true
+  steps:
+  - action: keys
+    keys:
+    - ','
+    - j
+    - '='
+  expect_text: ',j'
+  expect_visible: true
+- id: page-down
+  name: = 翻下一頁後按 0
+  checklist: 4
+  expect: 用 = / -
+  steps:
+  - action: keys
+    keys:
+    - ','
+    - j
+    - '='
+    - '0'
+  expect_text: ✜
+- id: page-up
+  name: = 再 - 回第一頁後按 0
+  checklist: 4
+  expect: 用 = / -
+  steps:
+  - action: keys
+    keys:
+    - ','
+    - j
+    - '='
+    - '-'
+    - '0'
+  expect_text: Ⅹ
+- id: enter-composing
+  name: 組字中按 Enter
+  checklist: 5
+  expect: 送英文字母
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - ENTER
+  expect_text: vx
+- id: esc-composing
+  name: 組字中按 Esc 後再打字
+  checklist: 6
+  expect: 清除組字
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+    - ESCAPE
+    - d
+    - o
+    - SPACE
+  expect_text: 日
+- id: backspace-composing
+  name: 組字中按 Backspace
+  steps:
+  - action: keys
+    keys:
+    - d
+    - u
+    - e
+    - DEL
+    - SPACE
+  expect: Backspace 刪最後一個字根
+  expect_text: 渡
+- id: punct-composing
+  name: 組字中按 !
+  checklist: 7
+  expect: 組字失敗就不出字（liu-kai 另以紅框提示）
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+  - action: text
+    text: '!'
+  expect_text: ''
+- id: question-composing
+  name: 組字中按 ?（不是萬用字元）
+  checklist: 7
+  expect: 組字失敗就不出字
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+  - action: text
+    text: '?'
+  expect_text: ''
+- id: punct-idle
+  name: 沒有組字時按 !
+  steps:
+  - action: text
+    text: '!'
+  expect_text: '!'
+- id: comma-root
+  name: 逗號是字根
+  steps:
+  - action: keys
+    keys:
+    - ','
+    - SPACE
+  expect: 單獨的 , 是字根
+  expect_text: ，
+- id: shift-tap-english
+  name: 單按 Shift 切英文再切回中文
+  checklist: 8
+  expect: 單按 shift 切中英
+  steps:
+  - action: keys
+    keys:
+    - SHIFT_LEFT
+    - d
+    - o
+    - SPACE
+    - SHIFT_LEFT
+    - d
+    - o
+    - SPACE
+  expect_text: do 日
+- id: shift-letter
+  name: 中文模式 Shift＋字母
+  checklist: 8
+  expect: shift+字母送大寫
+  steps:
+  - action: combo
+    keys:
+    - SHIFT_LEFT
+    - A
+  expect_text: A
+- id: shift-letter-composing
+  name: 組字中 Shift＋字母
+  checklist: 8
+  expect: 組字失敗（不出字）
+  steps:
+  - action: keys
+    keys:
+    - v
+    - x
+  - action: combo
+    keys:
+    - SHIFT_LEFT
+    - A
+  expect_text: ''
+- id: wildcard-view
+  name: 萬用字元候選（截圖）
+  checklist: 9
+  expect: 用 *
+  screenshot: true
+  steps:
+  - action: text
+    text: c*
+  expect_text: c*
+  expect_visible: true
+- id: wildcard-prefix
+  name: c* 按空白
+  checklist: 9
+  expect: '* 比對零到多個字根，短碼優先'
+  steps:
+  - action: text
+    text: c*
+  - action: keys
+    keys:
+    - SPACE
+  expect_text: 七
+- id: wildcard-suffix
+  name: '*n 按空白'
+  checklist: 9
+  expect: '* 比對零到多個字根，短碼優先'
+  steps:
+  - action: text
+    text: '*n'
+  - action: keys
+    keys:
+    - SPACE
+  expect_text: 南
+- id: homophone-view
+  name: 同音字候選（截圖）
+  checklist: 10
+  expect: 用 `
+  screenshot: true
+  steps:
+  - action: keys
+    keys:
+    - c
+    - i
+    - '`'
+  expect_visible: true
+- id: homophone-space
+  name: 同音字按空白
+  checklist: 10
+  expect: 同音清單第一個是原字
+  steps:
+  - action: keys
+    keys:
+    - c
+    - i
+    - '`'
+    - SPACE
+  expect_text: 中
+- id: homophone-digit
+  name: 同音字按 1
+  checklist: 10
+  expect: 同音清單依常用度排序
+  steps:
+  - action: keys
+    keys:
+    - c
+    - i
+    - '`'
+    - '1'
+  expect_text: 鐘
+- id: kana-hiragana
+  name: 字碼＋, 出平假名
+  checklist: 11
+  expect: 直接字碼＋, / .
+  steps:
+  - action: keys
+    keys:
+    - k
+    - a
+    - ','
+    - SPACE
+  expect_text: か
+- id: kana-katakana
+  name: 字碼＋. 出片假名
+  checklist: 11
+  expect: 直接字碼＋, / .
+  steps:
+  - action: keys
+    keys:
+    - k
+    - a
+    - .
+    - SPACE
+  expect_text: カ
+- id: four-keys-space
+  name: 四碼後按空白
+  checklist: 12
+  expect: 打滿四碼一樣要按空白
+  steps:
+  - action: keys
+    keys:
+    - p
+    - d
+    - n
+    - a
+    - SPACE
+  expect_text: 的
+- id: four-keys-then-more
+  name: 四碼後繼續打字根
+  checklist: 12
+  expect: 打滿四碼後再打字根為組字失敗；之後的 o 重新組字
+  steps:
+  - action: keys
+    keys:
+    - p
+    - d
+    - n
+    - a
+    - d
+    - o
+    - SPACE
+  expect_text: ○
+- id: four-keys-no-space
+  name: 四碼不按空白
+  checklist: 12
+  expect: 不會自動上屏
+  steps:
+  - action: keys
+    keys:
+    - p
+    - d
+    - n
+    - a
+  expect_text: pdna
+  expect_visible: true

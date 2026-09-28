@@ -1,0 +1,26 @@
+id: hw-modifier-combo-passes
+name: Ctrl 組合鍵交給 App
+description: Ctrl+A 等組合鍵輸入法不處理。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: combo
+  action: combo
+  target: EMU
+  keys:
+  - CTRL_LEFT
+  - A
+- id: st
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st.composing
+  operator: equals
+  value: ''
+- field: st.mode
+  operator: equals
+  value: CHINESE

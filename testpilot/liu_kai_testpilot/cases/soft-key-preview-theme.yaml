@@ -1,0 +1,47 @@
+id: soft-key-preview-theme
+name: 其他主題的按鍵預覽
+description: 照官方：經典灰以外的主題，按住按鍵時預覽為蓋住按鍵並往上延伸的半透明長條；放開後輸入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    theme: WHITE
+    show_keys: 'false'
+steps:
+- id: down
+  action: touch_key
+  target: EMU
+  key: g
+  phase: down
+- id: st1
+  action: ime_state
+  target: EMU
+- id: up
+  action: touch_key
+  target: EMU
+  key: g
+  phase: up
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.preview
+  operator: equals
+  value: g
+- field: st1.palette
+  operator: equals
+  value:
+    bg: '#ECEFF1'
+    bar: '#DDE1E4'
+    text: '#37474F'
+    strip: '#4A555D'
+    cells: false
+- field: read.text
+  operator: equals
+  value: g

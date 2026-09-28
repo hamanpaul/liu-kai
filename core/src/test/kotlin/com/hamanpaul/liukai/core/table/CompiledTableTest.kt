@@ -22,6 +22,7 @@ class CompiledTableTest {
         assertTrue(t.hasPrefix("abv"))
         assertTrue(t.hasPrefix("abc"))
         assertFalse(t.hasPrefix("bav"))
+        assertTrue(t.hasPrefix("r"))
         assertTrue(t.isCode("ab"))
         assertFalse(t.isCode("abcx"))
     }
@@ -34,8 +35,9 @@ class CompiledTableTest {
     }
 
     @Test
-    fun `萬用字元：問號恰一個、星號零到多個，短碼優先並標示字碼`() {
-        assertEquals(listOf("天" to "ab", "日" to "ba", "月" to "ba"), t.wildcard("??", 10).filter { it.second in setOf("ab", "ba") })
+    fun `萬用字元：星號比對零到多個字根，短碼優先並標示字碼`() {
+        assertEquals(setOf("a", "ba", "qa"), t.wildcard("*a", 20).map { it.second }.toSet())
+        assertEquals(emptyList(), t.wildcard("a?", 10))
         val star = t.wildcard("ab*", 10)
         assertEquals(listOf("天", "人", "地", "和"), star.map { it.first })
         assertEquals("ab", star.first().second)
@@ -47,5 +49,43 @@ class CompiledTableTest {
         assertEquals(listOf("ab"), t.codesOf("天"))
         assertEquals(120L, t.freqOf("天"))
         assertTrue(t.containsText("雲"))
+    }
+
+    @Test
+    fun `未知的字與超出範圍的前綴`() {
+        assertEquals(0L, t.freqOf("無"))
+        assertEquals(emptyList(), t.codesOf("無"))
+        assertFalse(t.hasPrefix("zzz"))
+    }
+
+    @Test
+    fun `空字表`() {
+        val empty = CompiledTable.build(emptyList())
+        assertEquals(0, empty.maxCodeLength)
+        assertTrue(empty.alphabet.isEmpty())
+        assertFalse(empty.hasPrefix("a"))
+    }
+
+    @Test
+    fun `建表時同碼同字只保留一次，同字多碼時萬用字元結果去重並取短碼`() {
+        val table = CompiledTable.build(
+            listOf(TableEntry("ab", "甲", 1), TableEntry("ab", "甲", 9), TableEntry("ac", "甲", 2), TableEntry("a", "乙")),
+        )
+        assertEquals(listOf("甲"), table.candidates("ab"))
+        assertEquals(9L, table.freqOf("甲"))
+        assertEquals(listOf("ab", "ac"), table.codesOf("甲"))
+        assertEquals(listOf("乙" to "a", "甲" to "ab"), table.wildcard("a*", 10))
+    }
+
+    @Test
+    fun `下一碼：以某字碼為前綴的所有字碼的下一個字根`() {
+        val t = CompiledTable.build(
+            listOf(TableEntry("a", "甲"), TableEntry("ab", "天"), TableEntry("abc", "人"), TableEntry("ad", "丁"), TableEntry("b", "木"), TableEntry("x,", "雲")),
+        )
+        assertEquals(setOf('b', 'd'), t.nextChars("a"))
+        assertEquals(setOf('c'), t.nextChars("ab"))
+        assertEquals(setOf(','), t.nextChars("x"))
+        assertEquals(emptySet(), t.nextChars("abc"))
+        assertEquals(emptySet(), t.nextChars("z"))
     }
 }

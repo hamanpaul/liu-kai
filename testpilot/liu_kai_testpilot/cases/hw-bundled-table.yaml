@@ -1,0 +1,38 @@
+id: hw-bundled-table
+name: 全新安裝即以內建字表打中文
+description: 模擬全新安裝（沒有匯入過字表）：輸入法第一次載入時改用 APK 內建的使用者自建字表；實體鍵盤 do 空白上屏「日」、ka, 空白上屏「か」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: bundled
+mutates_table: true
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - d
+  - o
+  - SPACE
+  - k
+  - a
+  - ','
+  - SPACE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.table_loaded
+  operator: equals
+  value: true
+- field: read.text
+  operator: equals
+  value: 日か

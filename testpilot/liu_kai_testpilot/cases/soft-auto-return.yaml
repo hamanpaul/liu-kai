@@ -1,0 +1,56 @@
+id: soft-auto-return
+name: 符號層打符號後按空白自動返回字母層
+description: 照官方「自動返回字元輸入模式」（預設開）：在 ?123 層打過符號後按空白自動回字母層；沒打符號直接按空白則留在 ?123 層。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: one
+  action: tap_key
+  target: EMU
+  key: '1'
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: st1
+  action: ime_state
+  target: EMU
+- id: sym2
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: sp2
+  action: tap_key
+  target: EMU
+  key: space
+- id: st2
+  action: ime_state
+  target: EMU
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.layer
+  operator: equals
+  value: letters
+- field: st2.layer
+  operator: equals
+  value: symbols
+- field: read.text
+  operator: equals
+  value: '1  '

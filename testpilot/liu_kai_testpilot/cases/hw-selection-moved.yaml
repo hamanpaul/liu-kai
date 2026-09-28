@@ -1,0 +1,35 @@
+id: hw-selection-moved
+name: 游標移出組字區時結束組字
+description: 組字 ba 時點欄位最左側：組字區（與官方相同以大寫顯示 BA）保留為一般文字並結束組字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+- id: move
+  action: tap_field
+  target: EMU
+  field: plain
+  x_ratio: 0.02
+- id: st
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.composing
+  operator: equals
+  value: ''
+- field: read.text
+  operator: equals
+  value: BA

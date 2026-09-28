@@ -1,0 +1,37 @@
+id: soft-landscape-height
+name: 橫式按鍵高度：低
+description: 照官方量測：橫式按鍵高度「低」的排距 96px；橫向時依橫式設定、直向時依直式設定。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    landscape_height: LOW
+steps:
+- id: rot
+  action: rotate
+  target: EMU
+  rotation: 1
+- id: st
+  action: ime_state
+  target: EMU
+- id: back
+  action: rotate
+  target: EMU
+  rotation: 0
+- id: st2
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st.row_height
+  operator: approx
+  value: 96
+  tolerance: 1
+- field: st2.row_height
+  operator: approx
+  value: 188
+  tolerance: 1

@@ -1,0 +1,58 @@
+id: soft-rebuild-while-pressed
+name: 按住軟鍵時切換模式不吃掉該鍵
+description: 按住 b 時以實體 Shift 切到英文（鍵盤整個換成英文配置）：換配置延到手指放開後，按住的 b 照常輸入（英文 b）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: down
+  action: touch_key
+  target: EMU
+  key: b
+  phase: down
+- id: shift
+  action: keys
+  target: EMU
+  keys:
+  - SHIFT_LEFT
+- id: up
+  action: touch_key
+  target: EMU
+  key: b
+  phase: up
+- id: st
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+- id: back
+  action: keys
+  target: EMU
+  keys:
+  - SHIFT_LEFT
+pass_criteria:
+- field: st.mode
+  operator: equals
+  value: ENGLISH
+- field: st.rows
+  operator: contains
+  value:
+  - shift
+  - z
+  - x
+  - c
+  - v
+  - b
+  - n
+  - m
+  - backspace
+- field: read.text
+  operator: equals
+  value: b

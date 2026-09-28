@@ -1,0 +1,68 @@
+id: soft-homophone-key
+name: 同音鍵前置查詢
+description: 照官方：按「同音」後組字顯示「'」，打字碼再按空白（選字），列出該字的同音字、欄位組字清空；點同音字上屏，候選列顯示該字的字碼（同音查碼）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: hk
+  action: tap_key
+  target: EMU
+  key: homophone
+- id: st1
+  action: ime_state
+  target: EMU
+- id: q
+  action: tap_key
+  target: EMU
+  key: q
+- id: st2
+  action: ime_state
+  target: EMU
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: st3
+  action: ime_state
+  target: EMU
+- id: pick
+  action: tap_candidate
+  target: EMU
+  text: 忠
+- id: st4
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.composing
+  operator: equals
+  value: ''''
+- field: st2.composing
+  operator: equals
+  value: '''q'
+- field: st2.candidates
+  operator: equals
+  value:
+  - 中
+  - 仲
+- field: st3.homophone_of
+  operator: equals
+  value: 中
+- field: st3.composing
+  operator: equals
+  value: ''
+- field: read.text
+  operator: equals
+  value: 忠
+- field: st4.code_hint
+  operator: equals
+  value: 忠 qa

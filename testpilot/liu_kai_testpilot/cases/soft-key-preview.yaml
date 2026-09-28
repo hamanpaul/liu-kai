@@ -1,0 +1,42 @@
+id: soft-key-preview
+name: 按鍵時顯示放大預覽
+description: 照官方「按鍵時顯示彈出式視窗」（預設開）：按住按鍵時在上方顯示放大的標籤，放開後收起並輸入。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: down
+  action: touch_key
+  target: EMU
+  key: g
+  phase: down
+- id: st1
+  action: ime_state
+  target: EMU
+- id: up
+  action: touch_key
+  target: EMU
+  key: g
+  phase: up
+- id: st2
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.preview
+  operator: equals
+  value: g
+- field: st2.preview
+  operator: equals
+  value: null
+- field: read.text
+  operator: equals
+  value: g

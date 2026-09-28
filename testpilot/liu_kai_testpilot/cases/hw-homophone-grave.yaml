@@ -1,0 +1,47 @@
+id: hw-homophone-grave
+name: 反引號查同音字並以數字鍵選字
+description: q 後按 `：列出「中」的讀音與同音字（依年級排序），2 選「忠」（0 為「中」本身）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - q
+  - '`'
+- id: st
+  action: ime_state
+  target: EMU
+- id: pick
+  action: keys
+  target: EMU
+  keys:
+  - '2'
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.homophone_of
+  operator: equals
+  value: 中
+- field: st.candidates
+  operator: equals
+  value:
+  - 中
+  - 鐘
+  - 忠
+- field: st.annotations
+  operator: equals
+  value:
+  - ㄓㄨㄥ
+  - ㄓㄨㄥ
+  - ㄓㄨㄥ
+- field: read.text
+  operator: equals
+  value: 忠

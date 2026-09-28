@@ -1,0 +1,74 @@
+id: soft-accent-popup
+name: 英文字母長按彈出重音字母
+description: 照官方：英文模式長按 a 彈出 à á â ã ä å æ、長按 n 彈出 ñ（Shift 時為大寫，選字後放開單次大寫）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: lp
+  action: long_press_key
+  target: EMU
+  key: a
+- id: st1
+  action: ime_state
+  target: EMU
+- id: pick
+  action: tap_key
+  target: EMU
+  key: popup:á
+- id: s
+  action: tap_key
+  target: EMU
+  key: shift
+- id: lp2
+  action: long_press_key
+  target: EMU
+  key: n
+- id: st2
+  action: ime_state
+  target: EMU
+- id: pick2
+  action: tap_key
+  target: EMU
+  key: popup:Ñ
+- id: st3
+  action: ime_state
+  target: EMU
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.popup
+  operator: equals
+  value:
+  - popup:à
+  - popup:á
+  - popup:â
+  - popup:ã
+  - popup:ä
+  - popup:å
+  - popup:æ
+- field: st2.popup
+  operator: equals
+  value:
+  - popup:Ñ
+- field: st3.shift
+  operator: equals
+  value: 'off'
+- field: read.text
+  operator: equals
+  value: áÑ

@@ -1,0 +1,22 @@
+id: settings-no-table
+name: 設定頁顯示尚未匯入
+description: 沒有字表時。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: none
+  launch: settings
+mutates_table: true
+steps:
+- id: status
+  action: wait_text
+  target: EMU
+  contains: 尚未匯入
+pass_criteria:
+- field: status.text
+  operator: contains
+  value: 尚未匯入

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shift：白色實心上箭頭與下方橫線（外觀對照官方嘸蝦米「經典灰」） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8,0 L0,8 L4,8 L4,12 L12,12 L12,8 L16,8 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,14 L12,14 L12,16 L4,16 Z" />
+</vector>

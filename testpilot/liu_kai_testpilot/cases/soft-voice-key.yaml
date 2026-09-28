@@ -1,0 +1,145 @@
+id: soft-voice-key
+name: 麥克風鍵與「,」選單切換到語音輸入
+description: 照官方非 PRO（語音輸入預設「於主鍵盤」）：中文模式長按「,」彈出 ⚙ 🎤，點 🎤 切換到系統的語音輸入（Google 語音輸入）；英文模式最下排為 中 ?123 🎤 空白 . Enter，點 🎤 同樣切換；長按 🎤
+  彈出 ⚙ 🎤。結束後切回 liu-kai。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: lp
+  action: long_press_key
+  target: EMU
+  key: ','
+- id: st_pop
+  action: ime_state
+  target: EMU
+- id: pick
+  action: tap_key
+  target: EMU
+  key: popup:voice
+  ack: false
+- id: cur1
+  action: current_ime
+  target: EMU
+  expect: com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+- id: back1
+  action: ime
+  target: EMU
+  enabled: true
+- id: cur2
+  action: current_ime
+  target: EMU
+  expect: com.hamanpaul.liukai/.ime.LiuKaiImeService
+- id: field
+  action: tap_field
+  target: EMU
+  field: plain
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st_en
+  action: ime_state
+  target: EMU
+- id: lp2
+  action: long_press_key
+  target: EMU
+  key: mic
+- id: st_mic_pop
+  action: ime_state
+  target: EMU
+- id: close
+  action: tap_key
+  target: EMU
+  key: space
+- id: mic
+  action: tap_key
+  target: EMU
+  key: mic
+  ack: false
+- id: cur3
+  action: current_ime
+  target: EMU
+  expect: com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+- id: back2
+  action: ime
+  target: EMU
+  enabled: true
+- id: cur4
+  action: current_ime
+  target: EMU
+  expect: com.hamanpaul.liukai/.ime.LiuKaiImeService
+pass_criteria:
+- field: st_pop.popup
+  operator: equals
+  value:
+  - popup:settings
+  - popup:voice
+- field: cur1.ime
+  operator: equals
+  value: com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+- field: cur2.ime
+  operator: equals
+  value: com.hamanpaul.liukai/.ime.LiuKaiImeService
+- field: st_en.rows
+  operator: equals
+  value:
+  - - q
+    - w
+    - e
+    - r
+    - t
+    - y
+    - u
+    - i
+    - o
+    - p
+  - - a
+    - s
+    - d
+    - f
+    - g
+    - h
+    - j
+    - k
+    - l
+  - - shift
+    - z
+    - x
+    - c
+    - v
+    - b
+    - n
+    - m
+    - backspace
+  - - toggle_english
+    - symbols
+    - mic
+    - space
+    - .
+    - enter
+- field: st_en.row_labels
+  operator: contains
+  value:
+  - 中
+  - ?123
+  - 🎤
+  - ␣
+  - .
+  - Next
+- field: st_mic_pop.popup
+  operator: equals
+  value:
+  - popup:settings
+  - popup:voice
+- field: cur3.ime
+  operator: equals
+  value: com.google.android.tts/com.google.android.apps.speech.tts.googletts.settings.asr.voiceime.VoiceInputMethodService
+- field: cur4.ime
+  operator: equals
+  value: com.hamanpaul.liukai/.ime.LiuKaiImeService

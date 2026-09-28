@@ -1,0 +1,30 @@
+id: settings-status
+name: 設定頁顯示啟用狀態與字表來源
+description: demo 字表已匯入、liu-kai 使用中。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: settings
+steps:
+- id: status
+  action: wait_text
+  target: EMU
+  contains: 字表：已匯入
+- id: source
+  action: read_text
+  target: EMU
+  contains: 來源：
+pass_criteria:
+- field: status.text
+  operator: contains
+  value: 已啟用／使用中
+- field: status.text
+  operator: contains
+  value: 字表：已匯入
+- field: source.text
+  operator: contains
+  value: synthetic-ibus.txt

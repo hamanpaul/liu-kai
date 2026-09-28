@@ -1,0 +1,25 @@
+id: hw-vrsf-selects-second
+name: VRSF 選第二候選
+description: ba 後按 v：bav 不是任何字碼前綴、ba 是完整碼，v 選第 2 候選。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+  - v
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 月

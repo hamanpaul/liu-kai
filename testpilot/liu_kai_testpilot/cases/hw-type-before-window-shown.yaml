@@ -1,0 +1,60 @@
+id: hw-type-before-window-shown
+name: 輸入法視窗未顯示時以實體鍵盤打字
+description: testhost 為 stateHidden：啟動後不點輸入欄，輸入法視窗不顯示；實體鍵盤一打字，輸入法主動顯示候選列（WindowManager 確認視窗實際顯示）；打字前先等系統把輸入欄接上輸入法（App 剛啟動時按鍵會送不到輸入法）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  focus: false
+steps:
+- id: home
+  action: keys
+  target: EMU
+  keys:
+  - HOME
+- id: launch
+  action: launch_host
+  target: EMU
+- id: bound
+  action: await_bound
+  target: EMU
+- id: before
+  action: ime_state
+  target: EMU
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+- id: wait
+  action: wait
+  target: EMU
+  ms: 800
+- id: win
+  action: ime_window
+  target: EMU
+  expect: true
+- id: after
+  action: ime_state
+  target: EMU
+- id: esc
+  action: keys
+  target: EMU
+  keys:
+  - ESCAPE
+pass_criteria:
+- field: before.window_shown
+  operator: equals
+  value: false
+- field: after.window_shown
+  operator: equals
+  value: true
+- field: win.visible
+  operator: equals
+  value: true
+- field: after.composing
+  operator: equals
+  value: b

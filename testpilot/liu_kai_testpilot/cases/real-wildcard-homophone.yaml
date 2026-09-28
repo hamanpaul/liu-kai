@@ -1,0 +1,45 @@
+id: real-wildcard-homophone
+name: 真實字表：萬用字元與同音字
+description: c* 的結果很長，需要捲動候選列找到「中」；ci 按 ` 查同音字選「忠」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  table: real
+steps:
+- id: wc
+  action: text
+  target: EMU
+  text: c*
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 中
+- id: h
+  action: keys
+  target: EMU
+  keys:
+  - c
+  - i
+  - '`'
+- id: st
+  action: ime_state
+  target: EMU
+- id: pick
+  action: tap_candidate
+  target: EMU
+  text: 忠
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.homophone_of
+  operator: equals
+  value: 中
+- field: read.text
+  operator: equals
+  value: 中忠

@@ -1,0 +1,46 @@
+id: settings-open-from-ime-returns-main
+name: 設定頁停在子頁時由輸入法開啟設定回到主頁
+description: 設定頁的工作停在「加字加詞」時，從輸入法長按「,」點 ⚙ 開啟設定，顯示的是設定主頁而不是停留的子頁。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  launch: settings
+steps:
+- id: sub
+  action: tap_text
+  target: EMU
+  text: 加字加詞
+  until: 匯出
+- id: host
+  action: launch_host
+  target: EMU
+- id: field
+  action: tap_field
+  target: EMU
+  field: plain
+- id: win
+  action: ime_window
+  target: EMU
+  expect: true
+- id: lp
+  action: long_press_key
+  target: EMU
+  key: ','
+- id: gear
+  action: tap_key
+  target: EMU
+  key: popup:settings
+- id: main
+  action: wait_text
+  target: EMU
+  contains: 輸入法：
+  timeout_ms: 15000
+pass_criteria:
+- field: main.text
+  operator: contains
+  value: 使用中

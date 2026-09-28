@@ -1,0 +1,40 @@
+id: hw-vrsf-conflict-root
+name: VRSF 衝突時當字根
+description: ab 後按 v：abv 本身是合法字碼，v 當字根；空白上屏 abv 的首選。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - a
+  - b
+  - v
+- id: st
+  action: ime_state
+  target: EMU
+- id: space
+  action: keys
+  target: EMU
+  keys:
+  - SPACE
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.composing
+  operator: equals
+  value: abv
+- field: st.candidates
+  operator: equals
+  value:
+  - 地
+- field: read.text
+  operator: equals
+  value: 地

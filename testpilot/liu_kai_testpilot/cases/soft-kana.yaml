@@ -1,0 +1,42 @@
+id: soft-kana
+name: 軟鍵盤直接打假名
+description: 軟鍵盤打 ka, 後按空白上屏「か」，不需切換模式。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: k0
+  action: tap_key
+  target: EMU
+  key: k
+- id: k1
+  action: tap_key
+  target: EMU
+  key: a
+- id: k2
+  action: tap_key
+  target: EMU
+  key: ','
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: st
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.mode
+  operator: equals
+  value: CHINESE
+- field: read.text
+  operator: equals
+  value: か

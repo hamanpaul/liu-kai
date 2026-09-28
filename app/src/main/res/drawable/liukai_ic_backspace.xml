@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backspace：實心刪除鍵，X 挖空露出按鍵底色（外觀對照官方；顏色由主題著色） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="27dp"
+    android:height="13dp"
+    android:viewportWidth="27"
+    android:viewportHeight="13">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M7,0 L26,0 Q27,0 27,1 L27,12 Q27,13 26,13 L7,13 L0,6.5 Z M19.33,2.40 L20.60,3.67 L17.77,6.50 L20.60,9.33 L19.33,10.60 L16.50,7.77 L13.67,10.60 L12.40,9.33 L15.23,6.50 L12.40,3.67 L13.67,2.40 L16.50,5.23 Z" />
+</vector>

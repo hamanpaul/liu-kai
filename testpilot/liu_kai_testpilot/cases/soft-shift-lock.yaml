@@ -1,0 +1,76 @@
+id: soft-shift-lock
+name: Shift 三態：單次大寫與大寫鎖定
+description: 照官方：英文模式按一次 Shift 為單次大寫（打一個字母後放開），再按一次為大寫鎖定（持續大寫），第三次放開。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: s1
+  action: tap_key
+  target: EMU
+  key: shift
+- id: st1
+  action: ime_state
+  target: EMU
+- id: s2
+  action: tap_key
+  target: EMU
+  key: shift
+- id: st2
+  action: ime_state
+  target: EMU
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: st3
+  action: ime_state
+  target: EMU
+- id: s3
+  action: tap_key
+  target: EMU
+  key: shift
+- id: st4
+  action: ime_state
+  target: EMU
+- id: c
+  action: tap_key
+  target: EMU
+  key: c
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.shift
+  operator: equals
+  value: once
+- field: st2.shift
+  operator: equals
+  value: locked
+- field: st3.shift
+  operator: equals
+  value: locked
+- field: st4.shift
+  operator: equals
+  value: 'off'
+- field: read.text
+  operator: equals
+  value: ABc

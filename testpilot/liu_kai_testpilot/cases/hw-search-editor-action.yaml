@@ -1,0 +1,28 @@
+id: hw-search-editor-action
+name: 搜尋欄 Enter 觸發欄位動作
+description: 搜尋欄（actionSearch）上屏「日」後按 Enter：輸入法不處理，App 觸發搜尋。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  field: search
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - b
+  - a
+  - SPACE
+  - ENTER
+- id: result
+  action: read_text
+  target: EMU
+  contains: action=
+pass_criteria:
+- field: result.text
+  operator: equals
+  value: action=3 text=日

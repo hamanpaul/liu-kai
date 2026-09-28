@@ -1,0 +1,31 @@
+id: settings-ime-disabled
+name: 設定頁顯示未啟用
+description: 停用 liu-kai 後開啟設定頁；最後重新啟用並切回 liu-kai。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  launch: none
+steps:
+- id: 'off'
+  action: ime
+  target: EMU
+  enabled: false
+- id: open
+  action: launch_settings
+  target: EMU
+- id: status
+  action: wait_text
+  target: EMU
+  contains: 未啟用
+- id: 'on'
+  action: ime
+  target: EMU
+  enabled: true
+pass_criteria:
+- field: status.text
+  operator: contains
+  value: 未啟用／未切換

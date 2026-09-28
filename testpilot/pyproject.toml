@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "liu-kai-testpilot"
+version = "0.1.0"
+description = "liu-kai（Android 嘸蝦米 IME）的 TestPilot plugin：以 adb 驅動模擬器執行 YAML 案例並產出報告"
+requires-python = ">=3.11"
+dependencies = [
+    "testpilot-core>=0.3.9,<0.4.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "pytest-cov>=5.0"]
+
+[project.scripts]
+liu-kai-coverage = "liu_kai_testpilot.coverage:main"
+liu-kai-diff = "liu_kai_testpilot.diff:main"
+
+[project.entry-points."testpilot.plugins"]
+liu_kai = "liu_kai_testpilot.plugin:Plugin"
+
+[tool.setuptools.packages.find]
+include = ["liu_kai_testpilot*"]
+
+[tool.setuptools.package-data]
+liu_kai_testpilot = ["cases/*.yaml", "diff_cases.yaml", "testbed.yaml.example"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=liu_kai_testpilot --cov-branch --cov-report=term-missing --cov-fail-under=100"
+
+[tool.coverage.run]
+branch = true
+source = ["liu_kai_testpilot"]

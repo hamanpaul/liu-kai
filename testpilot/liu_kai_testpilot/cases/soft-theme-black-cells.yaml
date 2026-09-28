@@ -1,0 +1,64 @@
+id: soft-theme-black-cells
+name: 主題：沉勁黑、顯示按鍵
+description: '照官方量測：沉勁黑分格時底色 #263238、候選列 #191D21、一般鍵 #404B4F、功能鍵 #313C40。'
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    theme: BLACK
+    show_keys: 'true'
+steps:
+- id: st
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: st.palette
+  operator: equals
+  value:
+    bg: '#263238'
+    bar: '#191D21'
+    text: '#D9DBDC'
+    strip: '#CFCFD0'
+    cells: true
+- field: st.row_colors
+  operator: equals
+  value:
+  - - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+  - - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+  - - '#313C40'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#404B4F'
+    - '#313C40'
+  - - '#313C40'
+    - '#313C40'
+    - '#313C40'
+    - '#313C40'
+    - '#313C40'
+    - '#313C40'

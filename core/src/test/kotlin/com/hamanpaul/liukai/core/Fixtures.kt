@@ -1,6 +1,8 @@
 package com.hamanpaul.liukai.core
 
+import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
+import com.hamanpaul.liukai.core.engine.languageTables
 import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.core.table.CompiledTable
 import com.hamanpaul.liukai.core.table.NamedBytes
@@ -27,11 +29,10 @@ object Fixtures {
         CompiledTable.build(importResult.bundle.section(SectionKind.TRADITIONAL)!!.entries)
     }
 
-    val japanese: CompiledTable by lazy {
-        CompiledTable.build(importResult.bundle.section(SectionKind.JAPANESE)!!.entries)
-    }
-
     val readings: Readings by lazy { Readings.parse(text("readings.tsv").lineSequence()) }
 
-    fun engine(): LiuEngine = LiuEngine(traditional, japanese, readings)
+    /** 繁中以外的語言模式字表（簡、台簡、日）。 */
+    val languageTables: Map<Language, CompiledTable> by lazy { importResult.bundle.languageTables() }
+
+    fun engine(): LiuEngine = LiuEngine(traditional, readings)
 }

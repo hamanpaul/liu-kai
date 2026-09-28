@@ -1,0 +1,50 @@
+id: hw-homophone-back
+name: 同音模式 Backspace 返回原字碼候選
+description: q 後按 ` 進入同音模式；Backspace 回到 q 的候選，點「仲」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+steps:
+- id: type
+  action: keys
+  target: EMU
+  keys:
+  - q
+  - '`'
+- id: st1
+  action: ime_state
+  target: EMU
+- id: del
+  action: keys
+  target: EMU
+  keys:
+  - DEL
+- id: st2
+  action: ime_state
+  target: EMU
+- id: tap
+  action: tap_candidate
+  target: EMU
+  text: 仲
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st1.homophone_of
+  operator: equals
+  value: 中
+- field: st2.homophone_of
+  operator: equals
+  value: null
+- field: st2.candidates
+  operator: equals
+  value:
+  - 中
+  - 仲
+- field: read.text
+  operator: equals
+  value: 仲

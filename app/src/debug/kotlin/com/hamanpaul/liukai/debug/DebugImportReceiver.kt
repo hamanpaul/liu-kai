@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import com.hamanpaul.liukai.core.table.NamedBytes
 import com.hamanpaul.liukai.data.TableStore
+import com.hamanpaul.liukai.data.readAllAndClose
 import java.io.File
 
 /**
@@ -19,15 +20,14 @@ class DebugImportReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val pending = goAsync()
         Thread {
-            val source = intent.getStringExtra("source") ?: "demo"
             val message = runCatching {
-                val files = when (source) {
+                val files = when (val source = intent.getStringExtra("source")!!) {
                     "demo" -> listOf("synthetic-ibus.txt", "synthetic-lime.txt").map { name ->
-                        NamedBytes(name, context.assets.open(name).use { it.readBytes() })
+                        NamedBytes(name, context.assets.open(name).readAllAndClose())
                     }
                     "files" -> {
                         val dir = File(context.filesDir, "import")
-                        val list = dir.listFiles()?.filter { it.isFile }?.sortedBy { it.name }.orEmpty()
+                        val list = dir.listFiles().orEmpty().sortedBy { it.name }
                         require(list.isNotEmpty()) { "${dir.path} 沒有檔案" }
                         list.map { NamedBytes(it.name, it.readBytes()) }.also { dir.deleteRecursively() }
                     }

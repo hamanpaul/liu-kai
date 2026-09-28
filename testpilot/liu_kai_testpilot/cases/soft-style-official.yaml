@@ -1,0 +1,321 @@
+id: soft-style-official
+name: 螢幕鍵盤外觀對照官方（經典灰＋顯示按鍵＋按鍵高）
+description: '逐格比對官方嘸蝦米 PRO「經典灰、顯示按鍵、直式按鍵高、字體適中」（使用者手機的設定）的量測值（LiuKai35：1080×2400、420dpi，2026-09-27 截圖量測）：候選列 y=1469 高 110；按鍵格高 171、排距 188、字母格寬 96、間隙 12；一般鍵漸層頂色 #8A8A8A、功能鍵 #4B4C4C（ALT 層的 ⇥ 為一般鍵）。字母、?123、ALT 三層皆比對，容差 ±4px。'
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: letters
+  action: ime_state
+  target: EMU
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: symbols
+  action: ime_state
+  target: EMU
+- id: alt
+  action: tap_key
+  target: EMU
+  key: alt
+- id: altl
+  action: ime_state
+  target: EMU
+- id: alt2
+  action: tap_key
+  target: EMU
+  key: alt
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+pass_criteria:
+- field: letters.candidate_strip
+  operator: approx
+  value:
+  - 1469
+  - 110
+  tolerance: 4
+- field: letters.row_rects
+  operator: approx
+  value:
+  - &id001
+    - - 6
+      - 1597
+      - 96
+      - 171
+    - - 114
+      - 1597
+      - 96
+      - 171
+    - - 222
+      - 1597
+      - 96
+      - 171
+    - - 330
+      - 1597
+      - 96
+      - 171
+    - - 438
+      - 1597
+      - 96
+      - 171
+    - - 546
+      - 1597
+      - 96
+      - 171
+    - - 654
+      - 1597
+      - 96
+      - 171
+    - - 762
+      - 1597
+      - 96
+      - 171
+    - - 870
+      - 1597
+      - 96
+      - 171
+    - - 978
+      - 1597
+      - 96
+      - 171
+  - - - 60
+      - 1785
+      - 96
+      - 171
+    - - 168
+      - 1785
+      - 96
+      - 171
+    - - 276
+      - 1785
+      - 96
+      - 171
+    - - 384
+      - 1785
+      - 96
+      - 171
+    - - 492
+      - 1785
+      - 96
+      - 171
+    - - 600
+      - 1785
+      - 96
+      - 171
+    - - 708
+      - 1785
+      - 96
+      - 171
+    - - 816
+      - 1785
+      - 96
+      - 171
+    - - 924
+      - 1785
+      - 96
+      - 171
+  - &id002
+    - - 7
+      - 1973
+      - 149
+      - 171
+    - - 168
+      - 1973
+      - 96
+      - 171
+    - - 276
+      - 1973
+      - 96
+      - 171
+    - - 384
+      - 1973
+      - 96
+      - 171
+    - - 492
+      - 1973
+      - 96
+      - 171
+    - - 600
+      - 1973
+      - 96
+      - 171
+    - - 708
+      - 1973
+      - 96
+      - 171
+    - - 816
+      - 1973
+      - 96
+      - 171
+    - - 925
+      - 1973
+      - 149
+      - 171
+  - &id003
+    - - 7
+      - 2161
+      - 126
+      - 171
+    - - 147
+      - 2161
+      - 116
+      - 171
+    - - 277
+      - 2161
+      - 95
+      - 171
+    - - 385
+      - 2161
+      - 419
+      - 171
+    - - 817
+      - 2161
+      - 95
+      - 171
+    - - 925
+      - 2161
+      - 149
+      - 171
+  tolerance: 4
+- field: letters.row_colors
+  operator: equals
+  value:
+  - - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+  - - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+  - - '#4B4C4C'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#4B4C4C'
+  - - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+- field: symbols.row_rects
+  operator: approx
+  value:
+  - *id001
+  - &id004
+    - - 6
+      - 1785
+      - 96
+      - 171
+    - - 114
+      - 1785
+      - 96
+      - 171
+    - - 222
+      - 1785
+      - 96
+      - 171
+    - - 330
+      - 1785
+      - 96
+      - 171
+    - - 438
+      - 1785
+      - 96
+      - 171
+    - - 546
+      - 1785
+      - 96
+      - 171
+    - - 654
+      - 1785
+      - 96
+      - 171
+    - - 762
+      - 1785
+      - 96
+      - 171
+    - - 870
+      - 1785
+      - 96
+      - 171
+    - - 978
+      - 1785
+      - 96
+      - 171
+  - *id002
+  - *id003
+  tolerance: 4
+- field: symbols.row_colors
+  operator: equals
+  value: &id005
+  - - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+  - - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+  - - '#4B4C4C'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#8A8A8A'
+    - '#4B4C4C'
+  - - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+    - '#4B4C4C'
+- field: altl.row_rects
+  operator: approx
+  value:
+  - *id001
+  - *id004
+  - *id002
+  - *id003
+  tolerance: 4
+- field: altl.row_colors
+  operator: equals
+  value: *id005
