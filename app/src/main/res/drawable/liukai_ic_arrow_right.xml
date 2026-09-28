@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 中文模式空白鍵語言標籤右側的 ▸（左右滑動空白鍵切換語言模式） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="5dp"
+    android:height="7dp"
+    android:viewportWidth="5"
+    android:viewportHeight="7">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,3.5 L0,0 L0,7 Z" />
+</vector>

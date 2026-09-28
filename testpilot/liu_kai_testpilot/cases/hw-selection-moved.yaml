@@ -1,6 +1,6 @@
 id: hw-selection-moved
 name: 游標移出組字區時結束組字
-description: 組字 ba 時點欄位最左側：組字區保留為一般文字並結束組字。
+description: 組字 ba 時點欄位最左側：組字區（與官方相同以大寫顯示 BA）保留為一般文字並結束組字。
 topology:
   devices:
     EMU:
@@ -32,4 +32,4 @@ pass_criteria:
   value: ''
 - field: read.text
   operator: equals
-  value: ba
+  value: BA

@@ -16,8 +16,8 @@ class CompositionTrackerTest {
     private fun key(c: Char) = tracker.sync(engine.handle(ImeEvent.Key(c)), engine)
 
     @Test
-    fun `組字中設定組字區`() {
-        assertEquals(listOf(IcOp.SetComposing("b")), key('b'))
+    fun `組字中設定組字區，字碼照官方以大寫顯示`() {
+        assertEquals(listOf(IcOp.SetComposing("B")), key('b'))
         assertTrue(tracker.shown)
     }
 
@@ -43,7 +43,7 @@ class CompositionTrackerTest {
     @Test
     fun `同音模式組字區顯示原字碼`() {
         key('q')
-        assertEquals(listOf(IcOp.SetComposing("q")), tracker.sync(engine.handle(ImeEvent.Key('`')), engine))
+        assertEquals(listOf(IcOp.SetComposing("Q")), tracker.sync(engine.handle(ImeEvent.Key('`')), engine))
     }
 
     @Test

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 空白鍵：白色寬扁 ⎵ 圖示（外觀對照官方嘸蝦米「經典灰」） -->
+<!-- 空白鍵：白色寬扁 ⎵ 圖示（量測官方嘸蝦米非 PRO 2.6.8「經典灰」：寬 25.5dp、高 4.2dp、橫條厚 2dp、兩端豎線寬 2.3dp） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="25.5dp"
-    android:height="4dp"
+    android:height="4.2dp"
     android:viewportWidth="25.5"
-    android:viewportHeight="4">
+    android:viewportHeight="4.2">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M0,0 L1.5,0 L1.5,2.5 L24,2.5 L24,0 L25.5,0 L25.5,4 L0,4 Z" />
+        android:pathData="M0,0 L2.3,0 L2.3,2.2 L23.2,2.2 L23.2,0 L25.5,0 L25.5,4.2 L0,4.2 Z" />
 </vector>

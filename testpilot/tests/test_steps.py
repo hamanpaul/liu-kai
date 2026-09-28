@@ -87,14 +87,16 @@ def test_ime_state_captures_summary(ex, adb):
         "shift": "off",
         "preview": None,
         "feedback": {"vibrate": 0, "sound": 0},
-        "dimmed": [],
-        "hidden": [],
+        "blank": [],
+        "space_underline": False,
         "palette": {},
         "font_scale": 1.0,
         "row_height": 188,
         "candidate_strip": [2200, 150],
         "candidates": ["日", "月"],
         "annotations": [None, "ㄩㄝˋ"],
+        "candidate_bold": [True, False],
+        "candidate_colors": ["#FCAE00", "#FCAE00"],
     }
     assert "日" in result["output"]
 
@@ -374,6 +376,20 @@ def test_rotate_waits_until_host_is_rebuilt_and_field_refocused(ex, adb):
     )
     assert run(ex, action="rotate", rotation=1)["success"] is True
     assert len([c for c in adb.of("shell") if c[1].startswith(UI_DUMP)]) == 3
+
+
+def test_ime_taps_in_landscape_rely_on_the_screen_probe(ex, adb):
+    # 觸控派送器的 frame 是實體（未旋轉）座標，橫式時不能與候選列 y 比對；改以截圖探測點確認鍵盤已畫出
+    adb.queue(UI_DUMP, ROTATED.replace('content-desc="plain"', FOCUSED))
+    assert run(ex, action="rotate", rotation=1)["success"] is True
+    assert ex.rotation == 1
+    keys = {"b": {"x": 1400, "y": 790, "w": 200, "h": 100}}
+    landscape = {"x": 154, "y": 423, "w": 2246, "h": 110}
+    adb.queue(DUMPSYS, state_dump(keys=keys, candidateRow=landscape))
+    adb.shell_outputs["dumpsys input"] = [window_dump(128)]
+    adb.screens = [raw_screen((0, 0, 0))]
+    assert run(ex, action="tap_key", key="b")["success"] is True
+    assert adb.of("tap") == [("tap", 1500, 840)]
 
 
 def test_rotate_gives_up_when_field_never_refocuses(ex, adb):

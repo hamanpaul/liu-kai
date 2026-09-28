@@ -1,0 +1,56 @@
+id: soft-landscape-typing
+name: 橫式全螢幕輸入
+description: 照官方橫式：全螢幕編輯區（白底）＋候選列＋鍵盤；橫式時輸入法視窗在螢幕缺口右側，點軟鍵盤 b a 組字 BA、候選 日 月（橘色、預設字粗體），點「月」上屏。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: rot
+  action: rotate
+  target: EMU
+  rotation: 1
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: st
+  action: ime_state
+  target: EMU
+- id: pick
+  action: tap_candidate
+  target: EMU
+  text: 月
+- id: back
+  action: rotate
+  target: EMU
+  rotation: 0
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: st.candidates
+  operator: equals
+  value:
+  - 日
+  - 月
+- field: st.candidate_bold
+  operator: equals
+  value:
+  - true
+  - false
+- field: st.composing
+  operator: equals
+  value: ba
+- field: read.text
+  operator: equals
+  value: 月

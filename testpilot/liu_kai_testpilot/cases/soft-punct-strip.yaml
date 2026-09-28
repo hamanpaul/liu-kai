@@ -1,6 +1,7 @@
 id: soft-punct-strip
-name: 字母層閒置時候選列顯示常用標點
-description: '照官方 3.0.9：字母層（中英文模式皆同）沒有組字時，候選列顯示 ! ? , " : ( ) -，點選直接上屏；組字中與 ?123 層不顯示。'
+name: 閒置常用標點列（選用設定）
+description: '官方 PRO 的功能，使用者 2026-09-28 決定保留為選用設定「閒置時顯示常用標點」（預設關）：開啟時字母層（中英文模式皆同）沒有組字時，候選列顯示 ! ? , " : ( ) -，點選直接上屏；組字中與 ?123
+  層不顯示。'
 topology:
   devices:
     EMU:
@@ -9,10 +10,23 @@ topology:
       note: Android 模擬器（testbed.yaml 的 serial）
 preconditions:
   keyboard: soft
+  prefs:
+    idle_strip: 'true'
 steps:
 - id: st1
   action: ime_state
   target: EMU
+- id: homo
+  action: tap_key
+  target: EMU
+  key: homophone
+- id: st_homo
+  action: ime_state
+  target: EMU
+- id: homo_clear
+  action: tap_key
+  target: EMU
+  key: backspace
 - id: paren
   action: tap_key
   target: EMU
@@ -60,7 +74,7 @@ steps:
 pass_criteria:
 - field: st1.strip
   operator: equals
-  value: &id001
+  value:
   - punct:!
   - punct:?
   - punct:,
@@ -88,7 +102,18 @@ pass_criteria:
   - punct:-
 - field: st5.strip
   operator: equals
-  value: *id001
+  value:
+  - punct:!
+  - punct:?
+  - punct:,
+  - punct:"
+  - 'punct::'
+  - punct:(
+  - punct:)
+  - punct:-
 - field: read.text
   operator: equals
   value: (木
+- field: st_homo.strip
+  operator: equals
+  value: []

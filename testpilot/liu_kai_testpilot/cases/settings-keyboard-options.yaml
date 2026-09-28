@@ -1,6 +1,6 @@
 id: settings-keyboard-options
-name: 嘸蝦米鍵盤設定與設定主題及配置
-description: 照官方的兩層設定頁：在「嘸蝦米鍵盤設定」切換勾選項與退出鍵（永遠顯示），在「設定主題及配置」選主題、按鍵高度並切換顯示按鍵與數字鍵；回到輸入欄後鍵盤依設定顯示。
+name: 嘸蝦米鍵盤設定
+description: 照官方非 PRO 的「嘸蝦米鍵盤設定」：切換勾選項、顯示退出鍵盤鍵（永遠顯示）、語音輸入（於符號鍵盤）、直式鍵盤高度（低）；其他設定選主題質感白、關閉顯示按鍵、開啟閒置常用標點；「檢視鍵盤」對話框叫出鍵盤；關於顯示版本。回到輸入欄後鍵盤依設定顯示。
 topology:
   devices:
     EMU:
@@ -30,10 +30,6 @@ steps:
   action: tap_text
   target: EMU
   text: 按鍵時播放音效
-- id: smart
-  action: tap_text
-  target: EMU
-  text: 智慧鍵盤
 - id: done
   action: tap_text
   target: EMU
@@ -44,39 +40,77 @@ steps:
   target: EMU
   text: 永遠顯示
   until: 按鍵時震動
-- id: theme
+- id: voice
   action: tap_text
   target: EMU
-  text: 設定主題及配置
-  until: 按鍵高度設定
-- id: dd
+  text: 語音輸入
+  until: 於符號鍵盤
+- id: sym
   action: tap_text
   target: EMU
-  text: 經典灰 ▾
-  until: 質感白
-- id: white
+  text: 於符號鍵盤
+  until: 符號鍵盤上的麥克風
+- id: smart
   action: tap_text
   target: EMU
-  text: 質感白
-  until: 質感白 ▾
-- id: keys
+  text: 智慧鍵盤
+- id: height
   action: tap_text
   target: EMU
-  text: 顯示按鍵
-- id: num
-  action: tap_text
-  target: EMU
-  text: 顯示數字鍵
-- id: hdd
-  action: tap_text
-  target: EMU
-  text: 高 ▾
+  text: 直式鍵盤高度
   until: 稍低
 - id: low
   action: tap_text
   target: EMU
   text: 低
-  until: 低 ▾
+  until: 直式鍵大小
+- id: scroll1
+  action: shell
+  target: EMU
+  command: input swipe 540 1800 540 700 400
+- id: scroll2
+  action: shell
+  target: EMU
+  command: input swipe 540 1800 540 700 400
+- id: theme
+  action: tap_text
+  target: EMU
+  text: 鍵盤主題
+  until: 質感白
+- id: white
+  action: tap_text
+  target: EMU
+  text: 質感白
+  until: 顯示按鍵
+- id: keys
+  action: tap_text
+  target: EMU
+  text: 顯示按鍵
+- id: strip
+  action: tap_text
+  target: EMU
+  text: 閒置時顯示常用標點
+- id: about
+  action: read_text
+  target: EMU
+  contains: liu-kai v
+- id: view
+  action: tap_text
+  target: EMU
+  text: 檢視鍵盤
+  until: 確定
+- id: view_win
+  action: ime_window
+  target: EMU
+  expect: true
+- id: st_view
+  action: ime_state
+  target: EMU
+- id: cancel
+  action: tap_text
+  target: EMU
+  text: 取消
+  until: 檢視鍵盤
 - id: host
   action: launch_host
   target: EMU
@@ -107,6 +141,25 @@ steps:
 - id: st3
   action: ime_state
   target: EMU
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+- id: bs
+  action: tap_key
+  target: EMU
+  key: backspace
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st_en
+  action: ime_state
+  target: EMU
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
 pass_criteria:
 - field: st.palette
   operator: equals
@@ -119,16 +172,6 @@ pass_criteria:
 - field: st.rows
   operator: equals
   value:
-  - - '1'
-    - '2'
-    - '3'
-    - '4'
-    - '5'
-    - '6'
-    - '7'
-    - '8'
-    - '9'
-    - '0'
   - - q
     - w
     - e
@@ -168,11 +211,41 @@ pass_criteria:
   operator: approx
   value: 125
   tolerance: 1
+- field: st.strip
+  operator: equals
+  value:
+  - punct:!
+  - punct:?
+  - punct:,
+  - punct:"
+  - 'punct::'
+  - punct:(
+  - punct:)
+  - punct:-
+- field: st_view.keyboard_visible
+  operator: equals
+  value: true
+- field: about.text
+  operator: startswith
+  value: liu-kai v
 - field: st2.preview
   operator: equals
   value: null
+- field: st2.blank
+  operator: equals
+  value: []
 - field: st3.feedback
   operator: equals
   value:
     vibrate: 1
     sound: 1
+- field: st_en.rows
+  operator: contains
+  value:
+  - hide
+  - toggle_english
+  - symbols
+  - ','
+  - space
+  - .
+  - enter

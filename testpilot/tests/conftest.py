@@ -31,8 +31,8 @@ def state_dump(**overrides) -> str:
         "shift": "off",
         "preview": None,
         "feedback": {"vibrate": 0, "sound": 0},
-        "dimmed": [],
-        "hidden": [],
+        "blank": [],
+        "spaceUnderline": False,
         "palette": {},
         "fontScale": 1.0,
         "rowHeight": 188,
@@ -66,7 +66,10 @@ def ime_window_block(visible: bool) -> str:
 
 
 def cand(index, text, x, annotation=None):
-    return {"index": index, "text": text, "annotation": annotation, "x": x, "y": 2200, "w": 100, "h": 150}
+    return {
+        "index": index, "text": text, "annotation": annotation, "bold": index == 0, "color": "#FCAE00",
+        "x": x, "y": 2200, "w": 100, "h": 150,
+    }
 
 
 UI_XML = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>

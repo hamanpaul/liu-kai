@@ -73,6 +73,8 @@ class StepExecutor:
         self._sleep = sleep or time.sleep
         # 已確認畫在畫面上的輸入法視窗位置（候選列 y）；截圖很慢，同一次顯示只確認一次
         self._drawn_at: int | None = None
+        # rotate 步驟設定的螢幕方向（0 直式）；plugin 的 teardown 轉回直式後歸零
+        self.rotation = 0
 
     # ---- 共用 ----
 
@@ -267,7 +269,7 @@ class StepExecutor:
         return all(abs(a - b) <= 8 for a, b in zip(self.pixel(x, y), expected))
 
     def shown_state(self) -> ImeState:
-        """讀取狀態並確認輸入法視窗實際顯示：觸控派送器的 frame 已與畫面排版一致，且鍵盤真的畫在螢幕上
+        """讀取狀態並確認輸入法視窗實際顯示：觸控派送器的 frame 已與畫面排版一致（直式時），且鍵盤真的畫在螢幕上
         （探測點為輸入法畫面的顏色）。視窗剛出現、鍵盤區剛顯示，或剛切換「實體鍵盤時顯示螢幕鍵盤」設定時，
         輸入法視窗可能已「顯示」但畫面上還看不到，這段期間的觸控會送不到輸入法。
         截圖很慢（約 1.6 秒），連續操作鍵盤時只在第一次確認；視窗移動或執行過其他動作後重新確認。"""
@@ -277,7 +279,9 @@ class StepExecutor:
             if not state.window_shown:
                 raise LookupError("輸入法視窗未顯示")
             y = state.candidate_row.y
-            if self.ime_frame_top() == y and (self._drawn_at == y or self._drawn(state)):
+            # 觸控派送器的 frame 是實體（未旋轉）座標：橫式時不比對，只以截圖探測點確認
+            framed = self.rotation != 0 or self.ime_frame_top() == y
+            if framed and (self._drawn_at == y or self._drawn(state)):
                 self._drawn_at = y
                 return state
             attempts -= 1
@@ -342,7 +346,7 @@ class StepExecutor:
         return f"touch {step['phase']} {step['key']}", {}
 
     def _do_swipe_key(self, step):
-        """從鍵的中心水平滑動 dx 像素（例如空白鍵左右滑動移動游標），並等輸入法處理完。"""
+        """從鍵的中心水平滑動 dx 像素（例如中文模式空白鍵左右滑動切換語言模式），並等輸入法處理完。"""
         state = self.shown_state()
         x, y = state.key(step["key"]).center
         self.adb.swipe(x, y, x + step["dx"], y, step.get("duration_ms", 800))
@@ -448,14 +452,16 @@ class StepExecutor:
             "shift": s.shift,
             "preview": s.preview,
             "feedback": s.feedback,
-            "dimmed": s.dimmed,
-            "hidden": s.hidden,
+            "blank": s.blank,
+            "space_underline": s.space_underline,
             "palette": s.palette,
             "font_scale": s.font_scale,
             "row_height": s.row_height,
             "candidate_strip": [s.candidate_row.y, s.candidate_row.h],
             "candidates": s.candidate_texts(),
             "annotations": [c.annotation for c in s.candidates],
+            "candidate_bold": [c.bold for c in s.candidates],
+            "candidate_colors": [c.color for c in s.candidates],
         }
         return f"mode={s.mode} composing={s.composing} candidates={s.candidate_texts()}", captured
 
@@ -478,6 +484,7 @@ class StepExecutor:
             self.settle()
             xml = self.ui_xml()
             if screen_rotation(xml) == rotation and is_focused(xml, field):
+                self.rotation = rotation
                 return f"rotation={rotation}", {}
             polls += 1
             if polls == ROTATE_POLLS:

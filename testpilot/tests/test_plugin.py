@@ -148,10 +148,12 @@ def test_execute_evaluate_and_evidence(plugin, adb):
 def test_teardown_resets_environment_and_table_when_mutated(plugin, adb):
     c = case(preconditions={"table": "demo"}, mutates_table=True)
     plugin.setup_env(c, None)
+    plugin.executor.rotation = 1
     plugin.teardown(c, None)
     shells = [x[1] for x in adb.of("shell")]
     # 螢幕鍵盤設定由每個案例的 setup 設定；teardown 不改回，避免反覆觸發框架的設定監聽延遲
     assert shells[-1] == "settings put system user_rotation 0"
+    assert plugin.executor.rotation == 0
     assert shells.count("settings put secure show_ime_with_hard_keyboard 0") == 1
     assert adb.of("keyevent")[-1] == ("keyevent", ("KEYCODE_ESCAPE",))
     plugin.setup_env(case(id="c2", preconditions={"table": "demo"}), None)

@@ -21,8 +21,8 @@ STATE = {
     "windowShown": True,
     "candidateRow": {"x": 0, "y": 2000, "w": 1080, "h": 150},
     "candidates": [
-        {"index": 0, "text": "日", "annotation": None, "x": 200, "y": 2000, "w": 100, "h": 150},
-        {"index": 1, "text": "月", "annotation": "ㄩㄝˋ", "x": 300, "y": 2000, "w": 100, "h": 150},
+        {"index": 0, "text": "日", "annotation": None, "bold": True, "color": "#FCAE00", "x": 200, "y": 2000, "w": 100, "h": 150},
+        {"index": 1, "text": "月", "annotation": "ㄩㄝˋ", "bold": False, "color": "#FCAE00", "x": 300, "y": 2000, "w": 100, "h": 150},
     ],
     "keys": {"b": {"x": 500, "y": 2300, "w": 90, "h": 140}},
     "layer": "symbols",
@@ -40,8 +40,8 @@ STATE = {
     "shift": "locked",
     "preview": "g",
     "feedback": {"vibrate": 2, "sound": 1},
-    "dimmed": ["b", "c"],
-    "hidden": ["homophone"],
+    "blank": ["homophone", "b", "c"],
+    "spaceUnderline": True,
     "palette": {"bg": "#ECEFF1", "cells": False},
     "fontScale": 1.2,
     "rowHeight": 96,
@@ -69,10 +69,11 @@ def test_parse_dump_decodes_state_line():
     assert (state.language, state.languages) == ("JAPANESE", ["TRADITIONAL", "JAPANESE"])
     assert state.code_hint == "忠 qa"
     assert (state.shift, state.preview, state.feedback) == ("locked", "g", {"vibrate": 2, "sound": 1})
-    assert (state.dimmed, state.hidden) == (["b", "c"], ["homophone"])
+    assert (state.blank, state.space_underline) == (["homophone", "b", "c"], True)
     assert (state.palette, state.font_scale, state.row_height) == ({"bg": "#ECEFF1", "cells": False}, 1.2, 96)
     assert [c.text for c in state.candidates] == ["日", "月"]
     assert state.candidates[1].annotation == "ㄩㄝˋ"
+    assert [(c.bold, c.color) for c in state.candidates] == [(True, "#FCAE00"), (False, "#FCAE00")]
     assert state.candidate_row == Rect(0, 2000, 1080, 150)
     assert state.keys["b"].center == (545, 2370)
 

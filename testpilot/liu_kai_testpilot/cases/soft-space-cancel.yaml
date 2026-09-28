@@ -1,0 +1,54 @@
+id: soft-space-cancel
+name: 按住空白鍵時鍵盤重建不輸入空白
+description: 按住空白鍵時以實體鍵盤打 b（組字使鍵盤重建，空白鍵收到 CANCEL）：放開後不輸入空白、放大預覽收起，組字維持 B。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: down
+  action: touch_key
+  target: EMU
+  key: space
+  phase: down
+- id: st1
+  action: ime_state
+  target: EMU
+- id: b
+  action: keys
+  target: EMU
+  keys:
+  - B
+- id: up
+  action: touch_key
+  target: EMU
+  key: space
+  phase: up
+- id: st2
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+pass_criteria:
+- field: st1.preview
+  operator: equals
+  value: space
+- field: st2.preview
+  operator: equals
+  value: null
+- field: st2.composing
+  operator: equals
+  value: b
+- field: read.text
+  operator: equals
+  value: B

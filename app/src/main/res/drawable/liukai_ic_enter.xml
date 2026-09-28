@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Enter：白色 ↵（右側豎線上端向左彎、左端三角箭頭；外觀對照官方嘸蝦米中文模式） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="18dp"
+    android:viewportWidth="74"
+    android:viewportHeight="47">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M0,30.5 L25,14 L25,47 Z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M23,30.5 H65 A5.5,5.5 0 0,0 70.5,25 V7 A4,4 0 0,0 66.5,3 H58.5" />
+</vector>

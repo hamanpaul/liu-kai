@@ -4,7 +4,8 @@ import android.graphics.Color
 import com.hamanpaul.liukai.data.KeyboardTheme
 
 /**
- * 鍵盤主題色。數值取自官方 PRO 3.0.9 各主題在「顯示按鍵」開與關時的模擬器截圖（420dpi，英文字母層）。
+ * 鍵盤主題色。經典灰取自官方非 PRO 2.6.8 與 PRO 3.0.9（兩者按鍵相同）；其餘主題取自 PRO 3.0.9 各主題在「顯示按鍵」
+ * 開與關時的模擬器截圖（420dpi，英文字母層）。
  * cells＝按鍵獨立分格（顯示按鍵，經典灰一律分格）；不分格時按鍵扁平、空白鍵為膠囊、Enter 為圓形。
  */
 data class Palette(
@@ -25,8 +26,14 @@ data class Palette(
     val popupMark: Int,
     /** Shift、Backspace 等圖示。 */
     val icon: Int,
-    /** 候選列的常用標點。 */
+    /** 候選字與候選列的常用標點（經典灰為官方候選的橘色）。 */
     val strip: Int,
+    /** 候選之間的分隔線。 */
+    val separator: Int,
+    /** 中文模式空白鍵的語言標籤與左右箭頭。 */
+    val spaceLabel: Int,
+    /** 輸入欄有文字時中文模式空白鍵下方的底線（經典灰為橘色）。 */
+    val spaceLine: Int,
     val mic: Int,
     /** 分格時 Enter 鍵的底色。 */
     val enter: Int,
@@ -63,13 +70,14 @@ object Palettes {
 
     private fun alpha(color: Int, a: Int) = Color.argb(a, Color.red(color), Color.green(color), Color.blue(color))
 
-    /** 經典灰（使用者手機的設定）：黑底、上淺下深漸層按鍵、黃綠指示點、深色彈出面板與橘線、按鍵上方黑框預覽。 */
+    /** 經典灰（使用者手機的設定）：黑底、上淺下深漸層按鍵、黃綠指示點、深色彈出面板與橘線、按鍵上方黑框預覽、橘色候選。 */
     private val GRAY = Palette(
         cells = true, boldLetters = true,
         bg = Color.BLACK, bar = Color.BLACK,
         keyTop = c("#8A8A8A"), keyBottom = c("#6F6F6F"), fnTop = c("#4B4C4C"), fnBottom = c("#323232"),
         pressedTop = c("#DBDBDB"), pressedBottom = c("#C1C1C1"),
         text = Color.WHITE, hint = c("#C4C4C4"), popupMark = c("#767676"), icon = Color.WHITE, strip = c("#FCAE00"), mic = c("#A6ADB0"),
+        separator = c("#444444"), spaceLabel = c("#C0C0C0"), spaceLine = c("#F17100"),
         enter = c("#4B4C4C"), enterCircle = c("#4B4C4C"), enterText = Color.WHITE, spacePill = c("#343535"),
         indicatorDot = true, indicatorOff = c("#3A3B3B"), indicatorOn = c("#D0DD27"), indicatorLock = c("#F58A1F"),
         popupBg = c("#141414"), popupKeyTop = c("#686868"), popupKeyBottom = c("#4B4B4B"), popupLine = c("#C37629"),
@@ -107,6 +115,7 @@ object Palettes {
             bg = bg, bar = c(m.bar),
             keyTop = key, keyBottom = key, fnTop = fn, fnBottom = fn, pressedTop = pressed, pressedBottom = pressed,
             text = text, hint = c(m.hint), popupMark = c(m.hint), icon = c(m.icon), strip = c(m.strip), mic = c(m.mic),
+            separator = alpha(c(m.strip), 0x55), spaceLabel = c(m.hint), spaceLine = c(m.enterCircle),
             enter = c(m.enter), enterCircle = c(m.enterCircle), enterText = c(m.enterText), spacePill = c(m.spacePill),
             indicatorDot = false, indicatorOff = c(m.hint), indicatorOn = c(m.enterCircle), indicatorLock = c(m.enterCircle),
             popupBg = bg, popupKeyTop = key, popupKeyBottom = key, popupLine = Color.TRANSPARENT,

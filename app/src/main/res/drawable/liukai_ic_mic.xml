@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 候選列右端的語音鍵：麥克風（膠囊＋支架） -->
+<!-- 麥克風（語音輸入鍵、候選列的語音鍵；膠囊＋支架） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

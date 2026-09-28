@@ -1,0 +1,71 @@
+id: soft-voice-symbols
+name: 語音輸入「於符號鍵盤」
+description: 照官方設定「語音輸入」＝於符號鍵盤：英文字母層最下排為「,」，英文 ?123 層「,」的位置改為 🎤；中文模式長按「,」仍有 🎤。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    voice: SYMBOLS
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st_en
+  action: ime_state
+  target: EMU
+- id: sym
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: st_sym
+  action: ime_state
+  target: EMU
+- id: abc
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: lp
+  action: long_press_key
+  target: EMU
+  key: ','
+- id: st_pop
+  action: ime_state
+  target: EMU
+- id: close
+  action: tap_key
+  target: EMU
+  key: space
+pass_criteria:
+- field: st_en.rows
+  operator: contains
+  value:
+  - toggle_english
+  - symbols
+  - ','
+  - space
+  - .
+  - enter
+- field: st_sym.rows
+  operator: contains
+  value:
+  - toggle_english
+  - symbols
+  - mic
+  - space
+  - .
+  - enter
+- field: st_pop.popup
+  operator: equals
+  value:
+  - popup:settings
+  - popup:voice

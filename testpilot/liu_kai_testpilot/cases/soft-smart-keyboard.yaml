@@ -1,6 +1,6 @@
 id: soft-smart-keyboard
-name: 智慧鍵盤：淡化不可能的下一碼
-description: 照官方「智慧鍵盤」（預設開）：組字中不能接的字母鍵淡化，「,」「.'[]」不能接時隱藏、空白鍵加寬，同音鍵留白；上屏後恢復。
+name: 智慧鍵盤：不可能的下一碼留白
+description: 照官方「智慧鍵盤」（預設開）：組字中不能接的字母鍵、「,」「.'[]」與同音鍵留白（只剩鍵格、不顯示標籤），版面不變；點留白的鍵沒有反應（不算組字失敗）；上屏後恢復。a 可接「,」「.」（假名 a, a.），兩鍵不留白。
 topology:
   devices:
     EMU:
@@ -24,15 +24,33 @@ steps:
 - id: st2
   action: ime_state
   target: EMU
+- id: w
+  action: tap_key
+  target: EMU
+  key: w
+- id: st3
+  action: ime_state
+  target: EMU
 - id: sp
   action: tap_key
   target: EMU
   key: space
-- id: st3
+- id: st4
   action: ime_state
   target: EMU
+- id: a2
+  action: tap_key
+  target: EMU
+  key: a
+- id: st5
+  action: ime_state
+  target: EMU
+- id: sp2
+  action: tap_key
+  target: EMU
+  key: space
 pass_criteria:
-- field: st1.dimmed
+- field: st1.blank
   operator: equals
   value:
   - q
@@ -53,6 +71,7 @@ pass_criteria:
   - j
   - k
   - l
+  - homophone
   - z
   - x
   - c
@@ -60,10 +79,8 @@ pass_criteria:
   - b
   - n
   - m
-- field: st1.hidden
-  operator: equals
-  value:
-  - homophone
+  - ','
+  - .
 - field: st1.rows
   operator: equals
   value:
@@ -97,39 +114,44 @@ pass_criteria:
     - backspace
   - - toggle_english
     - symbols
+    - ','
     - space
+    - .
     - enter
-- field: st2.dimmed
-  operator: equals
+- field: st1.row_labels
+  operator: contains
   value:
-  - q
-  - w
-  - e
-  - r
-  - t
-  - y
-  - u
-  - i
-  - o
-  - p
-  - a
-  - s
-  - d
-  - f
-  - g
-  - h
-  - j
-  - k
-  - l
-  - z
-  - x
-  - c
-  - b
-  - n
-  - m
-- field: st3.dimmed
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+- field: st2.blank
+  operator: contains
+  value: homophone
+- field: st2.blank
+  operator: not_contains
+  value: v
+- field: st3.composing
+  operator: equals
+  value: ba
+- field: st3.failure_hint
+  operator: equals
+  value: false
+- field: st4.blank
   operator: equals
   value: []
-- field: st3.hidden
+- field: st4.composing
   operator: equals
-  value: []
+  value: ''
+- field: st5.blank
+  operator: not_contains
+  value: ','
+- field: st5.blank
+  operator: not_contains
+  value: .

@@ -1,6 +1,8 @@
 package com.hamanpaul.liukai.ime
 
 import android.content.Intent
+import android.graphics.Color
+import android.text.TextUtils
 import android.inputmethodservice.InputMethodService
 import android.util.Base64
 import android.util.Log
@@ -58,6 +60,9 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
             controller.engine.setTables(loaded.traditional, loaded.readings, loaded.others)
         }
     }
+
+    /** 橫式全螢幕的編輯區：照官方為純白底（系統預設為淺灰漸層）。 */
+    override fun onCreateExtractTextView(): View = super.onCreateExtractTextView().apply { setBackgroundColor(Color.WHITE) }
 
     /** 框架重建輸入畫面（例如螢幕旋轉）時會再次呼叫：先把 View 從舊的父容器移除再交回。 */
     override fun onCreateInputView(): View {
@@ -171,21 +176,16 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         Toast.makeText(this, "請先在系統的螢幕鍵盤設定啟用語音輸入", Toast.LENGTH_SHORT).show()
     }
 
-    /** 長按「同音」選單：切換語言模式並記住。 */
+    /** 中文模式左右滑動空白鍵：切換語言模式並記住。 */
     override fun onLanguage(language: Language) {
         ImePrefs.setLanguage(this, language)
         execute(controller.selectLanguage(language))
     }
 
-    /** 空白鍵滑動：以方向鍵移動游標。 */
-    override fun onCursor(delta: Int) {
-        sendDownUpKeyEvents(if (delta < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
-    }
-
     /** 退出鍵盤鍵：收起輸入法。 */
     override fun onHide() = requestHideSelf(0)
 
-    /** 候選列的常用標點：直接上屏（只在沒有組字時顯示）。 */
+    /** 閒置時候選列的常用標點（選用設定）：直接上屏（只在沒有組字時顯示）。 */
     override fun onPunctuation(text: String) = execute(listOf(IcOp.Commit(text)))
 
 
@@ -229,9 +229,16 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         languages = controller.engine.languages,
         codeHint = controller.engine.codeHint,
         nextKeys = controller.engine.nextKeys,
+        fieldHasText = fieldHasText,
     )
 
+    /** 輸入欄有文字（含組字）：每次 render 時由 InputConnection 讀取（中文模式空白鍵的底線）。 */
+    private var fieldHasText = false
+
     private fun render() {
+        val ic = currentInputConnection
+        fieldHasText = controller.engine.isComposing ||
+            !TextUtils.isEmpty(ic.getTextBeforeCursor(1, 0)) || !TextUtils.isEmpty(ic.getTextAfterCursor(1, 0))
         view.render(uiState())
         // 英文自動大寫（設定「自動大寫」）：依欄位的大寫設定與游標位置（句首、欄位開頭等）決定
         val english = controller.engine.mode == InputMode.ENGLISH || !controller.tableLoaded

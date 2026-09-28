@@ -1,6 +1,6 @@
 id: soft-language-modes
-name: 長按同音切換語言模式（嘸／无／台／日）
-description: 照官方：長按「同音」彈出 嘸 无 台 日 選單（目前模式以強調色標示），選取後依該模式的字表組字：无 z→简、台 qq→钟、日 ka,→か；最後切回嘸（繁中）。
+name: 左右滑動空白鍵切換語言模式（嘸／无／台／日）
+description: 照官方非 PRO：中文模式空白鍵標示「◂ 嘸 ▸」，往右滑動依序切換 嘸→无→台→日→嘸、往左反向，滑動不輸入空白；依該模式的字表組字：无 z→简、台 qq→钟、日 ka,→か。輸入欄有文字時 ⎵ 改為底線（游標在開頭、後面有字也算）。英文模式滑動空白鍵仍輸入空白。
 topology:
   devices:
     EMU:
@@ -10,17 +10,14 @@ topology:
 preconditions:
   keyboard: soft
 steps:
-- id: lp
-  action: long_press_key
-  target: EMU
-  key: homophone
-- id: menu
+- id: st0
   action: ime_state
   target: EMU
-- id: sc
-  action: tap_key
+- id: r1
+  action: swipe_key
   target: EMU
-  key: popup:lang:SIMPLIFIED
+  key: space
+  dx: 300
 - id: st_sc
   action: ime_state
   target: EMU
@@ -32,17 +29,11 @@ steps:
   action: tap_key
   target: EMU
   key: space
-- id: lp2
-  action: long_press_key
+- id: r2
+  action: swipe_key
   target: EMU
-  key: homophone
-- id: menu2
-  action: ime_state
-  target: EMU
-- id: tw
-  action: tap_key
-  target: EMU
-  key: popup:lang:TW_SIMPLIFIED
+  key: space
+  dx: 300
 - id: q1
   action: tap_key
   target: EMU
@@ -55,14 +46,14 @@ steps:
   action: tap_key
   target: EMU
   key: space
-- id: lp3
-  action: long_press_key
+- id: r3
+  action: swipe_key
   target: EMU
-  key: homophone
-- id: jp
-  action: tap_key
+  key: space
+  dx: 300
+- id: st_jp
+  action: ime_state
   target: EMU
-  key: popup:lang:JAPANESE
 - id: k
   action: tap_key
   target: EMU
@@ -79,42 +70,113 @@ steps:
   action: tap_key
   target: EMU
   key: space
-- id: lp4
-  action: long_press_key
+- id: r4
+  action: swipe_key
   target: EMU
-  key: homophone
-- id: tr
-  action: tap_key
-  target: EMU
-  key: popup:lang:TRADITIONAL
+  key: space
+  dx: 300
 - id: st_tr
   action: ime_state
   target: EMU
+- id: l1
+  action: swipe_key
+  target: EMU
+  key: space
+  dx: -300
+- id: st_back
+  action: ime_state
+  target: EMU
+- id: r5
+  action: swipe_key
+  target: EMU
+  key: space
+  dx: 300
+- id: home
+  action: keys
+  target: EMU
+  keys:
+  - MOVE_HOME
+- id: st_home
+  action: ime_state
+  target: EMU
+- id: end
+  action: keys
+  target: EMU
+  keys:
+  - MOVE_END
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: ea
+  action: tap_key
+  target: EMU
+  key: a
+- id: en_swipe
+  action: swipe_key
+  target: EMU
+  key: space
+  dx: 300
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
 - id: read
   action: read_field
   target: EMU
   field: plain
 pass_criteria:
-- field: menu.popup
-  operator: equals
+- field: st0.row_labels
+  operator: contains
   value:
-  - popup:lang:TRADITIONAL
-  - popup:lang:SIMPLIFIED
-  - popup:lang:TW_SIMPLIFIED
-  - popup:lang:JAPANESE
+  - En
+  - ?123
+  - ','
+  - 嘸
+  - .'[]
+  - ↵
+- field: st0.space_underline
+  operator: equals
+  value: false
 - field: st_sc.language
   operator: equals
   value: SIMPLIFIED
-- field: menu2.popup
-  operator: equals
+- field: st_sc.row_labels
+  operator: contains
   value:
-  - popup:lang:TRADITIONAL
-  - popup:lang:SIMPLIFIED
-  - popup:lang:TW_SIMPLIFIED
-  - popup:lang:JAPANESE
+  - En
+  - ?123
+  - ','
+  - 无
+  - .'[]
+  - ↵
+- field: st_jp.language
+  operator: equals
+  value: JAPANESE
+- field: st_jp.row_labels
+  operator: contains
+  value:
+  - En
+  - ?123
+  - ','
+  - 日
+  - .'[]
+  - ↵
 - field: st_tr.language
   operator: equals
   value: TRADITIONAL
+- field: st_tr.space_underline
+  operator: equals
+  value: true
+- field: st_back.language
+  operator: equals
+  value: JAPANESE
+- field: st_home.language
+  operator: equals
+  value: TRADITIONAL
+- field: st_home.space_underline
+  operator: equals
+  value: true
 - field: read.text
   operator: equals
-  value: 简钟か
+  value: '简钟かa '

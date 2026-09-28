@@ -1,0 +1,51 @@
+id: soft-candidate-bar-style
+name: 候選列樣式與輸入欄的大寫字碼
+description: 照官方非 PRO：字碼以大寫顯示在輸入欄（ba → BA），候選列只列候選：橘色（#FCAE00）、預設字粗體；閒置時候選列是空的（沒有常用標點列）。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: st0
+  action: ime_state
+  target: EMU
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: st1
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+- id: sp
+  action: tap_key
+  target: EMU
+  key: space
+pass_criteria:
+- field: st0.strip
+  operator: equals
+  value: []
+- field: read.text
+  operator: equals
+  value: BA
+- field: st1.candidate_bold
+  operator: equals
+  value:
+  - true
+  - false
+- field: st1.candidate_colors
+  operator: equals
+  value:
+  - '#FCAE00'
+  - '#FCAE00'

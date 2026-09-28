@@ -1,6 +1,6 @@
 id: soft-smart-keyboard-off
-name: 關閉智慧鍵盤
-description: 設定「智慧鍵盤」關閉時，組字中不淡化也不隱藏按鍵。
+name: 設定「智慧鍵盤」關閉
+description: 設定「智慧鍵盤」關閉時，組字中所有按鍵照常顯示，沒有留白的鍵。
 topology:
   devices:
     EMU:
@@ -24,9 +24,6 @@ steps:
   target: EMU
   key: space
 pass_criteria:
-- field: st1.dimmed
-  operator: equals
-  value: []
-- field: st1.hidden
+- field: st1.blank
   operator: equals
   value: []

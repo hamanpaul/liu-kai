@@ -1,7 +1,7 @@
 id: soft-chinese-keycaps
 name: 中文模式鍵帽大寫、同音鍵與模式標籤
-description: 照官方：中文模式鍵帽大寫、Shift 位置是「同音」、中英鍵顯示 En、空白鍵標「嘸蝦米」、句點鍵為「.'[]」；英文模式鍵帽小寫、⇧、中、空白鍵圖示、「.」；?123
-  層左下為「中」、空白與句點鍵同中文模式。
+description: 照官方非 PRO：中文模式鍵帽大寫、Shift 位置是「同音」、中英鍵顯示 En、空白鍵標語言模式「嘸」、句點鍵為「.'[]」、Enter 為 ↵；英文模式鍵帽小寫、⇧、中、🎤、空白鍵圖示、「.」、Enter 依欄位為
+  Next；中文 ?123 層最下排為 En 中 , 嘸 .'[] ↵。
 topology:
   devices:
     EMU:
@@ -67,9 +67,9 @@ pass_criteria:
   - - En
     - ?123
     - ','
-    - 嘸蝦米
+    - 嘸
     - .'[]
-    - Next
+    - ↵
 - field: st_en.row_labels
   operator: equals
   value:
@@ -103,7 +103,7 @@ pass_criteria:
     - ⌫
   - - 中
     - ?123
-    - ','
+    - 🎤
     - ␣
     - .
     - Next
@@ -139,9 +139,9 @@ pass_criteria:
     - /
     - '?'
     - ⌫
-  - - 中
-    - ABC
+  - - En
+    - 中
     - ','
-    - 嘸蝦米
+    - 嘸
     - .'[]
-    - Next
+    - ↵

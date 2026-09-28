@@ -5,7 +5,7 @@ import com.hamanpaul.liukai.core.engine.LiuEngine
 
 /**
  * 追蹤 App 欄位內是否有輸入法設定的組字區，並把引擎結果轉成 InputConnection 操作。
- * 只有確實有組字區時才清除，避免誤刪使用者選取的文字。
+ * 只有確實有組字區時才清除，避免誤刪使用者選取的文字。組字區的字碼照官方以大寫顯示（例如「SA」）。
  */
 class CompositionTracker {
     var shown: Boolean = false
@@ -18,7 +18,7 @@ class CompositionTracker {
             shown = false
         }
         if (engine.isComposing) {
-            ops += IcOp.SetComposing(engine.displayComposing)
+            ops += IcOp.SetComposing(engine.displayComposing.uppercase())
             shown = true
         } else if (shown) {
             ops += IcOp.ClearComposing

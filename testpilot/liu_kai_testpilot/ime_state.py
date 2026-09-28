@@ -33,6 +33,9 @@ class CandidateView:
     text: str
     annotation: str | None
     rect: Rect
+    # 粗體（預設字，空白上屏的字）與字色（#RRGGBB）
+    bold: bool = False
+    color: str = ""
 
 
 @dataclass(frozen=True)
@@ -71,9 +74,9 @@ class ImeState:
     shift: str = "off"
     preview: str | None = None
     feedback: dict[str, int] = field(default_factory=dict)
-    # 智慧鍵盤淡化的鍵與隱藏（留白）的鍵
-    dimmed: list[str] = field(default_factory=list)
-    hidden: list[str] = field(default_factory=list)
+    # 智慧鍵盤留白的鍵、中文模式空白鍵的底線（輸入欄有文字）
+    blank: list[str] = field(default_factory=list)
+    space_underline: bool = False
     # 主題色摘要（bg、bar、text、strip、cells）、字體縮放、排高（px）
     palette: dict[str, Any] = field(default_factory=dict)
     font_scale: float = 1.0
@@ -109,7 +112,9 @@ def parse_dump(output: str) -> ImeState:
                 keyboard_visible=d["keyboardVisible"],
                 failure_hint=d["failureHint"],
                 candidate_row=_rect(d["candidateRow"]),
-                candidates=[CandidateView(c["index"], c["text"], c["annotation"], _rect(c)) for c in d["candidates"]],
+                candidates=[
+                    CandidateView(c["index"], c["text"], c["annotation"], _rect(c), c["bold"], c["color"]) for c in d["candidates"]
+                ],
                 keys={k: _rect(v) for k, v in d["keys"].items()},
                 layer=d["layer"],
                 rows=d["rows"],
@@ -127,8 +132,8 @@ def parse_dump(output: str) -> ImeState:
                 shift=d["shift"],
                 preview=d["preview"],
                 feedback=d["feedback"],
-                dimmed=d["dimmed"],
-                hidden=d["hidden"],
+                blank=d["blank"],
+                space_underline=d["spaceUnderline"],
                 palette=d["palette"],
                 font_scale=d["fontScale"],
                 row_height=d["rowHeight"],

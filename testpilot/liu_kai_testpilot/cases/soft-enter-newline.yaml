@@ -1,6 +1,6 @@
 id: soft-enter-newline
 name: 軟鍵盤 Enter 在多行欄換行
-description: 多行欄按 Enter 送出換行鍵，再以軟鍵盤輸入「日」。
+description: 多行欄按 Enter 送出換行鍵，再以軟鍵盤輸入「日」；英文模式的 Enter 也顯示 ↵。
 topology:
   devices:
     EMU:
@@ -34,6 +34,17 @@ steps:
   action: read_field
   target: EMU
   field: multiline
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: st_en
+  action: ime_state
+  target: EMU
+- id: zh
+  action: tap_key
+  target: EMU
+  key: toggle_english
 pass_criteria:
 - field: read.text
   operator: equals
@@ -41,5 +52,8 @@ pass_criteria:
 
     日'
 - field: st0.enter_label
+  operator: equals
+  value: ↵
+- field: st_en.enter_label
   operator: equals
   value: ↵

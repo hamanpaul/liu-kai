@@ -7,16 +7,14 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
-import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.LinearLayout
-import android.widget.ListPopupWindow
 import android.widget.ScrollView
 import android.widget.TextView
 import com.hamanpaul.liukai.data.ImePrefs
 
 /**
- * 設定頁的共用元件（照官方「嘸蝦米鍵盤設定」的樣式：分區標題、標題＋說明＋右側勾選框、下拉選單）。
+ * 設定頁的共用元件（照官方「嘸蝦米鍵盤設定」的樣式：分區標題、標題＋說明＋右側勾選框、單選對話框）。
  * 值一律寫入 [ImePrefs]；輸入法在下一次顯示鍵盤時讀取。
  */
 class SettingsUi(private val activity: Activity) {
@@ -77,10 +75,21 @@ class SettingsUi(private val activity: Activity) {
         }
     }
 
-    /** 單選對話框項目（官方「顯示退出鍵盤鍵」）：說明列顯示目前的選項。 */
-    fun choiceDialog(title: String, key: String, labels: List<String>, values: List<String>, current: String) {
+    /** 不可點的資訊項目（官方「關於」）。 */
+    fun info(title: String, summary: String?) {
+        row(title, summary, null).isClickable = false
+    }
+
+    /**
+     * 單選對話框項目（官方「顯示退出鍵盤鍵」「直式鍵盤高度」等）：說明列顯示目前的選項；
+     * summaries 為各選項對應的說明文字（官方「語音輸入」），省略時顯示選項本身。
+     */
+    fun choiceDialog(
+        title: String, key: String, labels: List<String>, values: List<String>, current: String,
+        summaries: List<String> = labels,
+    ) {
         var selected = values.indexOf(current)
-        val row = row(title, labels[selected], null)
+        val row = row(title, summaries[selected], null)
         val summary = (row.getChildAt(0) as LinearLayout).getChildAt(1) as TextView
         row.setOnClickListener {
             AlertDialog.Builder(activity)
@@ -88,52 +97,13 @@ class SettingsUi(private val activity: Activity) {
                 .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
                     selected = which
                     ImePrefs.set(activity, key, values[which])
-                    summary.text = labels[which]
+                    summary.text = summaries[which]
                     dialog.dismiss()
                 }
                 .setNegativeButton("取消", null)
                 .show()
         }
     }
-
-    /**
-     * 下拉選單列（官方「設定主題及配置」）：標籤與下拉值並排，一列可放兩組；點下拉值展開選項清單。
-     * 以 TextView＋ListPopupWindow 呈現（外觀同下拉選單，只有選取一種事件）。
-     */
-    fun spinners(vararg items: SpinnerItem) {
-        val line = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16f), dp(4f), dp(8f), dp(4f))
-        }
-        for (item in items) {
-            line.addView(TextView(activity).apply { text = item.title; setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f) },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            val value = TextView(activity).apply {
-                text = item.labels[item.values.indexOf(item.current)] + " ▾"
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-                setPadding(dp(8f), dp(12f), dp(8f), dp(12f))
-                contentDescription = "dropdown:${item.key}"
-            }
-            value.setOnClickListener {
-                val popup = ListPopupWindow(activity)
-                // modal：下拉清單成為作用中的視窗（與系統下拉選單相同），點清單外只收起
-                popup.isModal = true
-                popup.anchorView = value
-                popup.setAdapter(ArrayAdapter(activity, android.R.layout.simple_list_item_1, item.labels))
-                popup.setOnItemClickListener { _, _, position, _ ->
-                    ImePrefs.set(activity, item.key, item.values[position])
-                    value.text = item.labels[position] + " ▾"
-                    popup.dismiss()
-                }
-                popup.show()
-            }
-            line.addView(value, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        }
-        root.addView(line)
-    }
-
-    class SpinnerItem(val title: String, val key: String, val labels: List<String>, val values: List<String>, val current: String)
 
     companion object {
         private val SECTION = Color.rgb(0x00, 0x89, 0x7B)

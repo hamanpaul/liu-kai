@@ -35,7 +35,7 @@ class ImeControllerTest {
         assertTrue(c.tableLoaded)
         val typed = down(keyB, 'b')
         assertTrue(typed.consumed)
-        assertEquals("b", (typed.ops.single() as IcOp.SetComposing).text)
+        assertEquals("B", (typed.ops.single() as IcOp.SetComposing).text)
         assertEquals("木", (down(space, ' ').ops.single() as IcOp.Commit).text)
         assertEquals(del, (c.softKey(SoftKey.Backspace, 0, classText).single() as IcOp.SendKey).keyCode)
         assertEquals(actionSearch, (c.softKey(SoftKey.Enter, actionSearch, classText).single() as IcOp.EditorAction).actionId)
@@ -43,7 +43,7 @@ class ImeControllerTest {
 
     @Test
     fun `實體鍵盤打字：組字、空白上屏，並攔下對應的 keyUp`() {
-        assertEquals(ImeOutcome(true, listOf(IcOp.SetComposing("b"))), down(keyB, 'b'))
+        assertEquals(ImeOutcome(true, listOf(IcOp.SetComposing("B"))), down(keyB, 'b'))
         assertTrue(c.needsCandidates)
         assertEquals(ImeOutcome(true, emptyList()), c.keyUp(keyB))
         assertEquals(ImeOutcome(true, listOf(IcOp.Commit("木"))), down(space, ' '))
@@ -117,17 +117,17 @@ class ImeControllerTest {
 
     @Test
     fun `軟鍵盤：字元鍵組字、點選候選上屏、反引號查同音`() {
-        assertEquals(listOf(IcOp.SetComposing("c")), c.softKey(SoftKey.Text('c'), 0, classText))
+        assertEquals(listOf(IcOp.SetComposing("C")), c.softKey(SoftKey.Text('c'), 0, classText))
         assertEquals(listOf(IcOp.Commit("火")), c.tapCandidate(1))
         c.softKey(SoftKey.Text('q'), 0, classText)
-        assertEquals(listOf(IcOp.SetComposing("q")), c.softKey(SoftKey.Text('`'), 0, classText))
+        assertEquals(listOf(IcOp.SetComposing("Q")), c.softKey(SoftKey.Text('`'), 0, classText))
         assertEquals("中", c.engine.homophoneOf)
     }
 
     @Test
     fun `軟鍵盤同音鍵：前置查詢的組字帶「'」，選字後欄位組字清空並列出同音字`() {
         assertEquals(listOf(IcOp.SetComposing("'")), c.softKey(SoftKey.Homophone, 0, classText))
-        assertEquals(listOf(IcOp.SetComposing("'q")), c.softKey(SoftKey.Text('q'), 0, classText))
+        assertEquals(listOf(IcOp.SetComposing("'Q")), c.softKey(SoftKey.Text('q'), 0, classText))
         assertEquals(listOf(IcOp.SetComposing("")), c.softKey(SoftKey.Space, 0, classText))
         assertEquals("中", c.engine.homophoneOf)
         assertEquals(listOf(IcOp.Commit("鐘")), c.tapCandidate(1))
