@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">liu-kai</string>
+    <string name="ime_name">liu-kai 嘸蝦米</string>
+    <string name="subtype_label">嘸蝦米（繁中）</string>
+</resources>
