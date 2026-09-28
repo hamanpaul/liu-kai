@@ -94,7 +94,7 @@ data class UiState(
  *   麥克風的位置依設定「語音輸入」（主鍵盤、符號鍵盤或關閉，不在的位置為「,」），長按彈出 ⚙ 🎤。
  * - ?123 層與 ALT 層：中文模式最下排為 En 中 , 空白 .'[] ↵（En 切到英文、中 回中文字母層）；
  *   英文模式為 中 ABC , 空白 . Enter。萬用字元 *、反引號 ` 與官方相同放在 ?123／ALT 層，切換鍵盤層不影響組字。
- * - 智慧鍵盤：組字中不能接的鍵留白（不顯示標籤、點了沒有反應），同音鍵留白。
+ * - 智慧鍵盤：組字中不能接的鍵留白（不顯示標籤、點了沒有反應），同音鍵留白。打字時只就地更新按鍵內容（見 [rebuildKeyboard]）。
  * 候選列照官方橫式畫面：橘色候選、預設字粗體、灰色分隔線；字碼顯示在輸入欄。官方直式畫面不顯示候選列是官方的
  * 問題，liu-kai 直式、橫式都顯示。候選與按鍵都是獨立的標準 View（含 contentDescription），確保點擊判定可靠、
  * 也可被 UiAutomator 定位。
@@ -149,6 +149,12 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val popupViews = LinkedHashMap<String, View>()
     private val punctViews = LinkedHashMap<String, View>()
     private val voiceKey = ImageView(context)
+    /** 目前畫出的按鍵配置與排高（見 [rebuildKeyboard]）。 */
+    private var builtRows: List<List<KeyDef>> = emptyList()
+    private var builtHeight = 0
+    /** 有手指按在輸入畫面上（ACTION_DOWN 到 UP／CANCEL）；此時換配置延後，放開後才重建。 */
+    private var touching = false
+    private var rebuildPending = false
     /** 最近一次 render 的狀態（候選列依它重建；切換鍵盤層時也要重建常用標點）。 */
     private var lastState: UiState? = null
     private val repeatHandler = Handler(Looper.getMainLooper())
@@ -220,7 +226,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         // 彈出時其餘按鍵變暗
         popupCatcher.setBackgroundColor(pal.popupDim)
         popupPanel.background = GradientDrawable().apply { setColor(pal.popupBg) }
-        rebuildKeyboard()
+        rebuildKeyboard(force = true)
     }
 
     /**
@@ -354,14 +360,14 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         if (voiceKey.visibility == VISIBLE) keys.put("voice", bounds(voiceKey))
         json.put("keys", keys)
         json.put("layer", layer.name.lowercase())
-        json.put("rows", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { it.id }) }))
+        json.put("rows", JSONArray(builtRows.map { row -> JSONArray(row.map { it.id }) }))
         // 各鍵顯示的標籤：以圖示顯示的鍵（⇧ ⌫ ␣ ↵ 🎤）為其代表字元，中文模式空白鍵為語言模式，留白的鍵為空字串
-        json.put("rowLabels", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map(::shownLabel)) }))
+        json.put("rowLabels", JSONArray(builtRows.map { row -> JSONArray(row.map(::shownLabel)) }))
         json.put("strip", JSONArray(punctViews.keys.toList()))
         json.put("enterLabel", shownLabel(ENTER))
         json.put("popup", JSONArray(popupViews.keys.toList()))
-        json.put("rowRects", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { rect(keyViews.getValue(it.id)) }) }))
-        json.put("rowColors", JSONArray(rowsFor(layer).map { row -> JSONArray(row.map { hex(if (it.function) pal.fnTop else pal.keyTop) }) }))
+        json.put("rowRects", JSONArray(builtRows.map { row -> JSONArray(row.map { rect(keyViews.getValue(it.id)) }) }))
+        json.put("rowColors", JSONArray(builtRows.map { row -> JSONArray(row.map { hex(if (it.function) pal.fnTop else pal.keyTop) }) }))
         json.put(
             "palette",
             JSONObject().put("bg", hex(pal.bg)).put("bar", hex(pal.bar)).put("text", hex(pal.text)).put("strip", hex(pal.strip))
@@ -371,7 +377,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         json.put("fontScale", fontScale().toDouble())
         json.put("rowHeight", dp(rowHeightDp()))
         json.put("shift", shift.name.lowercase())
-        json.put("blank", JSONArray(rowsFor(layer).flatten().filter(::blank).map { it.id }))
+        json.put("blank", JSONArray(builtRows.flatten().filter(::blank).map { it.id }))
         json.put("spaceUnderline", chinese && fieldHasText)
         json.put("preview", previewKey ?: JSONObject.NULL)
         json.put("feedback", JSONObject().put("vibrate", vibrations).put("sound", sounds))
@@ -392,11 +398,24 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     @Volatile private var touchesHandled = 0
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        // 按下鍵盤區時的震動與音效（設定「按鍵時震動」「按鍵時播放音效」）
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ev.y >= keyboard.top) keyFeedback()
+        val action = ev.actionMasked
+        if (action == MotionEvent.ACTION_DOWN) {
+            touching = true
+            // 按下鍵盤區時的震動與音效（設定「按鍵時震動」「按鍵時播放音效」）
+            if (ev.y >= keyboard.top) keyFeedback()
+        }
         val handled = super.dispatchTouchEvent(ev)
-        // 放開時的點擊（performClick）另外排入佇列執行，計數排在它之後才算處理完
-        if (ev.actionMasked == MotionEvent.ACTION_UP) post { touchesHandled++ }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            touching = false
+            // 放開時的點擊（performClick）另外排入佇列執行；延後的重建與觸控計數排在它之後才算處理完
+            post {
+                if (rebuildPending) {
+                    rebuildPending = false
+                    rebuildKeyboard(force = true)
+                }
+                touchesHandled++
+            }
+        }
         return handled
     }
 
@@ -476,12 +495,27 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         return tv
     }
 
-    private fun rebuildKeyboard() {
-        rowsView.removeAllViews()
-        keyViews.clear()
+    /**
+     * 依目前狀態更新鍵盤。按鍵配置不變（打字時智慧鍵盤、大小寫、空白鍵語言與底線的變化）時只就地更新各鍵的內容，
+     * 不拆掉按鍵 View：拆掉正被按住的鍵會讓它收到 CANCEL 而漏字（快打時下一鍵常在前一鍵放開前就按下）。
+     * 配置改變（切換鍵盤層、中英模式、設定）時重建；有手指按在鍵盤上時延到全部放開才重建。force 為強制重建（主題、設定）。
+     */
+    private fun rebuildKeyboard(force: Boolean = false) {
+        val rows = rowsFor(layer)
         // 排高依設定的按鍵高度（直式、橫式各五段，量測官方）；按鍵格在排內上 5dp 下 1.6dp 內縮
         val rowHeight = dp(rowHeightDp())
-        rowsFor(layer).forEach { row -> rowsView.addView(buildRow(row), LayoutParams(LayoutParams.MATCH_PARENT, rowHeight)) }
+        when {
+            !force && rows == builtRows && rowHeight == builtHeight ->
+                rows.flatten().forEach { decorate(keyViews.getValue(it.id) as FrameLayout, it) }
+            touching -> rebuildPending = true
+            else -> {
+                rowsView.removeAllViews()
+                keyViews.clear()
+                rows.forEach { row -> rowsView.addView(buildRow(row), LayoutParams(LayoutParams.MATCH_PARENT, rowHeight)) }
+                builtRows = rows
+                builtHeight = rowHeight
+            }
+        }
         // 常用標點只在字母層顯示，切換鍵盤層或模式時跟著更新
         refreshBar()
     }
@@ -556,10 +590,46 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         return row
     }
 
+    /**
+     * 建立按鍵：監聽器只設一次，在動作當下依目前狀態判斷（留白的鍵點了、長按都沒有反應），
+     * 內容由 [decorate] 畫，狀態改變時就地重畫。
+     */
     private fun buildKey(def: KeyDef): View {
         val frame = FrameLayout(context)
         frame.contentDescription = "key:${def.id}"
         frame.isClickable = true
+        // 長按：彈出選單（「,」「.」、麥克風）＞重音字母＞數字（組字中即為選字鍵）
+        val popup = def.popup
+        val accents = def.accents
+        val hint = def.hint
+        val longPress: (() -> Unit)? = when {
+            popup != null -> { { showPopup(frame, popup) } }
+            accents != null -> { { showPopup(frame, accents.map { c -> (if (shifted) c.uppercaseChar() else c).toString().let { PopupDef(it, it) } }) } }
+            hint != null -> { { actions.onSoftKey(SoftKey.Text(hint)) } }
+            else -> null
+        }
+        longPress?.let { action ->
+            frame.setOnLongClickListener {
+                if (blank(def)) return@setOnLongClickListener false
+                action()
+                true
+            }
+        }
+        when (def.id) {
+            "backspace" -> attachRepeat(frame)
+            "space" -> attachSpace(frame, def)
+            else -> {
+                frame.setOnClickListener { if (!blank(def)) onKey(def) }
+                if (def.id !in NO_PREVIEW) attachPreview(frame, def)
+            }
+        }
+        decorate(frame, def)
+        return frame
+    }
+
+    /** 畫按鍵內容：鍵格、「…」、標籤或圖示、Shift／ALT 指示、數字提示；智慧鍵盤留白時只剩鍵格與「…」。 */
+    private fun decorate(frame: FrameLayout, def: KeyDef) {
+        frame.removeAllViews()
         frame.background = keyBackground(def)
         def.popup?.let {
             // 右下角「…」表示可長按彈出（留白時仍顯示，與官方相同）
@@ -573,8 +643,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END),
             )
         }
-        // 智慧鍵盤留白：只剩鍵格，點了沒有反應
-        if (blank(def)) return frame
+        if (blank(def)) return
         val icon = iconFor(def)
         // 不分格時空白鍵為膠囊、Enter 為圓形（量測官方：膠囊高約 26dp、圓直徑約 36dp）
         if (!pal.cells && def.id == "space") frame.addView(shape(pal.spacePill, false), FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(26f), Gravity.CENTER))
@@ -627,34 +696,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 },
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END),
             )
-            // 長按輸入數字（組字中即為選字鍵）
-            frame.setOnLongClickListener {
-                actions.onSoftKey(SoftKey.Text(hint))
-                true
-            }
         }
-        def.accents?.let { accents ->
-            // 英文字母長按彈出重音字母（Shift 時為大寫）
-            frame.setOnLongClickListener {
-                showPopup(frame, accents.map { c -> (if (shifted) c.uppercaseChar() else c).toString().let { PopupDef(it, it) } })
-                true
-            }
-        }
-        def.popup?.let { popup ->
-            frame.setOnLongClickListener {
-                showPopup(frame, popup)
-                true
-            }
-        }
-        when (def.id) {
-            "backspace" -> attachRepeat(frame)
-            "space" -> attachSpace(frame, def)
-            else -> {
-                frame.setOnClickListener { onKey(def) }
-                if (def.id !in NO_PREVIEW) attachPreview(frame, def)
-            }
-        }
-        return frame
     }
 
     /**
@@ -718,7 +760,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private fun attachPreview(key: View, def: KeyDef) {
         key.setOnTouchListener { v, ev ->
             when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> if (settings.keyPreview) showPreview(v, def)
+                MotionEvent.ACTION_DOWN -> if (settings.keyPreview && !blank(def)) showPreview(v, def)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> hidePreview()
             }
             false

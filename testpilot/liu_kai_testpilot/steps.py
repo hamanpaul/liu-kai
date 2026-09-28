@@ -67,10 +67,14 @@ class DeviceConfig:
 
 
 class StepExecutor:
-    def __init__(self, adb: Any, config: DeviceConfig, sleep: Callable[[float], None] | None = None) -> None:
+    def __init__(
+        self, adb: Any, config: DeviceConfig, sleep: Callable[[float], None] | None = None,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
         self.adb = adb
         self.config = config
         self._sleep = sleep or time.sleep
+        self._clock = clock or time.monotonic
         # 已確認畫在畫面上的輸入法視窗位置（候選列 y）；截圖很慢，同一次顯示只確認一次
         self._drawn_at: int | None = None
         # rotate 步驟設定的螢幕方向（0 直式）；plugin 的 teardown 轉回直式後歸零
@@ -363,6 +367,43 @@ class StepExecutor:
         self.adb.swipe(x, y, x + step["dx"], y, step.get("duration_ms", 800))
         self._await_touch_handled(state)
         return f"swipe {step['key']} dx={step['dx']}", {}
+
+    def _do_rollover(self, step):
+        """兩指快打：每 interval_ms 按下 keys 的下一鍵、每鍵按住 hold_ms。左半鍵盤用左手（slot 0）、右半用右手（slot 1），
+        兩手交替時前一鍵未放開就按下一鍵（快打常見的連鍵）；同一隻手連按時在下一鍵前 20ms 先放開。
+        以模擬器 console 送出多點觸控事件（直式），送完等輸入法處理完。"""
+        interval = step.get("interval_ms", 241)
+        hold = step.get("hold_ms", 300)
+        state = self.shown_state()
+        w, h = self.adb.screen_size()
+        presses = []
+        last = {}
+        for i, key in enumerate(step["keys"]):
+            x, y = state.key(key).center
+            press = {"down": i * interval, "up": i * interval + hold, "slot": 0 if x < w // 2 else 1, "x": x, "y": y, "id": i + 1}
+            if press["slot"] in last:
+                prev = last[press["slot"]]
+                prev["up"] = min(prev["up"], press["down"] - 20)
+            last[press["slot"]] = press
+            presses.append(press)
+        events = []
+        for p in presses:
+            down = (
+                f"EV_ABS:ABS_MT_SLOT:{p['slot']}", f"EV_ABS:ABS_MT_TRACKING_ID:{p['id']}",
+                f"EV_ABS:ABS_MT_POSITION_X:{p['x'] * 32767 // w}", f"EV_ABS:ABS_MT_POSITION_Y:{p['y'] * 32767 // h}",
+                "EV_ABS:ABS_MT_PRESSURE:60", "EV_SYN:0:0",
+            )
+            up = (f"EV_ABS:ABS_MT_SLOT:{p['slot']}", "EV_ABS:ABS_MT_TRACKING_ID:-1", "EV_SYN:0:0")
+            events += [(p["down"], 1, down), (p["up"], 0, up)]
+        events.sort(key=lambda e: (e[0], e[1]))
+        start = self._clock()
+        for at, _, event in events:
+            wait = start + at / 1000 - self._clock()
+            if wait > 0:
+                self._sleep(wait)
+            self.adb.emu_event(*event)
+        self._await_touch_handled(state)
+        return f"rollover {len(step['keys'])} keys every {interval}ms hold {hold}ms", {}
 
     def _do_long_press_key(self, step):
         state = self.shown_state()

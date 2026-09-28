@@ -126,7 +126,10 @@ class FakeAdb:
             return output
         payload, newline, rest = payload.partition("\n")
         state = json.loads(base64.b64decode(payload))
-        state.setdefault("touches", len([c for c in self.calls if c[0] in ("tap", "long_press", "swipe")]))
+        taps = [c for c in self.calls if c[0] in ("tap", "long_press", "swipe")]
+        # 多點觸控：每次放開（tracking id −1）算一次觸控
+        releases = [c for c in self.calls if c[0] == "emu_event" and "EV_ABS:ABS_MT_TRACKING_ID:-1" in c[1]]
+        state.setdefault("touches", len(taps) + len(releases))
         encoded = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
         return head + marker + encoded + newline + rest
 
@@ -157,6 +160,12 @@ class FakeAdb:
     def swipe(self, x1, y1, x2, y2, ms):
         self._check("input swipe")
         self.calls.append(("swipe", x1, y1, x2, y2, ms))
+
+    def emu_event(self, *events):
+        self.calls.append(("emu_event", events))
+
+    def screen_size(self):
+        return (1080, 2400)
 
     def broadcast(self, action, component, extras):
         self.calls.append(("broadcast", action, component, extras))

@@ -91,6 +91,16 @@ class Adb:
         """單一觸控事件（DOWN／MOVE／UP），用來按住按鍵檢查按住時的畫面。"""
         self.shell(f"input motionevent {action} {x} {y}")
 
+    def emu_event(self, *events: str) -> None:
+        """以模擬器 console 送出輸入事件（`adb emu event send`），例如多點觸控；shell 無權寫入觸控裝置。"""
+        self.run(["emu", "event", "send", *events])
+
+    def screen_size(self) -> tuple[int, int]:
+        """螢幕解析度（`wm size`，有 Override 時以它為準）。"""
+        sizes = re.findall(r"(\d+)x(\d+)", self.shell("wm size"))
+        w, h = sizes[-1]
+        return int(w), int(h)
+
     def broadcast(self, action: str, component: str, extras: dict[str, str]) -> tuple[int, str | None]:
         args = "".join(f" --es {k} {v}" for k, v in extras.items())
         out = self.shell(f"am broadcast -a {action} -n {component}{args}")

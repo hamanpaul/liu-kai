@@ -1,0 +1,58 @@
+id: soft-rollover-typing
+name: 快打連鍵不漏字
+description: 使用者回報第三碼常常沒打進去。以一分鐘 60 字的速度（每 241ms 一鍵）兩指交替快打，每鍵按住 300ms，前一鍵未放開就按下一鍵（連鍵）；3、4 碼字的每一碼都要打進去：abc ba abcd sf qa abc
+  rs → 人日和雪忠人雨。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+steps:
+- id: type
+  action: rollover
+  target: EMU
+  keys:
+  - a
+  - b
+  - c
+  - space
+  - b
+  - a
+  - space
+  - a
+  - b
+  - c
+  - d
+  - space
+  - s
+  - f
+  - space
+  - q
+  - a
+  - space
+  - a
+  - b
+  - c
+  - space
+  - r
+  - s
+  - space
+  interval_ms: 241
+  hold_ms: 300
+- id: st
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: 人日和雪忠人雨
+- field: st.failure_hint
+  operator: equals
+  value: false

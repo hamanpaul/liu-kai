@@ -279,6 +279,51 @@ def test_field_scrolled_out_of_view_is_not_visible(ex, adb):
     assert run(ex, action="field_visible", field="try_area")["captured"] == {"visible": False}
 
 
+def test_rollover_presses_the_next_key_before_releasing_the_previous_one(adb, tmp_path):
+    # 兩指交替：每 200ms 按下一鍵、按住 300ms；事件依時間送出，座標換算為 console 的 0–32767
+    now = [0.0]
+    ex = StepExecutor(adb, DeviceConfig(repo_root=str(tmp_path)), sleep=lambda s: now.__setitem__(0, now[0] + s), clock=lambda: now[0])
+    keys = {"b": {"x": 0, "y": 2300, "w": 108, "h": 100}, "a": {"x": 540, "y": 2300, "w": 108, "h": 100}}
+    adb.queue(DUMPSYS, state_dump(keys=keys))
+    result = run(ex, action="rollover", keys=["b", "a", "b"], interval_ms=200, hold_ms=300)
+    assert result["success"] is True
+    sent = [c[1] for c in adb.of("emu_event")]
+    down = lambda slot, tid, x: [  # noqa: E731
+        f"EV_ABS:ABS_MT_SLOT:{slot}", f"EV_ABS:ABS_MT_TRACKING_ID:{tid}", f"EV_ABS:ABS_MT_POSITION_X:{x * 32767 // 1080}",
+        f"EV_ABS:ABS_MT_POSITION_Y:{2350 * 32767 // 2400}", "EV_ABS:ABS_MT_PRESSURE:60", "EV_SYN:0:0",
+    ]
+    up = lambda slot: [f"EV_ABS:ABS_MT_SLOT:{slot}", "EV_ABS:ABS_MT_TRACKING_ID:-1", "EV_SYN:0:0"]  # noqa: E731
+    # 時序：0 b↓、200 a↓、300 b↑、400 b↓、500 a↑、700 b↑
+    assert sent == [tuple(down(0, 1, 54)), tuple(down(1, 2, 594)), tuple(up(0)), tuple(down(0, 3, 54)), tuple(up(1)), tuple(up(0))]
+    assert result["output"] == "rollover 3 keys every 200ms hold 300ms"
+
+
+def test_rollover_uses_one_thumb_per_half_and_a_thumb_never_overlaps_itself(adb, tmp_path):
+    # 左半鍵盤左手（slot 0）、右半右手（slot 1）；同一隻手連按時先放開再按下一鍵（提前到下一鍵前 20ms 放開）
+    now = [0.0]
+    ex = StepExecutor(adb, DeviceConfig(repo_root=str(tmp_path)), sleep=lambda s: now.__setitem__(0, now[0] + s), clock=lambda: now[0])
+    keys = {"b": {"x": 0, "y": 2300, "w": 108, "h": 100}, "n": {"x": 800, "y": 2300, "w": 108, "h": 100}}
+    adb.queue(DUMPSYS, state_dump(keys=keys))
+    run(ex, action="rollover", keys=["b", "b", "n"], interval_ms=200, hold_ms=300)
+    order = [(e[0].split(":")[-1], e[1].split(":")[-1]) for e in (c[1] for c in adb.of("emu_event"))]
+    # 0 b↓(slot0) 180 b↑ 200 b↓(slot0) 400 n↓(slot1) 500 b↑ 700 n↑
+    assert order == [("0", "1"), ("0", "-1"), ("0", "2"), ("1", "3"), ("0", "-1"), ("1", "-1")]
+
+
+def test_rollover_does_not_wait_when_behind_schedule(adb, tmp_path):
+    # console 呼叫比排程慢時（時鐘已超過）直接送出下一個事件，不再等待
+    now = [0.0]
+    waits = []
+    def clock():
+        now[0] += 1.0
+        return now[0]
+    ex = StepExecutor(adb, DeviceConfig(repo_root=str(tmp_path)), sleep=waits.append, clock=clock)
+    adb.queue(DUMPSYS, state_dump(keys={"b": {"x": 0, "y": 2300, "w": 108, "h": 100}}))
+    run(ex, action="rollover", keys=["b"])
+    assert len(adb.of("emu_event")) == 2
+    assert all(w > 0 for w in waits)
+
+
 def test_tap_field_at_horizontal_ratio(ex, adb):
     adb.queue(UI_DUMP, UI_XML.format(plain="ba"))
     run(ex, action="tap_field", field="plain", x_ratio=0.02)

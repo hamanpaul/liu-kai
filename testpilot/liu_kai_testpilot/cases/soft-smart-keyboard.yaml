@@ -1,6 +1,6 @@
 id: soft-smart-keyboard
 name: 智慧鍵盤：不可能的下一碼留白
-description: 照官方「智慧鍵盤」（預設開）：組字中不能接的字母鍵、「,」「.'[]」與同音鍵留白（只剩鍵格、不顯示標籤），版面不變；點留白的鍵沒有反應（不算組字失敗）；上屏後恢復。a 可接「,」「.」（假名 a, a.），兩鍵不留白。
+description: 照官方「智慧鍵盤」（預設開）：組字中不能接的字母鍵、「,」「.'[]」與同音鍵留白（只剩鍵格、不顯示標籤），版面不變；點或長按留白的鍵都沒有反應（不算組字失敗）；上屏後恢復。a 可接「,」「.」（假名 a, a.），兩鍵不留白。
 topology:
   devices:
     EMU:
@@ -22,6 +22,13 @@ steps:
   target: EMU
   key: a
 - id: st2
+  action: ime_state
+  target: EMU
+- id: lpq
+  action: long_press_key
+  target: EMU
+  key: q
+- id: st2b
   action: ime_state
   target: EMU
 - id: w
@@ -155,3 +162,6 @@ pass_criteria:
 - field: st5.blank
   operator: not_contains
   value: .
+- field: st2b.composing
+  operator: equals
+  value: ba

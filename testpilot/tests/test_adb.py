@@ -57,6 +57,15 @@ def test_key_and_input_helpers_build_input_commands():
     ]
 
 
+def test_emu_event_sends_console_events_and_screen_size_prefers_override():
+    runner = FakeRunner(ok(), ok(b"Physical size: 1080x2400\r\n"), ok(b"Physical size: 1080x2400\r\nOverride size: 720x1600\r\n"))
+    adb = Adb("adb", "s", runner=runner)
+    adb.emu_event("EV_ABS:ABS_MT_SLOT:0", "EV_SYN:0:0")
+    assert runner.calls[0][0] == ["adb", "-s", "s", "emu", "event", "send", "EV_ABS:ABS_MT_SLOT:0", "EV_SYN:0:0"]
+    assert adb.screen_size() == (1080, 2400)
+    assert adb.screen_size() == (720, 1600)
+
+
 def test_text_escapes_single_quote_and_space():
     runner = FakeRunner()
     Adb("adb", "s", runner=runner).text("it's a")

@@ -1,6 +1,7 @@
 id: soft-space-cancel
-name: 按住空白鍵時鍵盤重建不輸入空白
-description: 按住空白鍵時以實體鍵盤打 b（組字使鍵盤重建，空白鍵收到 CANCEL）：放開後不輸入空白、放大預覽收起，組字維持 B。
+name: 按住空白鍵時的鍵盤變化
+description: 按住空白鍵時以實體鍵盤打 b：鍵盤只就地更新、空白鍵不被取消，放開後照常上屏「木」。再打 b、按住空白鍵時按 BACK 收起輸入法（空白鍵收到 CANCEL；等收起完成再放開手指）：不輸入空白、放大預覽收起，組字維持
+  B。
 topology:
   devices:
     EMU:
@@ -28,10 +29,46 @@ steps:
   target: EMU
   key: space
   phase: up
+- id: read1
+  action: read_field
+  target: EMU
+  field: plain
+- id: b2
+  action: keys
+  target: EMU
+  keys:
+  - B
+- id: down2
+  action: touch_key
+  target: EMU
+  key: space
+  phase: down
+- id: hide
+  action: keys
+  target: EMU
+  keys:
+  - BACK
+- id: hidden
+  action: wait
+  target: EMU
+  ms: 1500
+- id: release
+  action: shell
+  target: EMU
+  command: input motionevent UP 540 1800
+- id: field
+  action: tap_field
+  target: EMU
+  field: plain
+  x_ratio: 0.98
+- id: win
+  action: ime_window
+  target: EMU
+  expect: true
 - id: st2
   action: ime_state
   target: EMU
-- id: read
+- id: read2
   action: read_field
   target: EMU
   field: plain
@@ -43,12 +80,15 @@ pass_criteria:
 - field: st1.preview
   operator: equals
   value: space
+- field: read1.text
+  operator: equals
+  value: 木
 - field: st2.preview
   operator: equals
   value: null
 - field: st2.composing
   operator: equals
   value: b
-- field: read.text
+- field: read2.text
   operator: equals
-  value: B
+  value: 木B
