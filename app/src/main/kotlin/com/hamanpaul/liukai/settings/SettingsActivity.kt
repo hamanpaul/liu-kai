@@ -19,6 +19,8 @@ import com.hamanpaul.liukai.core.table.ImportResult
 import com.hamanpaul.liukai.core.table.NamedBytes
 import com.hamanpaul.liukai.core.table.TableBundle
 import com.hamanpaul.liukai.data.TableStore
+import java.io.FileNotFoundException
+import java.util.Optional
 import java.util.concurrent.Executors
 
 /** 設定頁：啟用引導、匯入／清除字表、目前字表資訊與試打區。 */
@@ -76,6 +78,12 @@ class SettingsActivity : Activity() {
         refresh()
     }
 
+    /** 結束背景執行緒，避免 Activity 重建（例如旋轉）時累積。 */
+    override fun onDestroy() {
+        io.shutdown()
+        super.onDestroy()
+    }
+
     private fun refresh() {
         val imm = getSystemService(InputMethodManager::class.java)
         val enabled = imm.enabledInputMethodList.any { it.packageName == packageName }
@@ -117,7 +125,12 @@ class SettingsActivity : Activity() {
         report.text = "匯入中…"
         io.execute {
             val message = runCatching {
-                val files = uris.map { NamedBytes(displayName(it), contentResolver.openInputStream(it)!!.use { s -> s.readBytes() }) }
+                val files = uris.map {
+                    val name = displayName(it)
+                    // 文件提供者暫時無法開啟時回傳 null：以明確訊息失敗（顯示「匯入失敗：無法開啟檔案：…」）
+                    val stream = Optional.ofNullable(contentResolver.openInputStream(it)).orElseThrow { FileNotFoundException("無法開啟檔案：$name") }
+                    NamedBytes(name, stream.use { s -> s.readBytes() })
+                }
                 describe(TableStore.import(this, files))
             }.getOrElse { "匯入失敗：${it.message}" }
             runOnUiThread {

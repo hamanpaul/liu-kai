@@ -8,7 +8,10 @@ import com.hamanpaul.liukai.core.table.NamedBytes
 import com.hamanpaul.liukai.core.table.SectionKind
 import com.hamanpaul.liukai.core.table.TableBundle
 import com.hamanpaul.liukai.core.table.TableImporter
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /** 已載入並編譯好的字表，給 IME 使用。 */
 class LoadedTables(
@@ -33,15 +36,22 @@ object TableStore {
 
     fun hasTable(context: Context): Boolean = file(context).exists()
 
-    /** 依匯入的來源檔建立字表並存檔，回傳匯入報告。失敗時丟出 TableImportException。 */
+    /** 依匯入的來源檔建立字表並以原子搬移存檔，回傳匯入報告。失敗時丟出 TableImportException。 */
     fun import(context: Context, files: List<NamedBytes>): ImportResult {
         val result = TableImporter.import(files)
-        val target = file(context)
-        val tmp = File(target.parentFile, "$FILE_NAME.tmp")
-        tmp.outputStream().use { result.bundle.write(it) }
-        check(tmp.renameTo(target)) { "無法寫入字表檔" }
+        writeAtomically(file(context), ByteArrayOutputStream().also { result.bundle.write(it) }.toByteArray())
         invalidate()
         return result
+    }
+
+    /**
+     * 先寫到同目錄的暫存檔，再以原子搬移（ATOMIC_MOVE＋REPLACE_EXISTING）取代字表檔：寫入途中當機或被結束時
+     * 原字表檔不受影響；搬移失敗時丟出例外（不像 renameTo 只回傳 false、各裝置覆蓋行為不一）。
+     */
+    private fun writeAtomically(target: File, bytes: ByteArray) {
+        val tmp = File(target.parentFile, "$FILE_NAME.tmp")
+        tmp.writeBytes(bytes)
+        Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
 
     fun clear(context: Context) {

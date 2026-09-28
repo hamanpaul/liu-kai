@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <!-- 僅 debug 版：供 adb 自動化匯入字表（demo 合成表或 app 專屬外部目錄的檔案） -->
+        <!-- 僅 debug 版：供 adb 自動化匯入字表（demo 合成表或 app 專屬外部目錄的檔案）。
+             需 DUMP 權限：只有 adb shell 等具系統權限的呼叫端能送，其他 app 不能觸發匯入。 -->
         <receiver
             android:name=".debug.DebugImportReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.hamanpaul.liukai.DEBUG_IMPORT" />
             </intent-filter>
