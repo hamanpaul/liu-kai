@@ -93,4 +93,5 @@ MOC 的**狀態語意對齊**（`moc.map` 上某 stage 宣稱 done 是否真 don
 - **clean-room**：不得複製 rime-liur、openxiami、OhMyBias 等未授權來源的程式碼或資料；只能以其公開文件描述的行為作為黑箱參考。
 - APK（minSdk 30）不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
 - 測試 APK 不建立 GitHub Releases，一律放到 `test-apks` 分支（檔名 `liu-kai-debug-YYYY-MM-DD.apk`，該分支的 APKS.md 記錄最新版、raw 下載連結、SHA-256 與 source commit）；該分支不跑 CI、不做 policy check、不開 PR。
+- 正式版（`vX.Y.Z` tag）另建 GitHub Release 並附 APK：附當時已通過全套測試的 APK，檔名 `liu-kai-X.Y.Z.apk`，檔名與 release 說明不出現 debug 字樣（使用者 2026-09-28 決定）；版本對照記在 `RELEASES.md`。
 - 設計與里程碑見 `docs/plan.md`。

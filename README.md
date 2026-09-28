@@ -17,7 +17,7 @@ export ANDROID_HOME=~/Android/Sdk
 
 內建字表：建置時若本機有使用者自建字表（預設 `~/prj_pri/liu-kai-data/`，可用 `-Pliukai.tableDir=<目錄>` 或環境變數 `LIU_KAI_DATA` 指定），會以 `liu-kai-cli bundle` 編譯後內建進 APK，裝好第一次使用就能打中文；沒有字表時（例如 CI）不內建，需在設定頁匯入。設定頁可匯入其他字表覆蓋，「清除字表」會改回內建字表。
 
-手機側載用的測試 APK 放在 test-apks 分支（不建立 GitHub Releases），下載連結、SHA-256 與對應的 source commit 見該分支的 APKS.md；需要 Android 11 以上。
+正式版的 APK 附在 GitHub Releases（例如 `v0.1.0` 的 `liu-kai-0.1.0.apk`），版本對照見 `RELEASES.md`；開發中的測試 APK 放在 test-apks 分支，下載連結、SHA-256 與對應的 source commit 見該分支的 APKS.md。需要 Android 11 以上。
 
 ## Usage
 
