@@ -3,22 +3,15 @@
 放 liu-kai（Android 嘸蝦米輸入法）的 debug 測試 APK，方便手機側載。
 **此分支刻意不進 CI、不做 policy check、不開 PR**（與 main 的開發流程分離）；測試 APK 不建立 GitHub Releases。
 
-- 最新：`liu-kai-debug-2026-09-28.apk`（**改照你手機上的官方非 PRO「嘸蝦米輸入法」2.6.8**；內建字表，裝好即可打中文）
-  - 中文鍵盤：字碼以大寫顯示在輸入欄（例如 SA）；空白鍵「◂ 嘸 ▸」左右滑動切換 嘸／无／台／日；輸入欄有字時空白鍵 ⎵ 變橘色底線；Enter 為 ↵；長按「,」彈出 ⚙ 🎤（🎤＝語音轉文字）；長按「.'[]」彈出常用標點；?123／ALT 層最下排 En 中
-  - 英文鍵盤：最下排 中 ?123 🎤 空白 . Enter；長按 🎤 彈出 ⚙ 🎤
-  - 候選列：橘色候選、預設字粗體、灰色分隔線，直式橫式都顯示（官方直式不顯示是要修掉的問題）；智慧鍵盤把不能接的鍵留白
-  - 橫式：全螢幕白色編輯區＋候選列＋鍵盤，與官方相同
-  - 設定頁「嘸蝦米鍵盤設定」照官方非 PRO：震動、音效、彈出式視窗、自動返回、退出鍵、語音輸入（於主鍵盤／於符號鍵盤／關閉）、自動大寫、智慧鍵盤、直式／橫式鍵盤高度與鍵大小、檢視鍵盤、關於；「其他設定」有 PRO 的鍵盤主題、顯示按鍵、閒置時顯示常用標點（預設關）
-  - App 圖示改為你設計的「嘸＋改」logo（黑底橘圈）
-  - 修正：快打時第三碼（連鍵時按住的下一鍵）常沒打進去；每分鐘 60／80 字兩手連鍵實測無漏字
-  - 修正：直式鍵盤高度「稍高」以上時，設定頁試打區被鍵盤蓋住（現在會捲到鍵盤上方）
-  - 修正（PR #2 review）：字表原子寫入、SAF 檔案無法開啟時的錯誤訊息、設定頁結束時關閉背景執行緒
-  - 已移除 PRO 的數字列與空白鍵滑動移游標；其餘同前版（候選列一定出現、0–9 選字、v/r/s/f、`*` 萬用字元、``` ` ``` 同音字、假名、加字加詞）
-- 手機直接下載（raw）：
-  <https://github.com/hamanpaul/liu-kai/raw/test-apks/liu-kai-debug-2026-09-28.apk>
-- SHA-256：`bc964000f0903613442ce781876ab47867c331de44b3b34f3ce0f6b967cbdbf8`
-- Source commit：`0308aa43bafdb71d234a289c477ebe86b0cde53a`（`feature/testpilot-coverage`，已合入 main 的 PR #2；模擬器端對端 100 個案例全數通過、app 覆蓋率行＋分支 100%）
-- 需求：Android 11（API 30）以上。
+- 最新：`liu-kai-debug-2026-10-18.apk`（**觸控漏字診斷版，尚未完全修復**；內建使用者字表）
+- [手機下載 APK](https://github.com/hamanpaul/liu-kai/raw/test-apks/liu-kai-debug-2026-10-18.apk)
+- SHA-256：`cb2218c6c007771314c88465a056337c8b4c3cf62e94370131786e76f74df824`
+- Source commit：[`785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b`](https://github.com/hamanpaul/liu-kai/commit/785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b)（`feature/input-touch-diagnosis`，未合併）
+- 已修正：QAZ／PLM 螢幕邊緣與按鍵間隙命中死區；普通空白鍵超過排隊中字母 click 的順序問題。
+- **仍未修復**：快速中文重疊輸入時，Android 延遲 `UnsetPressedState` 可清除下一次按壓而漏字；本版加入取證 log，不宣稱完全解決。
+- 驗證：core／CLI checks PASS；TestPilot 179 項 PASS、行／分支 100%；canonical preflight PASS。完整 emulator 108 項為 **107 PASS／1 FAIL**（語音鍵 Next／Done 標籤差異），app 行 99.9%、分支 98.2%，**未達 100% 門檻，尚不可合併**。單獨語音補測失敗於視窗未穩定，尚不能確認標籤差異原因。
+- [Issue #6](https://github.com/hamanpaul/liu-kai/issues/6)；[完整診斷與證據](https://github.com/hamanpaul/liu-kai/blob/785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b/docs/input-touch-diagnosis.md)。實體手機觸控面板尚未驗證。
+- 需求：Android 11（API 30）以上。Debug log 不含組字／候選文字；可執行 `adb logcat -v threadtime -s LiuKaiTouch:D > liu-kai-touch.log` 收集，重現後按 Ctrl-C。
 - 重建：`./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`
 
 ## 安裝與設定
@@ -33,6 +26,7 @@
 
 | 日期 | 檔案 | source commit | 內容 |
 |---|---|---|---|
+| 2026-10-18 | `liu-kai-debug-2026-10-18.apk` | `785eeb1` | 觸控死區與空白鍵順序修正、debug 取證；仍有未解中文快打 race；全套 107/108，app coverage 未達門檻 |
 | 2026-09-28 | `liu-kai-debug-2026-09-28.apk` | `0308aa4` | SHA-256 `bc964000f0903613…`；App 圖示改用「嘸＋改」logo、修正快打連鍵漏字、合入 PR #2 review 修正（取代同日 `b2aae76` 版） |
 | 2026-09-28 | `liu-kai-debug-2026-09-28.apk` | `b2aae76` | SHA-256 `2afd9cffc5c02660…`；修正鍵盤較高時設定頁試打區被蓋住（取代同日 `ab88901` 版） |
 | 2026-09-28 | `liu-kai-debug-2026-09-28.apk` | `ab88901` | SHA-256 `6e4b507b2e6762f7…`；改照官方非 PRO 2.6.8：大寫字碼、空白鍵滑動切換語言與底線、🎤 鍵與語音輸入設定、橘色候選列、智慧鍵盤留白、設定頁、橫式白色編輯區；PRO 主題與閒置標點改選用，移除數字列與空白滑動移游標（取代同日 `4da5df3` 版） |
