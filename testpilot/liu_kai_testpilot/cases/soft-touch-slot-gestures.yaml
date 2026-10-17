@@ -1,0 +1,88 @@
+id: soft-touch-slot-gestures
+name: 全槽觸控保留長按、空白鍵滑動與取消
+description: 從按鍵視覺範圍外、但仍在比例槽內開始手勢；確認空白鍵滑動、背退取消與字母長按仍由原按鍵處理。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: 1080x2400 Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_cap: 'false'
+    smart_keyboard: 'false'
+steps:
+- id: trace-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: space-margin-swipe
+  action: swipe_key
+  target: EMU
+  key: space
+  x_ratio: -0.003
+  y_ratio: 0.5
+  dx: 300
+  duration_ms: 400
+- id: backspace-margin-cancel
+  action: touch_key
+  target: EMU
+  key: backspace
+  phase: down
+  x_ratio: -0.01
+  y_ratio: 0.5
+  cancel_after_ms: 100
+- id: q-top-margin-long-press
+  action: long_press_key
+  target: EMU
+  key: q
+  screen_x: 54
+  screen_y: 1592
+  duration_ms: 700
+- id: restore-traditional-space-swipe
+  action: swipe_key
+  target: EMU
+  key: space
+  x_ratio: -0.003
+  y_ratio: 0.5
+  dx: -300
+  duration_ms: 400
+- id: language
+  action: ime_state
+  target: EMU
+- id: trace
+  action: touch_trace
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: '1'
+- field: language.language
+  operator: equals
+  value: TRADITIONAL
+- field: trace.text
+  operator: contains
+  value: 'phase=slot_forward target=key:space'
+- field: trace.text
+  operator: contains
+  value: 'gesture=space_swipe'
+- field: trace.text
+  operator: contains
+  value: 'phase=slot_forward target=key:backspace'
+- field: trace.text
+  operator: contains
+  value: 'gesture=repeat_cancel'
+- field: trace.text
+  operator: contains
+  value: 'phase=slot_forward target=key:q'
+- field: trace.text
+  operator: contains
+  value: 'kind=hint handled=true'
+- field: trace.text
+  operator: contains
+  value: 'action=ACTION_CANCEL'

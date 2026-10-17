@@ -399,11 +399,13 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         val action = ev.actionMasked
+        TouchDiagnostics.dispatchEvent(ev, this, keyboard, keyViews)
         if (action == MotionEvent.ACTION_DOWN) {
             touching = true
             // 按下鍵盤區時的震動與音效（設定「按鍵時震動」「按鍵時播放音效」）
             if (ev.y >= keyboard.top) keyFeedback()
         }
+        val dispatchStartedNs = TouchDiagnostics.startDispatch()
         val handled = super.dispatchTouchEvent(ev)
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             touching = false
@@ -416,6 +418,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 touchesHandled++
             }
         }
+        TouchDiagnostics.endDispatch(ev, dispatchStartedNs, handled)
         return handled
     }
 
@@ -490,7 +493,10 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         tv.setPadding(dp(14.5f), 0, dp(14.5f), 0)
         tv.contentDescription = "cand:$index:${cand.text}"
         tv.isClickable = true
-        tv.setOnClickListener { actions.onCandidateTap(index) }
+        tv.setOnClickListener {
+            TouchDiagnostics.candidateTap(index, tv, candidateScroll)
+            actions.onCandidateTap(index)
+        }
         tv.background = pressedBackground()
         return tv
     }
@@ -501,6 +507,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
      * 配置改變（切換鍵盤層、中英模式、設定）時重建；有手指按在鍵盤上時延到全部放開才重建。force 為強制重建（主題、設定）。
      */
     private fun rebuildKeyboard(force: Boolean = false) {
+        val diagnosticStartedNs = TouchDiagnostics.beginRebuild(layer.name, force, touching, rebuildPending)
         val rows = rowsFor(layer)
         // 排高依設定的按鍵高度（直式、橫式各五段，量測官方）；按鍵格在排內上 5dp 下 1.6dp 內縮
         val rowHeight = dp(rowHeightDp())
@@ -518,6 +525,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         }
         // 常用標點只在字母層顯示，切換鍵盤層或模式時跟著更新
         refreshBar()
+        TouchDiagnostics.endRebuild(layer.name, diagnosticStartedNs, keyViews.size, rebuildPending)
     }
 
     private fun rowsFor(layer: Layer): List<List<KeyDef>> = when (layer) {
@@ -585,6 +593,21 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             val lp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
             lp.setMargins(dp(2.5f), dp(5f), dp(2.5f), dp(1.6f))
             slot.addView(key, lp)
+            // Keep the measured key inset for appearance, but route touches in the full proportional slot
+            // through the same key View. Dispatching a copy preserves child gesture behavior (long press,
+            // repeat, and space swipes) without mutating or retaining the parent MotionEvent.
+            slot.setOnTouchListener { _, event ->
+                val forwarded = MotionEvent.obtain(event)
+                forwarded.offsetLocation(-key.left.toFloat(), -key.top.toFloat())
+                try {
+                    val startedNs = TouchDiagnostics.startDispatch()
+                    val handled = key.dispatchTouchEvent(forwarded)
+                    TouchDiagnostics.slotForward(def.id, slot, key, event, startedNs, handled)
+                    handled
+                } finally {
+                    forwarded.recycle()
+                }
+            }
             row.addView(slot, LayoutParams(0, LayoutParams.MATCH_PARENT, def.weight))
         }
         return row
@@ -595,9 +618,11 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
      * 內容由 [decorate] 畫，狀態改變時就地重畫。
      */
     private fun buildKey(def: KeyDef): View {
-        val frame = FrameLayout(context)
+        val frame = TouchDiagnostics.keyFrame(context, def.id)
         frame.contentDescription = "key:${def.id}"
         frame.isClickable = true
+        frame.isFocusable = false
+        frame.isFocusableInTouchMode = false
         // 長按：彈出選單（「,」「.」、麥克風）＞重音字母＞數字（組字中即為選字鍵）
         val popup = def.popup
         val accents = def.accents
@@ -610,16 +635,43 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         }
         longPress?.let { action ->
             frame.setOnLongClickListener {
-                if (blank(def)) return@setOnLongClickListener false
-                action()
-                true
+                val isBlank = blank(def)
+                val kind = when {
+                    popup != null -> "popup"
+                    accents != null -> "accent"
+                    else -> "hint"
+                }
+                TouchDiagnostics.gesture(def.id, "long_press_start", "kind=$kind blank=$isBlank")
+                if (isBlank) {
+                    TouchDiagnostics.gesture(def.id, "long_press_end", "kind=$kind handled=false")
+                    false
+                } else {
+                    try {
+                        action()
+                    } finally {
+                        TouchDiagnostics.gesture(def.id, "long_press_end", "kind=$kind handled=true")
+                    }
+                    true
+                }
             }
         }
         when (def.id) {
             "backspace" -> attachRepeat(frame)
             "space" -> attachSpace(frame, def)
             else -> {
-                frame.setOnClickListener { if (!blank(def)) onKey(def) }
+                frame.setOnClickListener {
+                    val isBlank = blank(def)
+                    val startedNs = TouchDiagnostics.beginKeyAction(def.id, isBlank)
+                    var handled = false
+                    try {
+                        if (!isBlank) {
+                            onKey(def)
+                            handled = true
+                        }
+                    } finally {
+                        TouchDiagnostics.endKeyAction(def.id, isBlank, startedNs, handled)
+                    }
+                }
                 if (def.id !in NO_PREVIEW) attachPreview(frame, def)
             }
         }
@@ -811,6 +863,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         key.setOnTouchListener { v, ev ->
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    TouchDiagnostics.gesture(def.id, "space_down", "")
                     v.isPressed = true
                     startX = ev.x
                     if (settings.keyPreview) showPreview(v, def)
@@ -819,9 +872,21 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                     v.isPressed = false
                     hidePreview()
                     val dx = ev.x - startX
-                    if (chinese && abs(dx) >= dp(LANGUAGE_SWIPE_DP)) switchLanguage(if (dx > 0) 1 else -1) else onKey(def)
+                    val swiped = chinese && abs(dx) >= dp(LANGUAGE_SWIPE_DP)
+                    if (swiped) {
+                        TouchDiagnostics.gesture(def.id, "space_swipe", "dx=$dx")
+                        switchLanguage(if (dx > 0) 1 else -1)
+                    } else {
+                        // Match ordinary key clicks: queue the action so overlapping pointers commit in
+                        // UP order. Running this from the space touch listener can overtake a pending key click.
+                        v.post {
+                            TouchDiagnostics.gesture(def.id, "space_click", "dx=$dx")
+                            onKey(def)
+                        }
+                    }
                 }
                 MotionEvent.ACTION_CANCEL -> {
+                    TouchDiagnostics.gesture(def.id, "space_cancel", "")
                     v.isPressed = false
                     hidePreview()
                 }
@@ -984,6 +1049,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val repeat = object : Runnable {
             override fun run() {
                 // 先排下一次再刪：刪到輸入欄變空時鍵盤會同步重建、送 CANCEL 移除排程，若刪完才排會把自己排回去而停不下來
+                TouchDiagnostics.gesture("backspace", "repeat_tick", "intervalMs=60")
                 repeatHandler.postDelayed(this, 60)
                 actions.onSoftKey(SoftKey.Backspace)
             }
@@ -991,11 +1057,13 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         key.setOnTouchListener { v, ev ->
             val action = ev.actionMasked
             if (action == MotionEvent.ACTION_DOWN) {
+                TouchDiagnostics.gesture("backspace", "repeat_start", "delayMs=400 intervalMs=60")
                 v.isPressed = true
                 actions.onSoftKey(SoftKey.Backspace)
                 repeatHandler.postDelayed(repeat, 400)
             } else if (action != MotionEvent.ACTION_MOVE) {
                 // UP 或 CANCEL：放開即停止連續刪除
+                TouchDiagnostics.gesture("backspace", if (action == MotionEvent.ACTION_CANCEL) "repeat_cancel" else "repeat_stop", "")
                 v.isPressed = false
                 repeatHandler.removeCallbacks(repeat)
             }

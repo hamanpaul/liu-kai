@@ -98,6 +98,8 @@ class Plugin(PluginBase):
 
     def _setup_step(self, case: dict[str, Any], step: dict[str, Any]) -> bool:
         result = self.executor.execute(step)
+        if step["action"] == "import_table" and str(result["captured"].get("result", "")).startswith("FAIL"):
+            result["success"] = False
         self._evidence(case)["setup"].append({"action": step["action"], **result})
         return result["success"]
 

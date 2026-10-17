@@ -129,7 +129,8 @@ class FakeAdb:
         taps = [c for c in self.calls if c[0] in ("tap", "long_press", "swipe")]
         # 多點觸控：每次放開（tracking id −1）算一次觸控
         releases = [c for c in self.calls if c[0] == "emu_event" and "EV_ABS:ABS_MT_TRACKING_ID:-1" in c[1]]
-        state.setdefault("touches", len(taps) + len(releases))
+        cancels = [c for c in self.calls if c[0] == "motionevent" and c[1] == "CANCEL"]
+        state.setdefault("touches", len(taps) + len(releases) + len(cancels))
         encoded = base64.b64encode(json.dumps(state, ensure_ascii=False).encode()).decode()
         return head + marker + encoded + newline + rest
 

@@ -1,0 +1,143 @@
+id: soft-touch-qazplm-edges
+name: QAZ PLM 外緣與中心快打對照
+description: 以相同 241ms/300ms 兩指重疊節奏比較鍵盤中央與 QAZ/PLM 外側序列，再以固定螢幕座標點按各鍵槽邊緣。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_cap: 'false'
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: trace-center-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: center-rollover
+  action: rollover
+  target: EMU
+  keys: [e, u, r, j, d, y]
+  interval_ms: 241
+  hold_ms: 300
+- id: center-trace
+  action: touch_trace
+  target: EMU
+- id: trace-edge-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: edge-rollover
+  action: rollover
+  target: EMU
+  keys: [q, p, a, l, z, m]
+  interval_ms: 241
+  hold_ms: 300
+- id: edge-trace
+  action: touch_trace
+  target: EMU
+- id: trace-slot-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: q-edge
+  action: tap_point
+  target: EMU
+  key: q
+  screen_x: 2
+  ack: false
+- id: a-edge
+  action: tap_point
+  target: EMU
+  key: a
+  screen_x: 56
+  ack: false
+- id: z-edge
+  action: tap_point
+  target: EMU
+  key: z
+  screen_x: 164
+  ack: false
+- id: p-edge
+  action: tap_point
+  target: EMU
+  key: p
+  screen_x: 1077
+  ack: false
+- id: l-edge
+  action: tap_point
+  target: EMU
+  key: l
+  screen_x: 1022
+  ack: false
+- id: m-edge
+  action: tap_point
+  target: EMU
+  key: m
+  screen_x: 916
+  ack: false
+- id: slot-trace
+  action: touch_trace
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+- id: restore-chinese
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: state-after-restore
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: eurjdyqpalzmqazplm
+- field: center-trace.down_event_time_ms
+  operator: length
+  value: 6
+- field: center-trace.down_intervals_ms
+  operator: approx
+  value: [230, 230, 230, 230, 230]
+  tolerance: 12
+- field: edge-trace.down_event_time_ms
+  operator: length
+  value: 6
+- field: edge-trace.down_intervals_ms
+  operator: approx
+  value: [230, 230, 230, 230, 230]
+  tolerance: 12
+- field: center-trace.text
+  operator: contains
+  value: 'action=ACTION_POINTER_DOWN'
+- field: center-trace.text
+  operator: contains
+  value: 'dispatchMs='
+- field: edge-trace.text
+  operator: contains
+  value: 'action=ACTION_POINTER_DOWN'
+- field: slot-trace.text
+  operator: contains
+  value: 'visualHit=screen-side-left'
+- field: slot-trace.text
+  operator: contains
+  value: 'visualHit=inner-key-gap'
+- field: slot-trace.text
+  operator: contains
+  value: 'visualHit=screen-side-right'
+- field: slot-trace.text
+  operator: contains
+  value: 'phase=slot_forward target=key:q'
+- field: slot-trace.text
+  operator: contains
+  value: 'phase=key_action key=q'
+- field: state-after-restore.mode
+  operator: equals
+  value: CHINESE
