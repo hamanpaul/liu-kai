@@ -1,0 +1,658 @@
+{
+  "schema_version": 1,
+  "source_base_commit": "07676ca7fdc017123c9967a00acc2f0d82e3ec7e",
+  "environment": {
+    "kind": "Android Emulator",
+    "api": 35,
+    "resolution_px": [
+      1080,
+      2400
+    ],
+    "density_dpi": 420,
+    "injection_paths": [
+      "adb input tap",
+      "adb emu event send (multi-touch rollover)"
+    ],
+    "physical_touch_hardware_tested": false
+  },
+  "artifacts": {
+    "untouched_baseline_apk_sha256": "59763afc31bfad6a24548f97cc4f9c2b275598751eeb94cabfd653adc3e4dc4f",
+    "post_fix_debug_apk_sha256": "3b3551a16b5029100da9a751c8ede74989ec138022a36f6b3bf3452fb5c94c9f",
+    "post_fix_release_unsigned_apk_sha256": "27f32f615873b10c7ba10c5e3fcb9e294a40f6a5a444a91a009262f6dfabc8d9",
+    "pre_fix_debug_trace_apk_sha256": null,
+    "pre_fix_debug_trace_apk_sha256_note": "The logger-only APK used for report 20261018-003916 was overwritten by the post-fix build before its digest was captured; its trace lines and outcomes are preserved below.",
+    "initial_post_fix_hit_area_apk_sha256": "21abfb6f039eb8f9775e034da31dbed26e15a9358a110c00fa054dccf98417c7",
+    "release_dex_absent_checked_tokens": [
+      "LiuKaiTouch",
+      "phase=candidate_tap",
+      "dispatchMs=",
+      "slotDispatchMs=",
+      "eventAgeMs=",
+      "actionMs=",
+      "rebuildMs="
+    ],
+    "latest_debug_apk_sha256": "cb2218c6c007771314c88465a056337c8b4c3cf62e94370131786e76f74df824",
+    "latest_release_unsigned_apk_sha256": "fbdc5ef34a72c6229b46f02f4e9a703c962771a4e12ea7e53060abdc9373a382",
+    "pressed_source_trace_debug_apk_sha256": "63fa86a42e238ad0cf173eeb01f0b4d71a8a9c99987a507dffb33f77e3d65448",
+    "rejected_lifecycle_guard_debug_apk_sha256": "d9239e9671b950e373fd9f2a7f27cf09e9a756160051a48d1384004c2ccafe23"
+  },
+  "before_fix": {
+    "local_testpilot_report": "testpilot/reports/20261018-003916/report.md (ignored local artifact)",
+    "ime_window_bounds": [
+      0,
+      1467,
+      1080,
+      2400
+    ],
+    "keyboard_bounds": [
+      0,
+      1577,
+      1080,
+      2337
+    ],
+    "q_visual_key_bounds": [
+      6,
+      1596,
+      102,
+      1767
+    ],
+    "w_visual_key_bounds": [
+      114,
+      1596,
+      210,
+      1767
+    ],
+    "p_visual_key_bounds": [
+      978,
+      1596,
+      1074,
+      1767
+    ],
+    "fixed_points": [
+      {
+        "raw_px": [
+          2,
+          1681
+        ],
+        "region": "screen-side-left of q",
+        "action": "ACTION_DOWN",
+        "handled": false,
+        "action_up_observed": false
+      },
+      {
+        "raw_px": [
+          104,
+          1681
+        ],
+        "region": "inner gap q/w, q side",
+        "action": "ACTION_DOWN",
+        "handled": false,
+        "action_up_observed": false
+      },
+      {
+        "raw_px": [
+          112,
+          1681
+        ],
+        "region": "inner gap q/w, w side",
+        "action": "ACTION_DOWN",
+        "handled": false,
+        "action_up_observed": false
+      },
+      {
+        "raw_px": [
+          1077,
+          1681
+        ],
+        "region": "screen-side-right of p",
+        "action": "ACTION_DOWN",
+        "handled": false,
+        "action_up_observed": false
+      }
+    ],
+    "field_after_four_points": "",
+    "representative_log_lines": [
+      "phase=dispatch action=ACTION_DOWN eventTimeMs=660967 eventAgeMs=1 pointerCount=1 window=[0,1467,1080,2400] keyboard=[0,1577,1080,2337] pointers=[id=0 local=(2.0,214.0) raw=(2.0,1681.0) hit=screen-side-left bounds=q[6,1596,102,1767]]",
+      "phase=dispatch_result action=ACTION_DOWN eventTimeMs=660967 handled=false dispatchMs=0.029405",
+      "phase=dispatch action=ACTION_DOWN eventTimeMs=661394 eventAgeMs=1 pointerCount=1 window=[0,1467,1080,2400] keyboard=[0,1577,1080,2337] pointers=[id=0 local=(104.0,214.0) raw=(104.0,1681.0) hit=inner-key-gap bounds=q[6,1596,102,1767]|w[114,1596,210,1767]]",
+      "phase=dispatch_result action=ACTION_DOWN eventTimeMs=661394 handled=false dispatchMs=0.030919"
+    ]
+  },
+  "after_fix": {
+    "local_testpilot_report": "testpilot/reports/20261018-004501/report.md (ignored local artifact)",
+    "field_after_fixed_and_vertical_margin_points": "qqqwpe",
+    "visual_key_bounds_unchanged": true,
+    "fixed_points": [
+      {
+        "raw_px": [
+          2,
+          1681
+        ],
+        "key": "q",
+        "region": "screen-side-left",
+        "slot_bounds": [
+          0,
+          1583,
+          108,
+          1771
+        ],
+        "key_bounds": [
+          6,
+          1596,
+          102,
+          1767
+        ],
+        "handled": true
+      },
+      {
+        "raw_px": [
+          54,
+          1592
+        ],
+        "key": "q",
+        "region": "top margin / visual keyboard gap",
+        "slot_bounds": [
+          0,
+          1583,
+          108,
+          1771
+        ],
+        "key_bounds": [
+          6,
+          1596,
+          102,
+          1767
+        ],
+        "handled": true
+      },
+      {
+        "raw_px": [
+          104,
+          1681
+        ],
+        "key": "q",
+        "region": "inner q/w gap, q slot",
+        "slot_bounds": [
+          0,
+          1583,
+          108,
+          1771
+        ],
+        "key_bounds": [
+          6,
+          1596,
+          102,
+          1767
+        ],
+        "handled": true
+      },
+      {
+        "raw_px": [
+          112,
+          1681
+        ],
+        "key": "w",
+        "region": "inner q/w gap, w slot",
+        "slot_bounds": [
+          108,
+          1583,
+          216,
+          1771
+        ],
+        "key_bounds": [
+          114,
+          1596,
+          210,
+          1767
+        ],
+        "handled": true
+      },
+      {
+        "raw_px": [
+          1077,
+          1681
+        ],
+        "key": "p",
+        "region": "screen-side-right",
+        "slot_bounds": [
+          972,
+          1583,
+          1080,
+          1771
+        ],
+        "key_bounds": [
+          978,
+          1596,
+          1074,
+          1767
+        ],
+        "handled": true
+      },
+      {
+        "raw_px": [
+          300,
+          1769
+        ],
+        "key": "e",
+        "region": "bottom margin / visual keyboard gap",
+        "slot_bounds": [
+          216,
+          1583,
+          324,
+          1771
+        ],
+        "key_bounds": [
+          222,
+          1596,
+          318,
+          1767
+        ],
+        "handled": true
+      },
+      {
+        "raw_px": [
+          500,
+          1550
+        ],
+        "key": null,
+        "region": "candidate bar outside keyboard",
+        "field_unchanged": true
+      }
+    ],
+    "representative_log_lines": [
+      "phase=dispatch action=ACTION_DOWN actionIndex=0 eventTimeMs=1006108 eventAgeMs=0 pointerCount=1 window=[0,1467,1080,2400] keyboard=[0,1577,1080,2337] pointers=[id=0 local=(2.0,214.0) raw=(2.0,1681.0) visualHit=screen-side-left bounds=q[6,1596,102,1767]]",
+      "phase=slot_forward target=key:q action=ACTION_DOWN actionIndex=0 eventTimeMs=1006108 pointers=[id=0 slotLocal=(2.0,98.0) keyLocal=(-4.0,85.0) raw=(2.0,1681.0)] slot=[0,1583,108,1771] key=[6,1596,102,1767] handled=true slotDispatchMs=0.687352",
+      "phase=click key=q lastDispatchEventTimeMs=1006108 uptimeMs=1006114 blank=false"
+    ],
+    "apk_sha256": "21abfb6f039eb8f9775e034da31dbed26e15a9358a110c00fa054dccf98417c7"
+  },
+  "rollover_baseline": {
+    "local_testpilot_reports": [
+      "testpilot/reports/20261018-002933/report.json",
+      "testpilot/reports/20261018-003715/report.json"
+    ],
+    "requested_interval_ms": 241,
+    "hold_ms": 300,
+    "host_down_intervals_ms_center": [
+      241,
+      241,
+      242,
+      240,
+      241
+    ],
+    "host_down_intervals_ms_qazplm": [
+      242,
+      240,
+      242,
+      242,
+      242
+    ],
+    "adb_event_command_duration_ms_range": [
+      2,
+      5
+    ],
+    "host_lateness_ms_range": [
+      0,
+      3
+    ],
+    "center_control_text": "eurjdy",
+    "qazplm_rollover_text": "qpalzm",
+    "fixed_edge_points_added_text": "",
+    "unresolved_original_25_key_case": {
+      "expected_field": "人日和雪忠人雨",
+      "observed_field": "人日和雪忠人R",
+      "classification": "not confirmed as a missed key; the baseline had no event trace or stable post-drain read, and the uppercase R may involve long-press/hint handling"
+    }
+  },
+  "interpretation_limit": "These traces cover events delivered to ImeView.dispatchTouchEvent. They cannot observe events intercepted or routed outside the IME window. Emulator injection does not test physical touch-panel sampling, firmware, edge rejection, or palm rejection.",
+  "focused_emulator_run": {
+    "command": "LINUX_SDK=$HOME/Android/Sdk AVD_NAME=LiuKaiTouchLinux EMU_PORT=5584 scripts/emulator-e2e.sh --no-build --case debug-import-errors --case real-basic --case real-wildcard-homophone --case hw-wildcard --case soft-touch-cadence-sweep --case soft-touch-qazplm-edges --case soft-touch-slot-gestures --case soft-touch-stress-40-80 --case soft-smart-symbols-while-composing --case soft-type-tap-space --case soft-wildcard-homophone --case soft-rollover-typing --case soft-touch-gap-and-side-margins",
+    "local_report": "testpilot/reports/20261018-012600/report.md (ignored local artifact)",
+    "result": {
+      "total": 13,
+      "passed": 13,
+      "failed": 0,
+      "overall": "PASS"
+    },
+    "cases": [
+      "debug-import-errors",
+      "real-basic",
+      "real-wildcard-homophone",
+      "hw-wildcard",
+      "soft-touch-cadence-sweep",
+      "soft-touch-qazplm-edges",
+      "soft-touch-slot-gestures",
+      "soft-touch-stress-40-80",
+      "soft-smart-symbols-while-composing",
+      "soft-type-tap-space",
+      "soft-wildcard-homophone",
+      "soft-rollover-typing",
+      "soft-touch-gap-and-side-margins"
+    ],
+    "rollover_typing_final_text": "人日和雪忠人雨",
+    "cadence_sweep": {
+      "expected_and_observed_text": "eurjdyqpalzm repeated 5 times",
+      "final_language": "CHINESE",
+      "groups": [
+        {
+          "request_ms": 40,
+          "host_center_ms": [
+            40,
+            40
+          ],
+          "host_edge_ms": [
+            40,
+            40
+          ],
+          "guest_center_ms": [
+            38,
+            39
+          ],
+          "guest_edge_ms": [
+            38,
+            40
+          ]
+        },
+        {
+          "request_ms": 80,
+          "host_center_ms": [
+            80,
+            80
+          ],
+          "host_edge_ms": [
+            79,
+            81
+          ],
+          "guest_center_ms": [
+            76,
+            78
+          ],
+          "guest_edge_ms": [
+            76,
+            78
+          ]
+        },
+        {
+          "request_ms": 120,
+          "host_center_ms": [
+            119,
+            123
+          ],
+          "host_edge_ms": [
+            119,
+            125
+          ],
+          "guest_center_ms": [
+            115,
+            119
+          ],
+          "guest_edge_ms": [
+            115,
+            120
+          ]
+        },
+        {
+          "request_ms": 160,
+          "host_center_ms": [
+            160,
+            160
+          ],
+          "host_edge_ms": [
+            160,
+            160
+          ],
+          "guest_center_ms": [
+            152,
+            157
+          ],
+          "guest_edge_ms": [
+            154,
+            155
+          ]
+        },
+        {
+          "request_ms": 241,
+          "host_center_ms": [
+            240,
+            242
+          ],
+          "host_edge_ms": [
+            240,
+            242
+          ],
+          "guest_center_ms": [
+            231,
+            233
+          ],
+          "guest_edge_ms": [
+            231,
+            233
+          ]
+        }
+      ],
+      "max_event_age_ms_by_group": [
+        "center40:19",
+        "edge40:10",
+        "center80:2",
+        "edge80:2",
+        "center120:1",
+        "edge120:2",
+        "center160:2",
+        "edge160:3",
+        "center241:2",
+        "edge241:2"
+      ],
+      "dispatch_ms_max_by_group": [
+        "center40:0.477094",
+        "edge40:0.570631",
+        "center80:0.432720",
+        "edge80:0.532759",
+        "center120:0.386432",
+        "edge120:0.389076",
+        "center160:0.280691",
+        "edge160:0.499176",
+        "center241:0.662585",
+        "edge241:0.797420"
+      ],
+      "dispatch_duration_note": "Debug dispatch duration includes trace instrumentation and Android log formatting."
+    },
+    "stress_40_80": {
+      "single_pointer_controls": [
+        "edcedc",
+        "qazqaz"
+      ],
+      "overlapping_groups": [
+        {
+          "group": "center40",
+          "requested_interval_ms": 40,
+          "characters": 60,
+          "guest_down_events": 60,
+          "guest_interval_ms": [
+            37,
+            39
+          ],
+          "max_event_age_ms": 15,
+          "max_dispatch_ms": 0.513142
+        },
+        {
+          "group": "edge40",
+          "requested_interval_ms": 40,
+          "characters": 60,
+          "guest_down_events": 60,
+          "guest_interval_ms": [
+            37,
+            40
+          ],
+          "max_event_age_ms": 15,
+          "max_dispatch_ms": 0.522354
+        },
+        {
+          "group": "center80",
+          "requested_interval_ms": 80,
+          "characters": 60,
+          "guest_down_events": 60,
+          "guest_interval_ms": [
+            74,
+            80
+          ],
+          "max_event_age_ms": 2,
+          "max_dispatch_ms": 2.441257
+        },
+        {
+          "group": "edge80",
+          "requested_interval_ms": 80,
+          "characters": 60,
+          "guest_down_events": 60,
+          "guest_interval_ms": [
+            75,
+            78
+          ],
+          "max_event_age_ms": 3,
+          "max_dispatch_ms": 0.508754
+        }
+      ],
+      "total_field_characters": 252,
+      "final_language": "CHINESE",
+      "instrumentation_outlier_preserved": {
+        "group": "center80",
+        "dispatch_ms": 2.441257
+      }
+    },
+    "candidate_geometry": {
+      "baseline_400ms_case": "hw-wildcard failed to select after scroll; no candidate callback and final field remained 和 (report 20261018-011946)",
+      "settled_probe": "same path passed with 1600ms settle; candidate click callback identified index and bounds (report 20261018-012017)",
+      "testpilot_fix": "tap_candidate waits for three identical candidate and row geometry samples, 100ms apart, bounded to 30 reads; after-helper emulator report 20261018-012221 passed and logged candidateTap without candidate text",
+      "unit_red": "test_tap_candidate_waits_for_scrolled_candidate_geometry_to_stabilize initially tapped old center x=550 instead of settled center x=650",
+      "unit_green": "5 tap_candidate-focused unit tests passed; full TestPilot pytest later 179 passed with 100% configured coverage"
+    },
+    "initial_full_suite": {
+      "local_report": "testpilot/reports/20261018-004604/report.json (ignored local artifact)",
+      "summary": {
+        "total": 104,
+        "passed": 96,
+        "failed": 8
+      },
+      "failed_cases": [
+        "debug-import-errors",
+        "hw-wildcard",
+        "real-basic",
+        "real-wildcard-homophone",
+        "soft-touch-cadence-sweep",
+        "soft-touch-qazplm-edges",
+        "soft-type-tap-space",
+        "soft-wildcard-homophone"
+      ],
+      "causes_and_resolutions": [
+        "adb file transfer returned before remote cat completed; synthetic/real imports could observe incomplete files. The TestPilot adb write helper now polls until remote bytes match.",
+        "failed table import could be followed by stale cached table setup; plugin setup now fails closed on captured import FAIL.",
+        "candidate row geometry moved after scrolling; tap_candidate now waits for stable geometry, covered by a RED/GREEN unit test and focused hw/real wildcard tests.",
+        "soft slot gesture case leaked SIMPLIFIED language into later cases; it now swipes back and asserts CHINESE.",
+        "cadence case expected an incorrect repeated string; corrected exact expected string is now input intact.",
+        "QAZ/PLM cadence asserted the requested host interval as guest interval; assertions now use observed guest cadence while preserving exact output checks."
+      ]
+    },
+    "full_final_emulator_suite": "108 cases on latest debug APK cb2218c6c007771314c88465a056337c8b4c3cf62e94370131786e76f74df824: 107 passed, 1 failed. Failure: soft-voice-key expected final-row label Next, observed Done. App coverage gate failed: LINE 99.9% (1 missed), BRANCH 98.2% (10 missed); the debug TouchDiagnostics pressed-reset caller-capture branch and remaining null-safe branches were not exercised. Full acceptance is not met and the result is not merge-ready. Report testpilot/reports/20261018-022507/report.json is a local ignored artifact.",
+    "apk_sha256": "3b3551a16b5029100da9a751c8ede74989ec138022a36f6b3bf3452fb5c94c9f",
+    "latest_apk_sha256": "cb2218c6c007771314c88465a056337c8b4c3cf62e94370131786e76f74df824"
+  },
+  "rapid_chinese": {
+    "space_callback_order_fix": {
+      "case": "soft-chinese-fast-order-control",
+      "red_report": "testpilot/reports/20261018-015423/report.json (ignored local artifact)",
+      "red_expected_40": "人日和雪忠人雨人日和雪忠人雨人日和雪忠人雨",
+      "red_observed_40": "天 和雪忠人雨天 和雪忠人雨天 和雪忠人雨",
+      "green_case_report": "testpilot/reports/20261018-015935/report.json (case PASS; overall run had a separate real-table case failure)",
+      "green_observed_40": "人日和雪忠人雨人日和雪忠人雨人日和雪忠人雨",
+      "fix": "Ordinary space ACTION_UP queues gesture and onKey in v.post, matching the queued ordinary key click callback order. Swipe/cancel/long-press paths remain separate.",
+      "strict_reverse_up_probe": "120 ms hold diagnostic remains outside discovered/gated cases; reverse ACTION_UP commit order is recorded, with no change to DOWN-order semantics."
+    },
+    "real_table_pressed_reset_race": {
+      "case": "real-chinese-fast-order-control",
+      "table": "real user-provided LIU tables imported successfully in each run",
+      "sequence": "ci + SPACE -> 中; 25 repetitions at requested 40 ms DOWN interval / 50 ms hold and 50 repetitions at 80 ms / 100 ms hold",
+      "strict_expected": {
+        "read_40": "中中中中中中中中中中中中中中中中中中中中中中中中中",
+        "read_80": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+      },
+      "confirmed_red": {
+        "report": "testpilot/reports/20261018-021247/report.json (ignored local artifact)",
+        "debug_apk_sha256": "63fa86a42e238ad0cf173eeb01f0b4d71a8a9c99987a507dffb33f77e3d65448",
+        "actual_40": "中中後中中中中中中中中中中中中中中中中中中中中中中",
+        "actual_80": "中中後中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中",
+        "first_difference_zero_based": 2,
+        "cumulative_read_interpretation": "read_80 is the field after 50 repetitions, including the preceding read_40 prefix. Its first 25 characters equal actual_40 (including the index-2 error); the final 25 characters are all 中. The evidence shows an error during the 40 ms group, not an independent error in the 80 ms group.",
+        "exact_trace": "D/LiuKaiTouch( 2319): phase=key_pressed key=c from=true to=false action=ACTION_MOVE eventTimeMs=6273216 pointerIds=[1] source=android.view.View$UnsetPressedState.run uptimeMs=6273236",
+        "timing_40": {
+          "host_down_interval_ms": [
+            40,
+            40
+          ],
+          "guest_down_interval_ms": [
+            37,
+            40
+          ],
+          "max_event_age_ms": 67,
+          "max_dispatch_ms": 4.95093
+        },
+        "timing_80": {
+          "host_down_interval_ms": [
+            78,
+            82
+          ],
+          "guest_down_interval_ms": [
+            75,
+            79
+          ],
+          "max_event_age_ms": 8,
+          "max_dispatch_ms": 2.273024
+        }
+      },
+      "guard_experiment": {
+        "report": "testpilot/reports/20261018-022038/report.json (ignored local artifact)",
+        "debug_apk_sha256": "d9239e9671b950e373fd9f2a7f27cf09e9a756160051a48d1384004c2ccafe23",
+        "result": "RED; read_40 has 後 at zero-based index 2. read_80 is cumulative: its first 25 characters carry that same error and its final 25 characters are all 中, so this run does not show an independent 80 ms group error.",
+        "exact_trace": "D/LiuKaiTouch( 3164): phase=key_pressed key=c from=true requested=false to=false suppressed=false action=ACTION_MOVE eventTimeMs=6743045 pointerIds=[1] source=android.view.View$UnsetPressedState.run uptimeMs=6743063",
+        "timing_40": {
+          "host_down_interval_ms": [
+            37,
+            43
+          ],
+          "guest_down_interval_ms": [
+            35,
+            42
+          ],
+          "max_event_age_ms": 61,
+          "max_dispatch_ms": 1.209781
+        },
+        "timing_80": {
+          "host_down_interval_ms": [
+            79,
+            81
+          ],
+          "guest_down_interval_ms": [
+            76,
+            78
+          ],
+          "max_event_age_ms": 9,
+          "max_dispatch_ms": 0.772122
+        },
+        "window_state": {
+          "input_method_window_flag": "NOT_FOCUSABLE",
+          "current_focus": "com.hamanpaul.liukai.testhost/.HostActivity",
+          "decision": "hasWindowFocus is not a usable eligibility predicate for this IME window; the guard was removed rather than weakened."
+        }
+      },
+      "status": "unresolved; one earlier run 20261018-020159 passed, but repeated strict RED runs prove the intermittent result remains",
+      "production_guard_shipped": false,
+      "formal_case_keeps_exact_output": true,
+      "formal_case_asserts_key_frames_non_focusable": true
+    }
+  },
+  "root_voice_followup": {
+    "report": "testpilot/reports/20261018-025055/report.json",
+    "result": "FAIL",
+    "failure": "first long_press_key: IME window position not stable",
+    "interpretation": "did not reach Next/Done assertion; does not independently reproduce the full-suite label mismatch",
+    "not_a_full_suite_coverage_run": true
+  }
+}

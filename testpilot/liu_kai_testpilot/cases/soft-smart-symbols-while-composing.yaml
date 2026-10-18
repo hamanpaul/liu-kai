@@ -1,0 +1,33 @@
+id: soft-smart-symbols-while-composing
+name: 組字中切到符號層的智慧鍵盤狀態
+description: 中文組字中切到符號層，驗證智慧鍵盤對非字母單鍵的留白判斷路徑。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_cap: 'false'
+    smart_keyboard: 'true'
+steps:
+- id: q
+  action: tap_key
+  target: EMU
+  key: q
+- id: symbols
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: state
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: state.composing
+  operator: equals
+  value: q
+- field: state.layer
+  operator: equals
+  value: symbols

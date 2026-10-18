@@ -1,0 +1,99 @@
+id: soft-touch-gap-and-side-margins
+name: 按鍵空隙與螢幕左右邊界命中
+description: 固定物理座標探測 Q 的上側與左側槽內留白、Q/W 內側空隙兩側、P 右側槽內留白及 E 下側留白；全槽應由原按鍵處理，視覺內縮維持不變。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_cap: 'false'
+steps:
+- id: en
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: trace-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: q-screen-side
+  action: tap_point
+  target: EMU
+  key: q
+  screen_x: 2
+  ack: false
+- id: q-top-margin
+  action: tap_point
+  target: EMU
+  key: q
+  screen_x: 54
+  screen_y: 1592
+  ack: false
+- id: q-slot-gap
+  action: tap_point
+  target: EMU
+  key: q
+  screen_x: 104
+  ack: false
+- id: w-slot-gap
+  action: tap_point
+  target: EMU
+  key: w
+  screen_x: 112
+  ack: false
+- id: p-screen-side
+  action: tap_point
+  target: EMU
+  key: p
+  screen_x: 1077
+  ack: false
+- id: keyboard-row-gap
+  action: tap_point
+  target: EMU
+  key: q
+  screen_x: 300
+  screen_y: 1769
+  ack: false
+- id: candidate-bar
+  action: tap_point
+  target: EMU
+  key: q
+  screen_x: 500
+  screen_y: 1550
+  ack: false
+- id: trace
+  action: touch_trace
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: read.text
+  operator: equals
+  value: qqqwpe
+- field: trace.text
+  operator: contains
+  value: 'visualHit=screen-side-left'
+- field: trace.text
+  operator: contains
+  value: 'visualHit=inner-key-gap'
+- field: trace.text
+  operator: contains
+  value: 'visualHit=screen-side-right'
+- field: trace.text
+  operator: contains
+  value: 'visualHit=keyboard-gap'
+- field: trace.text
+  operator: contains
+  value: 'visualHit=outside-keyboard'
+- field: trace.text
+  operator: contains
+  value: 'slot_forward target=key:q'
+- field: trace.text
+  operator: contains
+  value: 'slot_forward target=key:e'

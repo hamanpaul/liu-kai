@@ -1,0 +1,143 @@
+id: soft-touch-stress-40-80
+name: 單指連續與雙指重疊快打壓力
+description: 以單槽中心 E/D/C、單槽 Q/A/Z 作序列控制，再用雙指交替測中央與 QAZ/PLM 40/80ms 請求節奏；每組 60 字並記錄 host 注入與 guest MotionEvent 時間。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial；adb emu event send 不代表實體面板）
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_cap: 'false'
+    smart_keyboard: 'false'
+steps:
+- id: english
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: center-single-slot
+  action: rollover
+  target: EMU
+  keys: [e, d, c, e, d, c]
+  interval_ms: 80
+  hold_ms: 60
+- id: edge-single-slot
+  action: rollover
+  target: EMU
+  keys: [q, a, z, q, a, z]
+  interval_ms: 80
+  hold_ms: 60
+- id: center-40-trace-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: center-40
+  action: rollover
+  target: EMU
+  keys: [e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y]
+  interval_ms: 40
+  hold_ms: 120
+- id: center-40-trace
+  action: touch_trace
+  target: EMU
+- id: edge-40-trace-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: edge-40
+  action: rollover
+  target: EMU
+  keys: [q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m]
+  interval_ms: 40
+  hold_ms: 120
+- id: edge-40-trace
+  action: touch_trace
+  target: EMU
+- id: center-80-trace-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: center-80
+  action: rollover
+  target: EMU
+  keys: [e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y, e, u, r, j, d, y]
+  interval_ms: 80
+  hold_ms: 120
+- id: center-80-trace
+  action: touch_trace
+  target: EMU
+- id: edge-80-trace-begin
+  action: touch_trace
+  target: EMU
+  clear: true
+- id: edge-80
+  action: rollover
+  target: EMU
+  keys: [q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m, q, p, a, l, z, m]
+  interval_ms: 80
+  hold_ms: 120
+- id: edge-80-trace
+  action: touch_trace
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+- id: restore-chinese
+  action: tap_key
+  target: EMU
+  key: toggle_english
+- id: state-after-restore
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: center-single-slot.timing.host_down_intervals_ms
+  operator: length
+  value: 5
+- field: edge-single-slot.timing.host_down_intervals_ms
+  operator: length
+  value: 5
+- field: read.text
+  operator: equals
+  value: edcedcqazqazeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyeurjdyqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzmqpalzm
+- field: center-40-trace.down_event_time_ms
+  operator: length
+  value: 60
+- field: edge-40-trace.down_event_time_ms
+  operator: length
+  value: 60
+- field: center-80-trace.down_event_time_ms
+  operator: length
+  value: 60
+- field: edge-80-trace.down_event_time_ms
+  operator: length
+  value: 60
+- field: center-40-trace.down_intervals_ms
+  operator: length
+  value: 59
+- field: edge-40-trace.down_intervals_ms
+  operator: length
+  value: 59
+- field: center-80-trace.down_intervals_ms
+  operator: length
+  value: 59
+- field: edge-80-trace.down_intervals_ms
+  operator: length
+  value: 59
+- field: center-40-trace.text
+  operator: contains
+  value: 'action=ACTION_POINTER_DOWN'
+- field: edge-40-trace.text
+  operator: contains
+  value: 'action=ACTION_POINTER_DOWN'
+- field: center-80-trace.text
+  operator: contains
+  value: 'action=ACTION_POINTER_DOWN'
+- field: edge-80-trace.text
+  operator: contains
+  value: 'action=ACTION_POINTER_DOWN'
+- field: state-after-restore.mode
+  operator: equals
+  value: CHINESE

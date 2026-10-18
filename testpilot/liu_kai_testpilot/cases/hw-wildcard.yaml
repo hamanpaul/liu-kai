@@ -15,10 +15,17 @@ steps:
 - id: st
   action: ime_state
   target: EMU
+- id: trace-begin
+  action: touch_trace
+  target: EMU
+  clear: true
 - id: tap
   action: tap_candidate
   target: EMU
   text: 天
+- id: trace
+  action: touch_trace
+  target: EMU
 - id: star
   action: text
   target: EMU
@@ -39,6 +46,9 @@ pass_criteria:
 - field: st.annotations
   operator: contains
   value: ab
+- field: trace.text
+  operator: contains
+  value: 'phase=candidate_tap index=15'
 - field: st2.candidates
   operator: equals
   value:

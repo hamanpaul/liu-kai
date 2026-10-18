@@ -110,6 +110,13 @@ class Adb:
     def run_as_write(self, package: str, path: str, data: bytes) -> None:
         folder = path.rsplit("/", 1)[0]
         self.run(["exec-in", "run-as", package, "sh", "-c", f"mkdir -p {folder} && cat > {path}"], stdin=data)
+        # exec-in may return before the remote cat closes the file. Do not let
+        # the import broadcast consume an empty or partially written table.
+        for _ in range(30):
+            if self.run_as_read(package, path) == data:
+                return
+            self._sleep(0.1)
+        raise AdbError("device file does not match uploaded bytes before timeout")
 
     def run_as_read(self, package: str, path: str) -> bytes:
         return self.run(["exec-out", "run-as", package, "cat", path]).stdout

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# liu-kai 端對端測試（WSL2 + Windows 端 Android 模擬器）：以 TestPilot plugin 執行 YAML 案例，
+# liu-kai 端對端測試（Windows 或 Linux Android 模擬器）：以 TestPilot plugin 執行 YAML 案例，
 # 匯出 app 覆蓋率並驗證 100% 門檻。
 #
 # 用法：
@@ -9,6 +9,7 @@
 #
 # 環境變數：
 #   WIN_SDK   Windows 端 Android SDK（預設 %USERPROFILE%\AppData\Local\Android\Sdk）
+#   LINUX_SDK 指定 Linux SDK 時使用原生 adb/emulator，需已安裝 API 35 google_apis x86_64 映像
 #   AVD_NAME  專用 AVD（預設 LiuKai35；不存在時以 API 35 x86_64 映像建立，含實體鍵盤）
 #   EMU_PORT  模擬器 console port（預設 5580，serial 為 emulator-<port>）
 #   LIU_KAI_DATA  真實字表目錄（預設 ~/prj_pri/liu-kai-data，real-* 案例使用）
@@ -26,14 +27,22 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-WIN_HOME=$(wslpath "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')")
-WIN_SDK=${WIN_SDK:-$WIN_HOME/AppData/Local/Android/Sdk}
 AVD_NAME=${AVD_NAME:-LiuKai35}
 EMU_PORT=${EMU_PORT:-5580}
 SERIAL=emulator-$EMU_PORT
-ADB_EXE="$WIN_SDK/platform-tools/adb.exe"
-EMU_EXE="$WIN_SDK/emulator/emulator.exe"
-AVD_DIR="$WIN_HOME/.android/avd"
+if [ -n "${LINUX_SDK:-}" ]; then
+  ADB_EXE="$LINUX_SDK/platform-tools/adb"
+  EMU_EXE="$LINUX_SDK/emulator/emulator"
+  AVD_DIR="${ANDROID_AVD_HOME:-$HOME/.android/avd}"
+  PATH_MAPPER=identity
+else
+  WIN_HOME=$(wslpath "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')")
+  WIN_SDK=${WIN_SDK:-$WIN_HOME/AppData/Local/Android/Sdk}
+  ADB_EXE="$WIN_SDK/platform-tools/adb.exe"
+  EMU_EXE="$WIN_SDK/emulator/emulator.exe"
+  AVD_DIR="$WIN_HOME/.android/avd"
+  PATH_MAPPER=wslpath
+fi
 VENV="$ROOT/testpilot/.venv"
 COVERAGE_DIR="$ROOT/app/build/outputs/e2e-coverage"
 
@@ -43,6 +52,20 @@ log() { printf '[e2e] %s\n' "$*"; }
 create_avd() {
   [ -f "$AVD_DIR/$AVD_NAME.ini" ] && return
   log "建立 AVD $AVD_NAME"
+  if [ -n "${LINUX_SDK:-}" ]; then
+    printf 'no\n' | "$LINUX_SDK/cmdline-tools/latest/bin/avdmanager" create avd \
+      -n "$AVD_NAME" -k 'system-images;android-35;google_apis;x86_64' --device pixel_6
+    python3 - "$AVD_DIR/$AVD_NAME.avd/config.ini" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+settings = {"hw.keyboard": "yes", "hw.lcd.width": "1080", "hw.lcd.height": "2400", "hw.lcd.density": "420"}
+lines = [line for line in path.read_text().splitlines() if line.split("=", 1)[0].strip() not in settings]
+path.write_text("\n".join(lines + [f"{key}={value}" for key, value in settings.items()]) + "\n")
+PY
+    return
+  fi
   mkdir -p "$AVD_DIR/$AVD_NAME.avd"
   printf 'avd.ini.encoding=UTF-8\r\npath=%s\r\npath.rel=avd\\%s.avd\r\ntarget=android-35\r\n' \
     "$(wslpath -w "$AVD_DIR/$AVD_NAME.avd")" "$AVD_NAME" > "$AVD_DIR/$AVD_NAME.ini"
@@ -80,7 +103,9 @@ boot_emulator() {
     # -memory 4096：登入 Google 後 Play 服務常駐，2 GB 會大量 swap，轉場變慢、點擊被丟掉
     log "啟動模擬器 $AVD_NAME（$SERIAL）"
     mkdir -p "$ROOT/e2e-out"
-    "$EMU_EXE" -avd "$AVD_NAME" -port "$EMU_PORT" -memory 4096 -no-snapshot -no-audio -no-boot-anim >"$ROOT/e2e-out/emulator.log" 2>&1 &
+    local extra=()
+    [ -n "${LINUX_SDK:-}" ] && extra=(-no-window -gpu swiftshader)
+    "$EMU_EXE" -avd "$AVD_NAME" -port "$EMU_PORT" -memory 4096 -no-snapshot -no-audio -no-boot-anim "${extra[@]}" >"$ROOT/e2e-out/emulator.log" 2>&1 &
     "$ADB_EXE" -s "$SERIAL" wait-for-device
   fi
   local waited=0
@@ -102,7 +127,7 @@ boot_emulator() {
 write_testbed() {
   cat > "$ROOT/testpilot/testbed.yaml" <<EOF
 adb_binary: $ADB_EXE
-path_mapper: wslpath
+path_mapper: $PATH_MAPPER
 serial: $SERIAL
 repo_root: $ROOT
 reports_dir: $ROOT/testpilot/reports
@@ -113,11 +138,19 @@ EOF
 }
 
 install_apps() {
-  local stage="$WIN_HOME/AppData/Local/Temp/liu-kai-e2e"
-  mkdir -p "$stage"
+  local stage=""
+  if [ -z "${LINUX_SDK:-}" ]; then
+    stage="$WIN_HOME/AppData/Local/Temp/liu-kai-e2e"
+    mkdir -p "$stage"
+  fi
   for apk in app/build/outputs/apk/debug/app-debug.apk testhost/build/outputs/apk/debug/testhost-debug.apk; do
-    cp "$ROOT/$apk" "$stage/"
-    log "安裝 $(basename "$apk")：$(adb install -r -t "$(wslpath -w "$stage/$(basename "$apk")")" | tail -1)"
+    local install_path="$ROOT/$apk"
+    if [ -n "$stage" ]; then
+      cp "$ROOT/$apk" "$stage/"
+      install_path=$(wslpath -w "$stage/$(basename "$apk")")
+    fi
+    adb install -r -t "$install_path"
+    log "已安裝 $(basename "$apk")"
   done
   # 重新安裝會讓系統改回其他輸入法，重新啟用並切換
   adb shell ime enable com.hamanpaul.liukai/.ime.LiuKaiImeService >/dev/null

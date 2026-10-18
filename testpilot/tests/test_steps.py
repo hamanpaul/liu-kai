@@ -2,7 +2,15 @@ from pathlib import Path
 
 import pytest
 
-from liu_kai_testpilot.steps import TAP_TRIES, UI_DUMP_TRIES, UNTIL_CHECKS, DeviceConfig, StepExecutor, keycode
+from liu_kai_testpilot.steps import (
+    CANDIDATE_STABLE_POLLS,
+    TAP_TRIES,
+    UI_DUMP_TRIES,
+    UNTIL_CHECKS,
+    DeviceConfig,
+    StepExecutor,
+    keycode,
+)
 
 from .conftest import FOCUS, UI_XML, cand, ime_window_block, raw_screen, state_dump, window_dump
 
@@ -128,6 +136,35 @@ def test_tap_candidate_scrolls_when_center_is_under_the_voice_key(ex, adb):
     run(ex, action="tap_candidate", text="丑")
     assert len(adb.of("swipe")) == 1
     assert adb.of("tap") == [("tap", 650, 2275)]
+
+
+def test_tap_candidate_waits_for_scrolled_candidate_geometry_to_stabilize(ex, adb):
+    row = {"x": 0, "y": 2200, "w": 965, "h": 150}
+    far = state_dump(candidateRow=row, candidates=[cand(15, "丑", 1500)])
+    visible_while_moving = state_dump(candidateRow=row, candidates=[cand(15, "丑", 500)])
+    later_while_moving = state_dump(candidateRow=row, candidates=[cand(15, "丑", 540)])
+    settled = state_dump(candidateRow=row, candidates=[cand(15, "丑", 600)])
+    adb.queue(DUMPSYS, far, visible_while_moving, later_while_moving, settled, settled, settled)
+    waits = []
+    ex._sleep = waits.append
+
+    run(ex, action="tap_candidate", text="丑")
+
+    assert adb.of("tap") == [("tap", 650, 2275)]
+    assert len(waits) >= 3
+
+
+def test_tap_candidate_fails_closed_when_scrolled_geometry_never_stabilizes(ex, adb):
+    row = {"x": 0, "y": 2200, "w": 965, "h": 150}
+    far = state_dump(candidateRow=row, candidates=[cand(15, "丑", 1500)])
+    moving = [state_dump(candidateRow=row, candidates=[cand(15, "丑", 500 + i)]) for i in range(CANDIDATE_STABLE_POLLS)]
+    adb.queue(DUMPSYS, far, *moving)
+
+    result = run(ex, action="tap_candidate", text="丑")
+
+    assert result["success"] is False
+    assert "位置未穩定" in result["output"]
+    assert adb.of("tap") == []
 
 
 def test_tap_candidate_gives_up_after_max_scrolls(ex, adb):
@@ -295,7 +332,13 @@ def test_rollover_presses_the_next_key_before_releasing_the_previous_one(adb, tm
     up = lambda slot: [f"EV_ABS:ABS_MT_SLOT:{slot}", "EV_ABS:ABS_MT_TRACKING_ID:-1", "EV_SYN:0:0"]  # noqa: E731
     # 時序：0 b↓、200 a↓、300 b↑、400 b↓、500 a↑、700 b↑
     assert sent == [tuple(down(0, 1, 54)), tuple(down(1, 2, 594)), tuple(up(0)), tuple(down(0, 3, 54)), tuple(up(1)), tuple(up(0))]
-    assert result["output"] == "rollover 3 keys every 200ms hold 300ms"
+    assert result["output"] == "rollover 3 keys every 200ms hold 300ms; requested 200ms; observed host down intervals=[200, 200]ms"
+    assert result["captured"]["points"] == [
+        {"key": "b", "x": 54, "y": 2350, "bounds": [0, 2300, 108, 100]},
+        {"key": "a", "x": 594, "y": 2350, "bounds": [540, 2300, 108, 100]},
+        {"key": "b", "x": 54, "y": 2350, "bounds": [0, 2300, 108, 100]},
+    ]
+    assert result["captured"]["screen_size"] == [1080, 2400]
 
 
 def test_rollover_uses_one_thumb_per_half_and_a_thumb_never_overlaps_itself(adb, tmp_path):
@@ -322,6 +365,146 @@ def test_rollover_does_not_wait_when_behind_schedule(adb, tmp_path):
     run(ex, action="rollover", keys=["b"])
     assert len(adb.of("emu_event")) == 2
     assert all(w > 0 for w in waits)
+
+
+def test_rollover_reports_requested_and_achieved_host_timing(adb, tmp_path):
+    now = [0.0]
+    ex = StepExecutor(adb, DeviceConfig(repo_root=str(tmp_path)), sleep=lambda s: now.__setitem__(0, now[0] + s), clock=lambda: now[0])
+    adb.queue(DUMPSYS, state_dump(keys={
+        "b": {"x": 0, "y": 2300, "w": 108, "h": 100},
+        "a": {"x": 540, "y": 2300, "w": 108, "h": 100},
+    }))
+    original = adb.emu_event
+
+    def slow_emu_event(*events):
+        original(*events)
+        now[0] += 0.03
+
+    adb.emu_event = slow_emu_event
+    result = run(ex, action="rollover", keys=["b", "a"], interval_ms=20, hold_ms=40)
+
+    assert result["captured"]["timing"] == {
+        "requested_down_ms": [0, 20],
+        "host_down_ms": [0, 30],
+        "host_down_intervals_ms": [30],
+        "host_event_ms": [0, 30, 60, 90],
+        "host_lateness_ms": [0, 10, 20, 30],
+        "command_duration_ms": [30, 30, 30, 30],
+    }
+    assert "requested 20ms; observed host down intervals=[30]ms" in result["output"]
+
+
+def test_tap_point_can_probe_a_key_edge_or_the_adjacent_gap(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"q": {"x": 8, "y": 2000, "w": 120, "h": 100}}))
+
+    result = run(ex, action="tap_point", key="q", x_ratio=1.03, y_ratio=0.5)
+
+    assert result["success"] is True
+    assert adb.of("tap") == [("tap", 131, 2050)]
+    assert result["captured"] == {"x": 131, "y": 2050, "key": "q"}
+    assert result["output"] == "tap point key:q at=(131,2050)"
+
+
+def test_tap_point_can_repeat_a_fixed_physical_coordinate(ex, adb):
+    # Screen coordinates stay constant before/after a hit-target change, unlike key-relative ratios.
+    adb.queue(DUMPSYS, state_dump(keys={"q": {"x": 6, "y": 1596, "w": 96, "h": 171}}))
+
+    result = run(ex, action="tap_point", key="q", screen_x=2, y_ratio=0.5)
+
+    assert result["success"] is True
+    assert adb.of("tap") == [("tap", 2, 1681)]
+    assert result["captured"] == {"x": 2, "y": 1681, "key": "q"}
+
+
+def test_tap_point_can_probe_without_waiting_for_ime_ack(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"q": {"x": 6, "y": 1596, "w": 96, "h": 171}}))
+
+    result = run(ex, action="tap_point", key="q", screen_x=2, ack=False)
+
+    assert result["success"] is True
+    assert adb.of("tap") == [("tap", 2, 1681)]
+    assert len([call for call in adb.of("shell") if call[1].startswith(DUMPSYS)]) == 1
+
+
+def test_touch_trace_can_clear_the_main_buffer_before_a_measurement(ex, adb):
+    result = run(ex, action="touch_trace", clear=True)
+
+    assert result["success"] is True
+    assert adb.of("shell")[-1] == ("shell", "logcat -c -b main")
+    assert result["captured"] == {"cleared": True}
+
+
+def test_touch_trace_collects_only_the_dedicated_debug_tag(ex, adb):
+    adb.queue(
+        "logcat -d -v brief -s LiuKaiTouch:D",
+        "D/LiuKaiTouch: phase=dispatch action=ACTION_DOWN eventTimeMs=100 visualHit=key:q\n"
+        "D/LiuKaiTouch: phase=dispatch_result action=ACTION_DOWN eventTimeMs=100 handled=true dispatchMs=1\n"
+        "D/LiuKaiTouch: phase=slot_forward target=key:q action=ACTION_DOWN eventTimeMs=100 handled=true\n"
+        "D/LiuKaiTouch: phase=dispatch action=ACTION_POINTER_DOWN eventTimeMs=140 visualHit=key:p\n"
+        "D/LiuKaiTouch: phase=dispatch_result action=ACTION_POINTER_DOWN eventTimeMs=140 handled=true dispatchMs=1\n"
+        "D/LiuKaiTouch: phase=dispatch action=ACTION_UP eventTimeMs=160 visualHit=key:p\n"
+        "I/Other: unrelated\n",
+    )
+
+    result = run(ex, action="touch_trace")
+
+    assert result["success"] is True
+    assert result["captured"] == {
+        "count": 6,
+        "text": "D/LiuKaiTouch: phase=dispatch action=ACTION_DOWN eventTimeMs=100 visualHit=key:q\n"
+        "D/LiuKaiTouch: phase=dispatch_result action=ACTION_DOWN eventTimeMs=100 handled=true dispatchMs=1\n"
+        "D/LiuKaiTouch: phase=slot_forward target=key:q action=ACTION_DOWN eventTimeMs=100 handled=true\n"
+        "D/LiuKaiTouch: phase=dispatch action=ACTION_POINTER_DOWN eventTimeMs=140 visualHit=key:p\n"
+        "D/LiuKaiTouch: phase=dispatch_result action=ACTION_POINTER_DOWN eventTimeMs=140 handled=true dispatchMs=1\n"
+        "D/LiuKaiTouch: phase=dispatch action=ACTION_UP eventTimeMs=160 visualHit=key:p",
+        "down_event_time_ms": [100, 140],
+        "down_intervals_ms": [40],
+    }
+    assert "guest down intervals=[40]ms" in result["output"]
+
+
+def test_touch_trace_handles_an_empty_log(ex, adb):
+    adb.queue("logcat -d -v brief -s LiuKaiTouch:D", "")
+
+    result = run(ex, action="touch_trace")
+
+    assert result["captured"] == {"count": 0, "text": "", "down_event_time_ms": [], "down_intervals_ms": []}
+    assert result["output"] == "touch trace lines=0; guest down intervals=n/a"
+
+
+def test_long_press_key_can_start_in_the_slot_margin(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"q": {"x": 6, "y": 1596, "w": 96, "h": 171}}))
+
+    result = run(ex, action="long_press_key", key="q", screen_x=54, screen_y=1592, duration_ms=600)
+
+    assert result["success"] is True
+    assert adb.of("long_press") == [("long_press", 54, 1592, 600)]
+
+
+def test_space_swipe_can_start_in_the_slot_margin(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"space": {"x": 300, "y": 2000, "w": 400, "h": 100}}))
+
+    result = run(ex, action="swipe_key", key="space", x_ratio=-0.003, y_ratio=0.5, dx=300)
+
+    assert result["success"] is True
+    assert adb.of("swipe") == [("swipe", 298, 2050, 598, 2050, 800)]
+
+
+def test_touch_key_can_cancel_a_short_slot_margin_hold(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys={"backspace": {"x": 900, "y": 2000, "w": 100, "h": 100}}))
+
+    result = run(
+        ex,
+        action="touch_key",
+        key="backspace",
+        phase="down",
+        x_ratio=-0.01,
+        y_ratio=0.5,
+        cancel_after_ms=100,
+    )
+
+    assert result["success"] is True
+    assert adb.of("motionevent") == [("motionevent", "DOWN", 899, 2050), ("motionevent", "CANCEL", 899, 2050)]
 
 
 def test_tap_field_at_horizontal_ratio(ex, adb):
@@ -751,6 +934,15 @@ def test_touch_key_down_holds_and_up_releases(ex, adb):
     adb.queue(DUMPSYS, state_dump(keys=KEY_G, touches=0), state_dump(keys=KEY_G, touches=1))
     assert run(ex, action="touch_key", key="g", phase="up")["success"] is True
     assert adb.of("motionevent")[-1] == ("motionevent", "UP", 550, 2350)
+
+
+def test_touch_key_cancel_sends_cancel_and_waits_for_dispatch(ex, adb):
+    adb.queue(DUMPSYS, state_dump(keys=KEY_G, touches=0), state_dump(keys=KEY_G, touches=1))
+
+    result = run(ex, action="touch_key", key="g", phase="cancel")
+
+    assert result["success"] is True
+    assert adb.of("motionevent") == [("motionevent", "CANCEL", 550, 2350)]
 
 
 def test_swipe_key_moves_horizontally_from_key_center(ex, adb):

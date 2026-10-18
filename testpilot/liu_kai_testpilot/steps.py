@@ -20,6 +20,9 @@ _SYMBOL_KEYS = {
     "[": "LEFT_BRACKET", "]": "RIGHT_BRACKET", "-": "MINUS", "=": "EQUALS", "/": "SLASH",
 }
 MAX_SCROLLS = 8
+CANDIDATE_STABLE_POLLS = 30
+CANDIDATE_STABLE_READS = 3
+CANDIDATE_STABLE_INTERVAL = 0.1
 ROTATE_POLLS = 20
 TOUCH_POLLS = 20
 BIND_POLLS = 20
@@ -34,10 +37,11 @@ UNTIL_CHECKS = 6
 TAP_TRIES = 3
 UI_DUMP_TRIES = 6
 # 只操作／讀取輸入法、不會讓輸入法視窗收起或重新顯示的動作；其他動作之後，下一次點鍵盤要重新確認已畫在畫面上
-KEEPS_IME_DRAWN = frozenset({"tap_key", "long_press_key", "tap_candidate", "ime_state", "read_field"})
+KEEPS_IME_DRAWN = frozenset({"tap_key", "tap_point", "long_press_key", "tap_candidate", "ime_state", "read_field", "touch_trace"})
 _FOCUS = re.compile(r"mCurrentFocus=Window\{([0-9a-f]+) ")
 _WINDOW_HEADER = re.compile(r"^\s*Window #\d+ Window\{\S+ u\d+ (.+)\}:\s*$")
 _IME_FRAME = re.compile(r"name=\S+ InputMethod, [^\n]*?\bframe=\[-?\d+,(-?\d+)\]")
+_TOUCH_DOWN_EVENT = re.compile(r"\bphase=dispatch action=ACTION_(?:POINTER_)?DOWN\b.*?\beventTimeMs=(\d+)")
 
 
 def keycode(name: str) -> str:
@@ -305,16 +309,44 @@ class StepExecutor:
             self._sleep(0.3)
 
     def _visible_candidate(self, step):
-        """候選不在畫面內時往右捲動候選列（最多 MAX_SCROLLS 次）；回傳 (狀態, 候選)。"""
+        """候選不在畫面內時往右捲動；捲動後等候選幾何連續穩定，再回傳狀態、候選與量測。"""
         scrolls = 0
+        stabilizing = False
+        previous_geometry = None
+        stable_reads = 0
+        stability_polls = 0
+        scroll_started = None
+        geometry_samples = []
         while True:
             state = self.shown_state()
             c = state.candidate(text=step.get("text"), index=step.get("index"))
+            if stabilizing:
+                geometry_samples.append([c.rect.x, c.rect.y, c.rect.w, c.rect.h])
             if c.rect.center_within(state.candidate_row):
-                return state, c
+                if not stabilizing:
+                    return state, c, {"candidate_rect_samples": [], "stable_wait_ms": 0}
+                geometry = (c.rect, state.candidate_row)
+                stable_reads = stable_reads + 1 if geometry == previous_geometry else 1
+                previous_geometry = geometry
+                stability_polls += 1
+                if stable_reads >= CANDIDATE_STABLE_READS:
+                    return state, c, {
+                        "candidate_rect_samples": geometry_samples,
+                        "stable_wait_ms": max(0, round((self._clock() - scroll_started) * 1000)),
+                    }
+                if stability_polls == CANDIDATE_STABLE_POLLS:
+                    raise LookupError(f"候選 {c.text} 捲動後位置未穩定：{geometry}")
+                self._sleep(CANDIDATE_STABLE_INTERVAL)
+                continue
             if scrolls == MAX_SCROLLS:
                 raise LookupError(f"候選 {c.text} 捲動後仍不在畫面內")
             scrolls += 1
+            stabilizing = True
+            previous_geometry = None
+            stable_reads = 0
+            stability_polls = 0
+            if scroll_started is None:
+                scroll_started = self._clock()
             row = state.candidate_row
             y = row.center[1]
             self.adb.swipe(row.x + row.w * 8 // 10, y, row.x + row.w * 2 // 10, y, 300)
@@ -332,10 +364,16 @@ class StepExecutor:
         self.settle()
 
     def _do_tap_candidate(self, step):
-        state, c = self._visible_candidate(step)
+        state, c, geometry = self._visible_candidate(step)
         self.adb.tap(*c.rect.center)
         self._await_touch_handled(state)
-        return f"tap candidate {c.index}:{c.text}", {}
+        x, y = c.rect.center
+        return f"tap candidate {c.index}:{c.text}", {
+            "index": c.index,
+            "tap_xy": [x, y],
+            "candidate_rect": [c.rect.x, c.rect.y, c.rect.w, c.rect.h],
+            **geometry,
+        }
 
     def _do_tap_key(self, step):
         """點螢幕鍵盤的鍵並等輸入法處理完；ack: false 時不等（例如語音鍵會切換到其他輸入法）。"""
@@ -347,14 +385,58 @@ class StepExecutor:
             self.settle()
         return f"tap key {step['key']}", {}
 
+    def _do_tap_point(self, step):
+        """以鍵的可點範圍或固定螢幕座標注入；比例可超出 0–1，以探測按鍵邊界及空隙。"""
+        state = self.shown_state()
+        key = state.key(step["key"])
+        x_ratio = float(step.get("x_ratio", 0.5))
+        y_ratio = float(step.get("y_ratio", 0.5))
+        x = int(step["screen_x"]) if "screen_x" in step else int(key.x + key.w * x_ratio)
+        y = int(step["screen_y"]) if "screen_y" in step else int(key.y + key.h * y_ratio)
+        self.adb.tap(x, y)
+        if step.get("ack", True):
+            self._await_touch_handled(state)
+        else:
+            self.settle()
+        return (
+            f"tap point key:{step['key']} at=({x},{y})",
+            {"x": x, "y": y, "key": step["key"]},
+        )
+
+    def _do_touch_trace(self, step):
+        """讀取 debug APK 專用的觸控 tag；不讀取輸入欄文字或其他 logcat tag。"""
+        if step.get("clear"):
+            self.adb.shell("logcat -c -b main")
+            return "cleared main log buffer for touch measurement", {"cleared": True}
+        output = self.adb.shell("logcat -d -v brief -s LiuKaiTouch:D")
+        lines = [line.strip() for line in output.splitlines() if "LiuKaiTouch" in line]
+        text = "\n".join(lines)
+        down_times = [int(match.group(1)) for line in lines if (match := _TOUCH_DOWN_EVENT.search(line))]
+        down_intervals = [b - a for a, b in zip(down_times, down_times[1:])]
+        cadence = f"{down_intervals}ms" if down_intervals else "n/a"
+        return (
+            f"touch trace lines={len(lines)}; guest down intervals={cadence}",
+            {"count": len(lines), "text": text, "down_event_time_ms": down_times, "down_intervals_ms": down_intervals},
+        )
+
     def _do_touch_key(self, step):
         """按住（phase: down）或放開（phase: up）螢幕鍵盤的鍵，用來檢查按住時的畫面（例如按鍵放大預覽）。
         放開時等輸入法處理完。"""
         state = self.shown_state()
-        x, y = state.key(step["key"]).center
+        key = state.key(step["key"])
+        x = int(step["screen_x"]) if "screen_x" in step else int(key.x + key.w * float(step.get("x_ratio", 0.5)))
+        y = int(step["screen_y"]) if "screen_y" in step else int(key.y + key.h * float(step.get("y_ratio", 0.5)))
         if step["phase"] == "down":
             self.adb.motionevent("DOWN", x, y)
-            self.settle()
+            if "cancel_after_ms" in step:
+                self._sleep(step["cancel_after_ms"] / 1000)
+                self.adb.motionevent("CANCEL", x, y)
+                self._await_touch_handled(state)
+            else:
+                self.settle()
+        elif step["phase"] == "cancel":
+            self.adb.motionevent("CANCEL", x, y)
+            self._await_touch_handled(state)
         else:
             self.adb.motionevent("UP", x, y)
             self._await_touch_handled(state)
@@ -363,7 +445,9 @@ class StepExecutor:
     def _do_swipe_key(self, step):
         """從鍵的中心水平滑動 dx 像素（例如中文模式空白鍵左右滑動切換語言模式），並等輸入法處理完。"""
         state = self.shown_state()
-        x, y = state.key(step["key"]).center
+        key = state.key(step["key"])
+        x = int(step["screen_x"]) if "screen_x" in step else int(key.x + key.w * float(step.get("x_ratio", 0.5)))
+        y = int(step["screen_y"]) if "screen_y" in step else int(key.y + key.h * float(step.get("y_ratio", 0.5)))
         self.adb.swipe(x, y, x + step["dx"], y, step.get("duration_ms", 800))
         self._await_touch_handled(state)
         return f"swipe {step['key']} dx={step['dx']}", {}
@@ -377,9 +461,12 @@ class StepExecutor:
         state = self.shown_state()
         w, h = self.adb.screen_size()
         presses = []
+        points = []
         last = {}
         for i, key in enumerate(step["keys"]):
-            x, y = state.key(key).center
+            rect = state.key(key)
+            x, y = rect.center
+            points.append({"key": key, "x": x, "y": y, "bounds": [rect.x, rect.y, rect.w, rect.h]})
             press = {"down": i * interval, "up": i * interval + hold, "slot": 0 if x < w // 2 else 1, "x": x, "y": y, "id": i + 1}
             if press["slot"] in last:
                 prev = last[press["slot"]]
@@ -394,20 +481,50 @@ class StepExecutor:
                 "EV_ABS:ABS_MT_PRESSURE:60", "EV_SYN:0:0",
             )
             up = (f"EV_ABS:ABS_MT_SLOT:{p['slot']}", "EV_ABS:ABS_MT_TRACKING_ID:-1", "EV_SYN:0:0")
-            events += [(p["down"], 1, down), (p["up"], 0, up)]
-        events.sort(key=lambda e: (e[0], e[1]))
+            events += [
+                {"at": p["down"], "priority": 1, "kind": "down", "key": step["keys"][p["id"] - 1], "event": down},
+                {"at": p["up"], "priority": 0, "kind": "up", "key": step["keys"][p["id"] - 1], "event": up},
+            ]
+        events.sort(key=lambda e: (e["at"], e["priority"]))
         start = self._clock()
-        for at, _, event in events:
-            wait = start + at / 1000 - self._clock()
+        timing_events = []
+        for event in events:
+            scheduled = start + event["at"] / 1000
+            wait = scheduled - self._clock()
             if wait > 0:
                 self._sleep(wait)
-            self.adb.emu_event(*event)
+            send_start = self._clock()
+            self.adb.emu_event(*event["event"])
+            send_end = self._clock()
+            timing_events.append({
+                "kind": event["kind"],
+                "key": event["key"],
+                "scheduled_ms": event["at"],
+                "host_ms": round((send_start - start) * 1000),
+                "host_lateness_ms": max(0, round((send_start - scheduled) * 1000)),
+                "command_duration_ms": round((send_end - send_start) * 1000),
+            })
         self._await_touch_handled(state)
-        return f"rollover {len(step['keys'])} keys every {interval}ms hold {hold}ms", {}
+        down_events = [event for event in timing_events if event["kind"] == "down"]
+        timing = {
+            "requested_down_ms": [press["down"] for press in presses],
+            "host_down_ms": [event["host_ms"] for event in down_events],
+            "host_down_intervals_ms": [b["host_ms"] - a["host_ms"] for a, b in zip(down_events, down_events[1:])],
+            "host_event_ms": [event["host_ms"] for event in timing_events],
+            "host_lateness_ms": [event["host_lateness_ms"] for event in timing_events],
+            "command_duration_ms": [event["command_duration_ms"] for event in timing_events],
+        }
+        observed = timing["host_down_intervals_ms"]
+        cadence = f"{observed}ms" if observed else "n/a"
+        summary = f"rollover {len(step['keys'])} keys every {interval}ms hold {hold}ms; requested {interval}ms; observed host down intervals={cadence}"
+        return summary, {"timing": timing, "events": timing_events, "points": points, "screen_size": [w, h]}
 
     def _do_long_press_key(self, step):
         state = self.shown_state()
-        self.adb.long_press(*state.key(step["key"]).center, step.get("duration_ms", 1000))
+        key = state.key(step["key"])
+        x = int(step["screen_x"]) if "screen_x" in step else int(key.x + key.w * float(step.get("x_ratio", 0.5)))
+        y = int(step["screen_y"]) if "screen_y" in step else int(key.y + key.h * float(step.get("y_ratio", 0.5)))
+        self.adb.long_press(x, y, step.get("duration_ms", 1000))
         self._await_touch_handled(state)
         return f"long press key {step['key']}", {}
 

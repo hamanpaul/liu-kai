@@ -86,7 +86,7 @@ def test_broadcast_without_data_returns_none():
 
 
 def test_run_as_write_streams_bytes_via_exec_in_and_read_via_exec_out():
-    runner = FakeRunner(ok(), ok(b"\x00\x01binary"))
+    runner = FakeRunner(ok(), ok(b"data"), ok(b"\x00\x01binary"))
     adb = Adb("adb", "s", runner=runner)
     adb.run_as_write("com.x", "files/import/a.txt", b"data")
     assert adb.run_as_read("com.x", "files/coverage.ec") == b"\x00\x01binary"
@@ -94,7 +94,8 @@ def test_run_as_write_streams_bytes_via_exec_in_and_read_via_exec_out():
     assert write_argv == ["adb", "-s", "s", "exec-in", "run-as", "com.x", "sh", "-c",
                           "mkdir -p files/import && cat > files/import/a.txt"]
     assert write_stdin == b"data"
-    assert runner.calls[1][0] == ["adb", "-s", "s", "exec-out", "run-as", "com.x", "cat", "files/coverage.ec"]
+    assert runner.calls[1][0] == ["adb", "-s", "s", "exec-out", "run-as", "com.x", "cat", "files/import/a.txt"]
+    assert runner.calls[2][0] == ["adb", "-s", "s", "exec-out", "run-as", "com.x", "cat", "files/coverage.ec"]
 
 
 def test_install_maps_path_and_passes_flags():
@@ -152,3 +153,26 @@ def test_screencap_raw_reads_rgba_bytes():
     runner = FakeRunner(ok(b"RAW"))
     assert Adb("adb", "s", runner=runner).screencap_raw() == b"RAW"
     assert runner.calls[0][0] == ["adb", "-s", "s", "exec-out", "screencap"]
+
+
+def test_run_as_write_waits_until_remote_bytes_match_before_returning():
+    data = b"BEGIN_TABLE\nprobe\tTEST\t1\nEND_TABLE\n"
+    reads = []
+    sleeps = []
+
+    def delayed_writer(argv, stdin, timeout):
+        if "exec-in" in argv:
+            return ok()
+        reads.append(True)
+        return ok(b"" if len(reads) == 1 else data)
+
+    adb = Adb("adb", "s", runner=delayed_writer, sleep=sleeps.append)
+    adb.run_as_write("com.x", "files/probe", data)
+    assert len(reads) == 2
+    assert sleeps == [0.1]
+
+
+def test_write_rejects_bytes_that_never_finish_uploading():
+    adb = Adb("adb", "s", runner=FakeRunner(), sleep=lambda _: None)
+    with pytest.raises(AdbError, match="uploaded bytes"):
+        adb.run_as_write("com.x", "files/probe", b"not empty")

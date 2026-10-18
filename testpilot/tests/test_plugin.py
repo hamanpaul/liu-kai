@@ -232,3 +232,14 @@ def test_teardown_runs_case_cleanup_steps(plugin, adb):
     c = case(cleanup=[{"action": "shell", "command": "run-as com.hamanpaul.liukai rm -f files/user_phrases.tsv"}])
     plugin.teardown(c, None)
     assert adb.of("shell")[-1] == ("shell", "run-as com.hamanpaul.liukai rm -f files/user_phrases.tsv")
+
+
+def test_failed_import_precondition_stops_case_without_caching_wrong_table(plugin, adb):
+    adb.queue("#broadcast", (0, "FAIL incomplete table"))
+    assert plugin.setup_env(case(preconditions={"table": "demo"}), None) is False
+    assert plugin._applied_table is None
+    assert not any("am start" in call[1] for call in adb.of("shell"))
+    assert plugin.evidence["c1"]["setup"][-1]["success"] is False
+    adb.shell_outputs["#broadcast"] = [(1, "OK TRADITIONAL raw=31")]
+    assert plugin.setup_env(case(id="retry", preconditions={"table": "demo"}), None) is True
+    assert len(adb.of("broadcast")) == 2
