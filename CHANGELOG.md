@@ -5,6 +5,11 @@
 格式基於 [Keep a Changelog 1.1.0](https://keepachangelog.com/zh-TW/1.1.0/)，
 本專案遵循 hamanpaul project policy v1.0.17；未發行的變更以 `changelog.d/` fragment 累積。
 
+## [0.1.1] - 2026-10-18
+
+### Fixed
+- Route full key-slot touches to existing keys, queue ordinary space taps in ACTION_UP order, and add debug-only pointer and pressed-state diagnostics without logging composed text.
+
 ## [0.1.0] - 2026-09-28
 
 ### Added
