@@ -21,9 +21,9 @@ jobs:
           $tag = '${{ github.ref_name }}'
           if ($tag -cnotmatch '^r([1-9][0-9]*)$') { throw 'Release tag must be r followed by a positive number without leading zeroes.' }
           $number = [uint64]::Parse($Matches[1])
-          if ($number -gt 65535) { throw 'Release number exceeds the MSI build version limit.' }
+          if ($number -gt 255) { throw 'Release number exceeds the MSI major version limit.' }
           "PACKAGE_VERSION=0.0.0-dev.$((Get-Date).ToUniversalTime().ToString('yyyyMMdd')).$tag.x64" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "MSI_VERSION=1.0.$number" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MSI_VERSION=$number.0.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Acquire and verify WiX 6.0.2
         shell: pwsh
         env:
