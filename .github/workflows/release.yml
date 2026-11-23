@@ -103,6 +103,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
+          $env:PATH = $toolchain + ';' + $env:PATH
           & .\native\tests\wix-retired-msi-tests.ps1 -ToolchainBin $toolchain -WixExe $env:WIX_EXE -WorkDir "$pwd\build\wix-retired-msi-test"
           if ($LASTEXITCODE -ne 0) { throw 'Locked-file MSI rollback test failed.' }
       - name: Preserve verified release files
