@@ -53,7 +53,7 @@ jobs:
         run: |
           $dir = Join-Path $pwd 'build/r64-baseline'
           New-Item -ItemType Directory -Path $dir -Force | Out-Null
-          gh release download r64 --repo hamanpaul/wugai-windows --pattern LiuKai.msi --dir $dir
+          gh release download r64 --repo hamanpaul/liu-kai_win --pattern LiuKai.msi --dir $dir
           if ($LASTEXITCODE -ne 0) { throw 'Could not download official R64 MSI.' }
       - name: Run release preflight and WiX TLS regression
         shell: powershell
