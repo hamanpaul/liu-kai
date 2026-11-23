@@ -39,6 +39,22 @@ int main(){
  REQUIRE(press('1')&&flags()==0x808);
  REQUIRE(set_conversion(0x801)==S_OK);REQUIRE(!bar->display_state().fullwidth&&!bar->display_state().english);
  REQUIRE(set_conversion(0x800)==S_OK);REQUIRE(bar->display_state().english&&!bar->display_state().fullwidth);
+ // A standalone Shift tap must persistently change language in either direction.
+ auto tap_shift=[&](){BOOL down=FALSE,test_up=FALSE,up=FALSE;const LPARAM scan=static_cast<LPARAM>(0x2a)<<16;
+  return service->test_key_down_for_state(context,VK_SHIFT,scan,true,false,false,&down)==S_OK &&
+   service->test_key_up_for_state(context,VK_SHIFT,scan,false,false,&test_up)==S_OK && test_up &&
+   service->key_up_for_state(context,VK_SHIFT,scan,false,false,&up)==S_OK && up;};
+ REQUIRE(tap_shift()&&!bar->display_state().english);
+ REQUIRE(tap_shift()&&bar->display_state().english);
+ // Back-to-back callbacks must not lose a standalone tap inside the service.
+ {bool expected=bar->display_state().english;
+  for(int i=0;i<100;++i){expected=!expected;REQUIRE(tap_shift());REQUIRE(bar->display_state().english==expected);}}
+ // A host may omit the scan code on the release while supplying it on press.
+ {BOOL down=FALSE,test_up=FALSE,up=FALSE;const LPARAM scan=static_cast<LPARAM>(0x2a)<<16;
+  REQUIRE(service->test_key_down_for_state(context,VK_SHIFT,scan,true,false,false,&down)==S_OK);
+  REQUIRE(service->test_key_up_for_state(context,VK_SHIFT,0,false,false,&test_up)==S_OK&&test_up);
+  REQUIRE(service->key_up_for_state(context,VK_SHIFT,0,false,false,&up)==S_OK&&up&&!bar->display_state().english);
+  REQUIRE(tap_shift()&&bar->display_state().english);}
  BOOL eaten=TRUE;REQUIRE(service->test_key_down_for_state(context,'1',0,false,false,false,&eaten)==S_OK&&!eaten);REQUIRE(flags()==0x800);
  REQUIRE(service->menu_command(boshiamy::MenuCommand::Chinese)==S_OK);REQUIRE(press('A'));
  REQUIRE(set_conversion(0x809)==S_OK);REQUIRE(bar->display_state().fullwidth);REQUIRE(press(VK_SPACE));

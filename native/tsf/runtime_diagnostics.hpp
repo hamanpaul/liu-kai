@@ -36,7 +36,9 @@ enum class Event : std::uint32_t {
     EditRequest = 8,
     EditApplied = 9,
     Deactivate = 10,
-    ExtendedInterfaceQuery = 11
+    ExtendedInterfaceQuery = 11,
+    ShiftTestUp = 12,
+    ShiftUp = 13
 };
 
 enum class HostKind : std::uint32_t {
@@ -213,7 +215,7 @@ inline std::wstring default_directory() {
 }
 
 inline bool valid_enum_values(const Record &r) noexcept {
-    return (r.event >= Event::Created && r.event <= Event::ExtendedInterfaceQuery) &&
+    return (r.event >= Event::Created && r.event <= Event::ShiftUp) &&
         (r.host_kind >= HostKind::Other && r.host_kind <= HostKind::Code) &&
         (r.keyboard_disabled >= -1 && r.keyboard_disabled <= 1) &&
         (r.empty_context >= -1 && r.empty_context <= 1) &&

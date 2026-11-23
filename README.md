@@ -4,9 +4,13 @@
 
 原生 Windows TSF 輸入法，使用 Android 手 key 字表與無改圖示。字碼以原字根表為準；品牌保持彩色，另有獨立中／英狀態。不包含自訂字詞、關聯詞或品牌灰階切換。
 
+目前的 Windows x64 預發布版為 **R70**：[下載安裝程式](https://github.com/hamanpaul/liu-kai_win/releases/download/r70/LiuKai-win-setup.exe) · [SHA256](https://github.com/hamanpaul/liu-kai_win/releases/download/r70/SHA256SUMS.txt) · [發行說明](https://github.com/hamanpaul/liu-kai_win/releases/tag/r70)。請使用 EXE 安裝或升級；R70 已在本機完成升級與記事本輸入測試，同源測試版已在 Windows Terminal／WSL 完成快速 Shift 與切換視窗後的測試。
+
+## R60 歷史驗收紀錄
+
 R60（`0.0.0-dev.20261026.r60.machine-com-x64`）已於 2026-10-26 完成本輪使用者實機驗收：Windows Search、Microsoft Store 的 `a + Space`／`oek + Space` 中文輸入，以及獨立中／英模式圖示，使用者確認「三項都正常」。安裝後 12 個套件檔案雜湊與 HKCU64／HKLM64 雙 scope 的獨立驗後均通過。
 
-[下載 R60 安裝程式](https://github.com/hamanpaul/wugai-windows/releases/download/r60/WuGai-R60-x64-Setup.exe) · [SHA256](https://github.com/hamanpaul/wugai-windows/releases/download/r60/SHA256SUMS.txt) · [發行說明](https://github.com/hamanpaul/wugai-windows/releases/tag/r60)
+[下載 R60 安裝程式](https://github.com/hamanpaul/liu-kai_win/releases/download/r60/WuGai-R60-x64-Setup.exe) · [SHA256](https://github.com/hamanpaul/liu-kai_win/releases/download/r60/SHA256SUMS.txt) · [發行說明](https://github.com/hamanpaul/liu-kai_win/releases/tag/r60)
 
 已知安裝問題：上述 R60 的已安裝狀態驗收不等於新電腦安裝驗收。R60 首次註冊的圖示讀回缺陷已修正；另一台 R60.1 的 `0x8007000D` 仍待完整交易紀錄確認。此分支另加入正式卸載入口及診斷，驗證範圍見 [VALIDATION.md](VALIDATION.md)。
 
@@ -14,7 +18,7 @@ Terminal 沿用先前正常結果，本輪沒有重新測試。不宣稱完整 7
 
 R60 新增明確的 x64 機器層級 COM 註冊，與使用者層級一起處理升級、修復、回復與解除。相同 SID、安裝目錄與所有權才允許寫入。保留舊交易格式與記錄，不改寫歷史。
 
-本次為 **Windows x64 prerelease**，tag 為 `r60`；安裝檔為 `WuGai-R60-x64-Setup.exe`。安裝必須以同一 Windows 帳號完成管理員授權。此來源不含官版程式、逆向輸出、本機部署記錄、登入憑證或私人來源路徑。
+當時的 **Windows x64 prerelease** tag 為 `r60`；安裝檔為 `WuGai-R60-x64-Setup.exe`。安裝必須以同一 Windows 帳號完成管理員授權。此來源不含官版程式、逆向輸出、本機部署記錄、登入憑證或私人來源路徑。
 
 ## 同音字查詢（開發中）
 

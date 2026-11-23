@@ -9,7 +9,7 @@ if(Test-Path -LiteralPath $work){throw 'Test directory already exists.'}
 $oldPath=$env:PATH
 try {
     $env:PATH=$bin+';'+$oldPath
-    foreach($name in @('engine_long_english_tests','engine_homophone_tests','candidate_ui_contract_tests','installer_durable_compensation_projection_tests')) {
+    foreach($name in @('shift_toggle_tests','engine_long_english_tests','engine_homophone_tests','candidate_ui_contract_tests','installer_durable_compensation_projection_tests')) {
         $source=Join-Path $PSScriptRoot ("tests\$name.cpp"); $exe=Join-Path $work ($name+'.exe')
         & $compiler -std=c++17 -O2 -static $source -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $exe
         if($LASTEXITCODE -ne 0){throw "Compilation failed: $name"}

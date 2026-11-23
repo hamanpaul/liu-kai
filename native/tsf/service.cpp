@@ -211,7 +211,14 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
  void observe_shift_down(ITfContext* ctx,WPARAM key,LPARAM flags,bool control,bool alt,bool composing){
   if(!has_focus||!shift_toggle.enabled()){reset_shift_gesture();return;}
   if(shift_context&&!same_context(ctx,shift_context))reset_shift_gesture();
-  shift_toggle.key_down(shift_key(key,flags),control,alt,composing,(static_cast<ULONG_PTR>(flags)&(1ull<<30))!=0);
+  const unsigned observed=shift_key(key,flags);
+  // Use the state attached to this queued key message. The physical state
+  // may already reflect a later press when fast taps are processed.
+  bool other_shift_down=false;
+  if(observed==VK_LSHIFT)other_shift_down=(GetKeyState(VK_RSHIFT)&0x8000)!=0;
+  else if(observed==VK_RSHIFT)other_shift_down=(GetKeyState(VK_LSHIFT)&0x8000)!=0;
+  else if(observed==VK_SHIFT)other_shift_down=(GetKeyState(VK_LSHIFT)&0x8000)!=0&&(GetKeyState(VK_RSHIFT)&0x8000)!=0;
+  shift_toggle.key_down(observed,control,alt,composing,(static_cast<ULONG_PTR>(flags)&(1ull<<30))!=0,other_shift_down);
   if(shift_toggle.pending()&&!shift_context){shift_context=ctx;ctx->AddRef();}
  }
  bool has_focus=true,layout_refresh_pending=false,layout_subscription_active=false;
@@ -765,7 +772,9 @@ void set_shift_uppercase(bool uppercase){shift_uppercase=uppercase;}
   return S_OK;
  }
  HRESULT STDMETHODCALLTYPE OnTestKeyUp(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* eaten) override {
-  return test_key_up_for_state(ctx,w,flags,(GetKeyState(VK_CONTROL)&0x8000)!=0,(GetKeyState(VK_MENU)&0x8000)!=0,eaten);
+  HRESULT hr=test_key_up_for_state(ctx,w,flags,(GetKeyState(VK_CONTROL)&0x8000)!=0,(GetKeyState(VK_MENU)&0x8000)!=0,eaten);
+  if(is_shift(w))trace(boshiamy::runtime_diagnostics::Event::ShiftTestUp,ctx,hr,S_FALSE,eaten?*eaten:FALSE);
+  return hr;
  }
 HRESULT key_down_for_state(ITfContext* ctx,WPARAM w,bool shift,bool control,bool alt,BOOL* eaten,bool caps=false,LPARAM flags=0){
   ServicePin pin(this);
@@ -853,7 +862,9 @@ HRESULT STDMETHODCALLTYPE OnKeyDown(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* 
   pending_open.reset();modes.toggle_english();sync_language_bar();*eaten=TRUE;return S_OK;
  }
  HRESULT STDMETHODCALLTYPE OnKeyUp(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* eaten) override {
-  return key_up_for_state(ctx,w,flags,(GetKeyState(VK_CONTROL)&0x8000)!=0,(GetKeyState(VK_MENU)&0x8000)!=0,eaten);
+  HRESULT hr=key_up_for_state(ctx,w,flags,(GetKeyState(VK_CONTROL)&0x8000)!=0,(GetKeyState(VK_MENU)&0x8000)!=0,eaten);
+  if(is_shift(w))trace(boshiamy::runtime_diagnostics::Event::ShiftUp,ctx,hr,S_FALSE,eaten?*eaten:FALSE);
+  return hr;
  }
  HRESULT STDMETHODCALLTYPE OnPreservedKey(ITfContext* context,REFGUID command,BOOL* eaten) override {
   if(!eaten)return E_POINTER;*eaten=FALSE;if(!context||!has_focus)return S_OK;
