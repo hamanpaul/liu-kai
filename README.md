@@ -4,7 +4,7 @@
 
 原生 Windows TSF 輸入法，使用 Android 手 key 字表與無改圖示。字碼以原字根表為準；品牌保持彩色，另有獨立中／英狀態。不包含自訂字詞、關聯詞或品牌灰階切換。
 
-目前的 Windows x64 預發布版為 **R70**：[下載安裝程式](https://github.com/hamanpaul/wugai-windows/releases/download/r70/LiuKai-win-setup.exe) · [SHA256](https://github.com/hamanpaul/wugai-windows/releases/download/r70/SHA256SUMS.txt) · [發行說明](https://github.com/hamanpaul/wugai-windows/releases/tag/r70)。請使用 EXE 安裝或升級；同源測試版的 Shift 中英切換已在本機 Windows Terminal／WSL 完成快速連按與切換視窗後的測試。
+目前的 Windows x64 預發布版為 **R70**：[下載安裝程式](https://github.com/hamanpaul/wugai-windows/releases/download/r70/LiuKai-win-setup.exe) · [SHA256](https://github.com/hamanpaul/wugai-windows/releases/download/r70/SHA256SUMS.txt) · [發行說明](https://github.com/hamanpaul/wugai-windows/releases/tag/r70)。請使用 EXE 安裝或升級；R70 已在本機完成升級與記事本輸入測試，同源測試版已在 Windows Terminal／WSL 完成快速 Shift 與切換視窗後的測試。
 
 ## R60 歷史驗收紀錄
 
