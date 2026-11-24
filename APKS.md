@@ -3,16 +3,12 @@
 放 liu-kai（Android 嘸蝦米輸入法）的 debug 測試 APK，方便手機側載。
 **此分支刻意不進 CI、不做 policy check、不開 PR**（與 main 的開發流程分離）；測試 APK 不建立 GitHub Releases。
 
-- 最新：`liu-kai-debug-2026-10-18.apk`（**觸控漏字診斷版，尚未完全修復**；內建使用者字表）
-- [手機下載 APK](https://github.com/hamanpaul/liu-kai/raw/test-apks/liu-kai-debug-2026-10-18.apk)
-- SHA-256：`cb2218c6c007771314c88465a056337c8b4c3cf62e94370131786e76f74df824`
-- Source commit：[`785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b`](https://github.com/hamanpaul/liu-kai/commit/785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b)（`feature/input-touch-diagnosis`，未合併）
-- 已修正：QAZ／PLM 螢幕邊緣與按鍵間隙命中死區；普通空白鍵超過排隊中字母 click 的順序問題。
-- **仍未修復**：快速中文重疊輸入時，Android 延遲 `UnsetPressedState` 可清除下一次按壓而漏字；本版加入取證 log，不宣稱完全解決。
-- 驗證：core／CLI checks PASS；TestPilot 179 項 PASS、行／分支 100%；canonical preflight PASS。完整 emulator 108 項為 **107 PASS／1 FAIL**（語音鍵 Next／Done 標籤差異），app 行 99.9%、分支 98.2%，**未達 100% 門檻，尚不可合併**。單獨語音補測失敗於視窗未穩定，尚不能確認標籤差異原因。
-- [Issue #6](https://github.com/hamanpaul/liu-kai/issues/6)；[完整診斷與證據](https://github.com/hamanpaul/liu-kai/blob/785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b/docs/input-touch-diagnosis.md)。實體手機觸控面板尚未驗證。
-- 需求：Android 11（API 30）以上。Debug log 不含組字／候選文字；可執行 `adb logcat -v threadtime -s LiuKaiTouch:D > liu-kai-touch.log` 收集，重現後按 Ctrl-C。
-- 重建：`./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`
+- 最新：`liu-kai-debug-2026-11-25.apk`（同音 → 注音直接查詢）
+- [手機下載 APK](https://github.com/hamanpaul/liu-kai/raw/test-apks/liu-kai-debug-2026-11-25.apk)
+- SHA-256：`0e0c3d2162899395e127c74cbd0c1a3cf1813430649f08b876f80e3b944bc258`
+- Source commit：[`629d017ef3664b184f18404fc13a6650b766c3a3`](https://github.com/hamanpaul/liu-kai/commit/629d017ef3664b184f18404fc13a6650b766c3a3)
+- 適用 Android 11 以上，內建編譯好的字表。在中文模式按「同音」→「注音」，輸入「ㄒㄧㄚ」後按空白列出候選。點選「蝦」即可看到它的嘸蝦米碼。
+- 模擬器曾重現一般中文輸入在兩指快速交替時偶爾漏一鍵。詳見[既有快打問題](https://github.com/hamanpaul/liu-kai/issues/6)。
 
 ## 安裝與設定
 
@@ -26,6 +22,7 @@
 
 | 日期 | 檔案 | source commit | 內容 |
 |---|---|---|---|
+| 2026-11-25 | `liu-kai-debug-2026-11-25.apk` | `629d017ef3664b184f18404fc13a6650b766c3a3` | 同音 → 注音直接查詢、選字後顯示字根並回到 A–Z；APK SHA-256：`0e0c3d2162899395e127c74cbd0c1a3cf1813430649f08b876f80e3b944bc258` |
 | 2026-10-18 | `liu-kai-debug-2026-10-18.apk` | `785eeb1` | 觸控死區與空白鍵順序修正、debug 取證；仍有未解中文快打 race；全套 107/108，app coverage 未達門檻 |
 | 2026-09-28 | `liu-kai-debug-2026-09-28.apk` | `0308aa4` | SHA-256 `bc964000f0903613…`；App 圖示改用「嘸＋改」logo、修正快打連鍵漏字、合入 PR #2 review 修正（取代同日 `b2aae76` 版） |
 | 2026-09-28 | `liu-kai-debug-2026-09-28.apk` | `b2aae76` | SHA-256 `2afd9cffc5c02660…`；修正鍵盤較高時設定頁試打區被蓋住（取代同日 `ab88901` 版） |
@@ -35,3 +32,16 @@
 | 2026-09-27（第 1 版，已被覆蓋） | `liu-kai-debug-2026-09-27.apk` | `c9c6548` | SHA-256 `5d81f17e2d5d8495…`；內建字表、螢幕鍵盤照官方配置、長按數字與彈出鍵、修正鍵盤跳動 |
 | 2026-09-26（第 2 版） | `liu-kai-debug-2026-09-26.apk` | `9cee47d` | SHA-256 `feb06d7bcd744c11…`；超出候選數／超過四碼為組字失敗、放行字元改以上屏 |
 | 2026-09-26（第 1 版，已被覆蓋） | `liu-kai-debug-2026-09-26.apk` | `d42d9bd` | SHA-256 `5ca8bcadf9ee692a…`；首次發佈：v0.1 MVP＋官方行為對齊 |
+
+## 2026-10-18 測試說明
+
+- 檔案：`liu-kai-debug-2026-10-18.apk`（**觸控漏字診斷版，尚未完全修復**；內建使用者字表）
+- [手機下載 APK](https://github.com/hamanpaul/liu-kai/raw/test-apks/liu-kai-debug-2026-10-18.apk)
+- SHA-256：`cb2218c6c007771314c88465a056337c8b4c3cf62e94370131786e76f74df824`
+- Source commit：[`785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b`](https://github.com/hamanpaul/liu-kai/commit/785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b)（`feature/input-touch-diagnosis`，未合併）
+- 已修正：QAZ／PLM 螢幕邊緣與按鍵間隙命中死區；普通空白鍵超過排隊中字母 click 的順序問題。
+- **仍未修復**：快速中文重疊輸入時，Android 延遲 `UnsetPressedState` 可清除下一次按壓而漏字；本版加入取證 log，不宣稱完全解決。
+- 驗證：core／CLI checks PASS；TestPilot 179 項 PASS、行／分支 100%；canonical preflight PASS。完整 emulator 108 項為 **107 PASS／1 FAIL**（語音鍵 Next／Done 標籤差異），app 行 99.9%、分支 98.2%，**未達 100% 門檻，尚不可合併**。單獨語音補測失敗於視窗未穩定，尚不能確認標籤差異原因。
+- [Issue #6](https://github.com/hamanpaul/liu-kai/issues/6)；[完整診斷與證據](https://github.com/hamanpaul/liu-kai/blob/785eeb11d94f9a07b3d1cf9ac7eb917d5f2f273b/docs/input-touch-diagnosis.md)。實體手機觸控面板尚未驗證。
+- 需求：Android 11（API 30）以上。Debug log 不含組字／候選文字；可執行 `adb logcat -v threadtime -s LiuKaiTouch:D > liu-kai-touch.log` 收集，重現後按 Ctrl-C。
+- 重建：`./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`
