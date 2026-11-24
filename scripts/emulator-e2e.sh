@@ -159,7 +159,13 @@ install_apps() {
 
 if [ $BUILD -eq 1 ]; then
   log "Gradle 建置（debug 版含 JaCoCo instrumentation）"
-  (cd "$ROOT" && ./gradlew --no-daemon -q :app:assembleDebug :testhost:assembleDebug)
+  GRADLE_TASKS=(:app:assembleDebug :testhost:assembleDebug)
+  [ ${#CASES[@]} -ne 0 ] || GRADLE_TASKS+=(:app:assembleDebugAndroidTest)
+  (cd "$ROOT" && ./gradlew --no-daemon -q "${GRADLE_TASKS[@]}")
+fi
+if [ ${#CASES[@]} -eq 0 ] && [ ! -f "$ROOT/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk" ]; then
+  log "完整案例需要 Android framework instrumentation APK；請重新執行並建置"
+  exit 2
 fi
 if [ ! -x "$VENV/bin/testpilot" ]; then
   log "建立 TestPilot 環境 $VENV"
@@ -189,6 +195,40 @@ fi
 
 rm -rf "$COVERAGE_DIR"
 (cd "$ROOT" && LIU_KAI_TESTBED="$ROOT/testpilot/testbed.yaml" "$VENV/bin/liu-kai-coverage" --out "$COVERAGE_DIR/e2e.ec")
+if [ ${#CASES[@]} -eq 0 ]; then
+  log "執行 Android framework touch instrumentation"
+  instrumentation_apk="$ROOT/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+  instrumentation_install_path="$instrumentation_apk"
+  if [ -z "${LINUX_SDK:-}" ]; then
+    instrumentation_stage="$WIN_HOME/AppData/Local/Temp/liu-kai-e2e"
+    mkdir -p "$instrumentation_stage"
+    cp "$instrumentation_apk" "$instrumentation_stage/"
+    instrumentation_install_path=$(wslpath -w "$instrumentation_stage/$(basename "$instrumentation_apk")")
+  fi
+  adb install -r -t "$instrumentation_install_path"
+  adb shell run-as com.hamanpaul.liukai rm -f files/coverage.ec
+  set +e
+  instrumentation_result=$(timeout -k 5s 60s "$ADB_EXE" -s "$SERIAL" shell am instrument -w -r \
+    com.hamanpaul.liukai.test/com.hamanpaul.liukai.ime.TouchDiagnosticsFrameworkTest 2>&1 | tr -d '\r')
+  instrumentation_status=$?
+  set -e
+  instrumentation_code=$(printf '%s\n' "$instrumentation_result" | sed -n 's/^INSTRUMENTATION_CODE: //p')
+  printf '%s\n' "$instrumentation_result"
+  if [ $instrumentation_status -ne 0 ] ||
+    [ "$instrumentation_code" != "-1" ] ||
+    [[ "$instrumentation_result" != *"Framework callback trace verified."* ]]; then
+    log "Android framework touch instrumentation 失敗（exit=$instrumentation_status；需 success code 與 callback marker）"
+    exit 1
+  fi
+  mkdir -p "$COVERAGE_DIR"
+  "$ADB_EXE" -s "$SERIAL" exec-out run-as com.hamanpaul.liukai cat files/coverage.ec \
+    > "$COVERAGE_DIR/instrumentation.ec"
+  [ -s "$COVERAGE_DIR/instrumentation.ec" ] || {
+    log "instrumentation.ec 匯出失敗"
+    exit 1
+  }
+  log "已匯出獨立 instrumentation.ec；e2e.ec 保留原主程序資料"
+fi
 (cd "$ROOT" && ./gradlew --no-daemon -q :app:jacocoE2eReport)
 python3 "$ROOT/scripts/coverage-gaps.py" "$ROOT/app/build/reports/jacoco/jacocoE2eReport/jacocoE2eReport.xml" || true
 [ -n "$latest" ] && log "報告：$latest/report.md"

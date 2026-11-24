@@ -17,8 +17,12 @@ class Readings private constructor(private val map: Map<String, List<String>>, p
 
     fun homophones(ch: String, table: CompiledTable): List<String> {
         val primary = of(ch).firstOrNull() ?: return emptyList()
-        return indexFor(table)[primary].orEmpty()
+        return homophonesByReading(primary, table)
     }
+
+    /** Look up characters whose first (primary) reading exactly matches [readingKey]. */
+    fun homophonesByReading(readingKey: String, table: CompiledTable): List<String> =
+        indexFor(table)[readingKey].orEmpty()
 
     @Synchronized
     private fun indexFor(table: CompiledTable): Map<String, List<String>> {

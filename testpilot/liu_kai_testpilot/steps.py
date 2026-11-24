@@ -78,7 +78,7 @@ class StepExecutor:
         self.adb = adb
         self.config = config
         self._sleep = sleep or time.sleep
-        self._clock = clock or time.monotonic
+        self._clock = clock or time.perf_counter
         # 已確認畫在畫面上的輸入法視窗位置（候選列 y）；截圖很慢，同一次顯示只確認一次
         self._drawn_at: int | None = None
         # rotate 步驟設定的螢幕方向（0 直式）；plugin 的 teardown 轉回直式後歸零

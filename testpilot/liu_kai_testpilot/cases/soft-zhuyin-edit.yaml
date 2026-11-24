@@ -1,0 +1,33 @@
+id: soft-zhuyin-edit
+name: 修改注音、聲調確認與取消
+description: 查無結果後修正，第四聲只列候選；退格返回，取消查詢後仍可直接輸入字根。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器
+preconditions:
+  keyboard: soft
+steps:
+- {id: open, action: tap_key, target: EMU, key: homophone}
+- {id: entry, action: tap_key, target: EMU, key: zhuyin}
+- {id: miss, action: keys, target: EMU, keys: [q, j, '/', SPACE]}
+- {id: empty, action: ime_state, target: EMU}
+- {id: correct, action: keys, target: EMU, keys: ['5', '4']}
+- {id: toned, action: ime_state, target: EMU}
+- {id: back, action: tap_key, target: EMU, key: backspace}
+- {id: restored, action: read_field, target: EMU, field: plain}
+- {id: cancel, action: keys, target: EMU, keys: [ESCAPE]}
+- {id: ordinary, action: tap_key, target: EMU, key: q}
+- {id: commit, action: tap_key, target: EMU, key: space}
+- {id: reopen, action: tap_key, target: EMU, key: homophone}
+- {id: reenter, action: tap_key, target: EMU, key: zhuyin}
+- {id: before_enter, action: keys, target: EMU, keys: ['5', j, '/', SPACE]}
+- {id: cancel_enter, action: tap_key, target: EMU, key: enter}
+- {id: read, action: read_field, target: EMU, field: plain}
+pass_criteria:
+- {field: empty.candidates, operator: equals, value: []}
+- {field: toned.candidates, operator: equals, value: [仲]}
+- {field: restored.text, operator: equals, value: ㄓㄨㄥˋ}
+- {field: read.text, operator: equals, value: 中}

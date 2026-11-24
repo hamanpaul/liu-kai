@@ -4,6 +4,7 @@ import com.hamanpaul.liukai.core.Fixtures
 import com.hamanpaul.liukai.core.engine.InputMode
 import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
+import com.hamanpaul.liukai.core.reading.Readings
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -29,6 +30,11 @@ class ImeControllerTest {
 
     private fun down(keyCode: Int, ch: Char = 0.toChar(), ctrl: Boolean = false, repeat: Int = 0) =
         c.keyDown(keyCode, repeat, ch.code, ctrl, alt = false, meta = false)
+
+    private fun enterZhuyin() {
+        c.softKey(SoftKey.Homophone, 0, classText)
+        c.softKey(SoftKey.Zhuyin, 0, classText)
+    }
 
     @Test
     fun `服務端讀取結果欄位：consumed、ops 與各操作的內容`() {
@@ -166,6 +172,8 @@ class ImeControllerTest {
         assertEquals(InputMode.CHINESE, c.engine.mode)
         c.startInput(classText or textPassword)
         assertEquals(listOf(IcOp.Commit("b")), c.softKey(SoftKey.Text('b'), 0, classText or textPassword))
+        assertEquals(emptyList(), c.softKey(SoftKey.Homophone, 0, classText or textPassword))
+        assertEquals(emptyList(), c.softKey(SoftKey.Zhuyin, 0, classText or textPassword))
     }
 
     @Test
@@ -197,5 +205,91 @@ class ImeControllerTest {
         assertEquals(Language.SIMPLIFIED, c.engine.language)
         assertEquals(emptyList(), c.selectLanguage(Language.JAPANESE))
         assertEquals(Language.JAPANESE, c.engine.language)
+    }
+
+    @Test
+    fun `硬體注音按鍵直查讀音候選`() {
+        enterZhuyin()
+
+        // Daqian physical keys: 5=ㄓ, j=ㄨ, /=ㄥ, 4=ˋ.
+        down(12, '5')
+        down(keyJ, 'j')
+        down(76, '/')
+        down(11, '4')
+
+        assertTrue(c.engine.candidates.isNotEmpty())
+        assertEquals(null, c.engine.homophoneOf)
+        assertTrue(c.engine.candidates.any { it.text == "仲" })
+    }
+
+    @Test
+    fun `注音組音中一般硬體按鍵仍接收 repeat`() {
+        enterZhuyin()
+
+        assertTrue(down(12, '5').consumed)
+        assertTrue(down(12, '5', repeat = 1).consumed)
+        assertEquals("ㄓ", c.engine.zhuyinText)
+    }
+
+    @Test
+    fun `硬體注音聲調確認鍵長按不會再選候選`() {
+        enterZhuyin()
+        down(12, '5')
+        down(keyJ, 'j')
+        down(76, '/')
+
+        val confirm = down(11, '4')
+        assertTrue(confirm.consumed)
+        val candidates = c.engine.candidates
+        assertTrue(candidates.isNotEmpty())
+        assertEquals("仲", candidates.first().text)
+
+        assertEquals(ImeOutcome(true, emptyList()), down(11, '4', repeat = 1))
+        assertEquals(candidates, c.engine.candidates)
+        assertEquals(ImeOutcome(true, emptyList()), c.keyUp(11))
+        assertTrue(down(7, '0').ops.any { it is IcOp.Commit })
+        assertTrue(c.engine.codeHint != null)
+    }
+
+    @Test
+    fun `硬體一聲空白確認的 repeat 不會選字，放開後仍可選字`() {
+        enterZhuyin()
+        down(12, '5')
+        down(keyJ, 'j')
+        down(76, '/')
+
+        assertTrue(down(space, ' ').consumed)
+        val candidates = c.engine.candidates
+        assertTrue(candidates.isNotEmpty())
+        assertTrue(candidates.any { it.text == "中" })
+        assertEquals(ImeOutcome(true, emptyList()), down(space, ' ', repeat = 1))
+        assertEquals(candidates, c.engine.candidates)
+
+        assertEquals(ImeOutcome(true, emptyList()), c.keyUp(space))
+        val select = down(7, '0')
+        assertTrue(select.ops.any { it is IcOp.Commit })
+        assertTrue(c.engine.codeHint != null)
+    }
+
+    @Test
+    fun `硬體輕聲空白確認的 repeat 不會選字`() {
+        c.engine.setTables(
+            Fixtures.traditional,
+            Readings.parse(sequenceOf("中\t˙ㄓㄨㄥ")),
+        )
+        enterZhuyin()
+        down(14, '7')
+        down(12, '5')
+        down(keyJ, 'j')
+        down(76, '/')
+
+        assertTrue(down(space, ' ').consumed)
+        val candidates = c.engine.candidates
+        assertTrue(candidates.isNotEmpty())
+        assertEquals(ImeOutcome(true, emptyList()), down(space, ' ', repeat = 1))
+        assertEquals(candidates, c.engine.candidates)
+
+        assertEquals(ImeOutcome(true, emptyList()), c.keyUp(space))
+        assertTrue(down(7, '0').ops.any { it is IcOp.Commit })
     }
 }

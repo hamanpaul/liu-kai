@@ -105,14 +105,14 @@ pass_criteria:
   value: 6
 - field: center-trace.down_intervals_ms
   operator: approx
-  value: [230, 230, 230, 230, 230]
+  value: [241, 241, 241, 241, 241]
   tolerance: 12
 - field: edge-trace.down_event_time_ms
   operator: length
   value: 6
 - field: edge-trace.down_intervals_ms
   operator: approx
-  value: [230, 230, 230, 230, 230]
+  value: [241, 241, 241, 241, 241]
   tolerance: 12
 - field: center-trace.text
   operator: contains

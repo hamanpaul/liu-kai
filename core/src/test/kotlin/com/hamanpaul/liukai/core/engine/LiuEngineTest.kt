@@ -20,6 +20,11 @@ class LiuEngineTest {
 
     private fun texts() = e.candidates.map { it.text }
 
+    private fun enterZhuyin(engine: LiuEngine = e) {
+        engine.handle(ImeEvent.HomophoneKey)
+        engine.handle(ImeEvent.HomophoneKey)
+    }
+
     @Test
     fun `輸入字碼顯示候選，空白上屏首選`() {
         type("ba")
@@ -184,9 +189,11 @@ class LiuEngineTest {
     @Test
     fun `同音鍵前置查詢：按同音鍵後打字碼，空白選字列出該字的同音字，組字區清空`() {
         assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.HomophoneKey))
+        assertEquals(ZhuyinStage.ENTRY, e.zhuyinStage)
         assertTrue(e.isComposing)
         assertEquals("'", e.displayComposing)
         type("q")
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
         assertEquals("'q", e.displayComposing)
         assertEquals(listOf("中", "仲"), texts())
         assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Space))
@@ -483,6 +490,162 @@ class LiuEngineTest {
         e.handle(ImeEvent.Space)
         e.handle(ImeEvent.Space)
         assertEquals(CodeHint("木", listOf("b")), e.codeHint)
+    }
+
+    @Test
+    fun `同音入口第二次按鍵切換注音並直接查主要讀音後出字回到字根鍵盤`() {
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.HomophoneKey))
+        assertEquals(ZhuyinStage.ENTRY, e.zhuyinStage)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.HomophoneKey))
+        assertEquals(ZhuyinStage.COMPOSING, e.zhuyinStage)
+        assertNull(e.nextKeys)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.HomophoneKey))
+
+        e.handle(Key('5'))
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('5')))
+        for (key in "j/") e.handle(Key(key))
+        assertEquals("ㄓㄨㄥ", e.zhuyinText)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Space))
+        assertEquals(ZhuyinStage.CANDIDATES, e.zhuyinStage)
+        assertNull(e.nextKeys)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.HomophoneKey))
+        assertNull(e.homophoneOf)
+        assertEquals(listOf("中", "鐘", "忠"), texts())
+
+        assertEquals(EngineResult(true, "忠"), e.handle(ImeEvent.Select(2)))
+        assertEquals(CodeHint("忠", listOf("qa")), e.codeHint)
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+        assertFalse(e.isComposing)
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('b')))
+        assertEquals("b", e.composing)
+    }
+
+    @Test
+    fun `注音聲調鍵只完成讀音，候選階段數字鍵才選字`() {
+        enterZhuyin()
+        for (key in "5j/") e.handle(Key(key))
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('4')))
+        assertEquals(ZhuyinStage.CANDIDATES, e.zhuyinStage)
+        assertEquals(listOf("仲"), texts())
+        assertNull(e.codeHint)
+        assertEquals(EngineResult(true, "仲"), e.handle(ImeEvent.Select(0)))
+
+        enterZhuyin()
+        for (key in "5j/") e.handle(Key(key))
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Space))
+        assertEquals(ZhuyinStage.CANDIDATES, e.zhuyinStage)
+        assertEquals(EngineResult(true, "鐘"), e.handle(Key('1')))
+    }
+
+    @Test
+    fun `注音候選退回組音可修正且查無結果仍保留讀音`() {
+        enterZhuyin()
+        for (key in "5j/") e.handle(Key(key))
+        e.handle(ImeEvent.Space)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Backspace))
+        assertEquals(ZhuyinStage.COMPOSING, e.zhuyinStage)
+        assertEquals("ㄓㄨㄥ", e.zhuyinText)
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('a')))
+        assertEquals("ㄇㄨㄥ", e.zhuyinText)
+
+        e.handle(ImeEvent.Escape)
+        enterZhuyin()
+        e.handle(Key('q'))
+        assertEquals("ㄆ", e.zhuyinText)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Space))
+        assertEquals(ZhuyinStage.COMPOSING, e.zhuyinStage)
+        assertTrue(e.candidates.isEmpty())
+        assertEquals("ㄆ", e.zhuyinText)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Backspace))
+        assertEquals(ZhuyinStage.COMPOSING, e.zhuyinStage)
+        assertEquals("", e.zhuyinText)
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Backspace))
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+    }
+
+    @Test
+    fun `輕聲按空白確認後查詢且Enter Esc 與重置不提交注音`() {
+        val neutralReadings = Readings.parse(sequenceOf("中\t˙ㄓㄨㄥ"))
+        val neutral = LiuEngine(Fixtures.traditional, neutralReadings)
+        enterZhuyin(neutral)
+        for (key in "5j/7") neutral.handle(Key(key))
+        assertEquals(ZhuyinStage.COMPOSING, neutral.zhuyinStage)
+        assertEquals("ㄓㄨㄥ˙", neutral.zhuyinText)
+        assertEquals(EngineResult.CONSUMED, neutral.handle(ImeEvent.Space))
+        assertEquals(ZhuyinStage.CANDIDATES, neutral.zhuyinStage)
+        assertEquals(listOf("中"), neutral.candidates.map { it.text })
+        assertEquals(EngineResult(true, "中"), neutral.handle(ImeEvent.Space))
+
+        enterZhuyin()
+        for (key in "5j/") e.handle(Key(key))
+        assertEquals(EngineResult(true, null), e.handle(ImeEvent.Enter))
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+        enterZhuyin()
+        e.handle(Key('5'))
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Escape))
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+        enterZhuyin()
+        e.handle(Key('5'))
+        e.reset()
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+        assertEquals("", e.zhuyinText)
+    }
+
+    @Test
+    fun `聲調候選退回組音保留完整讀音`() {
+        enterZhuyin()
+        for (key in "5j/4") e.handle(Key(key))
+        assertEquals(ZhuyinStage.CANDIDATES, e.zhuyinStage)
+        e.handle(ImeEvent.Backspace)
+        assertEquals(ZhuyinStage.COMPOSING, e.zhuyinStage)
+        assertEquals("ㄓㄨㄥˋ", e.zhuyinText)
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('4')))
+        assertEquals(ZhuyinStage.CANDIDATES, e.zhuyinStage)
+    }
+
+    @Test
+    fun `空注音空白不送空白字元且注音候選按Enter清除不選字`() {
+        enterZhuyin()
+        assertEquals(EngineResult.CONSUMED, e.handle(ImeEvent.Space))
+        assertEquals(ZhuyinStage.COMPOSING, e.zhuyinStage)
+        assertTrue(e.candidates.isEmpty())
+        assertEquals(EngineResult.CONSUMED, e.handle(Key('!')))
+        assertTrue(e.failed)
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+
+        enterZhuyin()
+        for (key in "5j/") e.handle(Key(key))
+        e.handle(ImeEvent.Space)
+        assertEquals(ZhuyinStage.CANDIDATES, e.zhuyinStage)
+        assertEquals(EngineResult(true, null), e.handle(ImeEvent.Enter))
+        assertEquals(ZhuyinStage.INACTIVE, e.zhuyinStage)
+        assertFalse(e.failed)
+    }
+
+    @Test
+    fun `滿長讀音仍可替換同類符號與聲調`() {
+        val toneReplacement = LiuEngine(
+            Fixtures.traditional,
+            Readings.parse(sequenceOf("中\tㄓㄨㄥˇ")),
+        )
+        enterZhuyin(toneReplacement)
+        for (key in "5j/4") toneReplacement.handle(Key(key))
+        assertEquals(ZhuyinStage.COMPOSING, toneReplacement.zhuyinStage)
+        toneReplacement.handle(Key('3'))
+        assertEquals(ZhuyinStage.CANDIDATES, toneReplacement.zhuyinStage)
+        assertEquals(listOf("中"), toneReplacement.candidates.map { it.text })
+
+        val symbolReplacement = LiuEngine(
+            Fixtures.traditional,
+            Readings.parse(sequenceOf("中\tㄓㄩㄥˇ")),
+        )
+        enterZhuyin(symbolReplacement)
+        for (key in "5j/3") symbolReplacement.handle(Key(key))
+        assertEquals(ZhuyinStage.COMPOSING, symbolReplacement.zhuyinStage)
+        symbolReplacement.handle(Key('m'))
+        assertEquals(ZhuyinStage.CANDIDATES, symbolReplacement.zhuyinStage)
+        assertEquals("ㄓㄩㄥˇ", symbolReplacement.zhuyinText)
     }
 
     @Test

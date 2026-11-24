@@ -1,0 +1,26 @@
+id: real-zhuyin-shrimp
+name: 以注音查「蝦」並接著輸入嘸蝦米字根
+description: 使用真實字表查ㄒㄧㄚ，點「蝦」後接著用 ci 輸入「中」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器
+preconditions:
+  keyboard: soft
+  table: real
+steps:
+- {id: open, action: tap_key, target: EMU, key: homophone}
+- {id: entry, action: tap_key, target: EMU, key: zhuyin}
+- {id: initial, action: tap_key, target: EMU, key: 'zhuyin:ㄒ'}
+- {id: medial, action: tap_key, target: EMU, key: 'zhuyin:ㄧ'}
+- {id: final, action: tap_key, target: EMU, key: 'zhuyin:ㄚ'}
+- {id: confirm, action: tap_key, target: EMU, key: space}
+- {id: pick, action: tap_candidate, target: EMU, text: 蝦}
+- {id: after_pick, action: ime_state, target: EMU}
+- {id: ordinary, action: keys, target: EMU, keys: [c, i, SPACE]}
+- {id: read, action: read_field, target: EMU, field: plain}
+pass_criteria:
+- {field: after_pick.code_hint, operator: contains, value: 蝦}
+- {field: read.text, operator: equals, value: 蝦中}

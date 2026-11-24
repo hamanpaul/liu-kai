@@ -5,6 +5,7 @@ import com.hamanpaul.liukai.core.engine.EngineEvent
 import com.hamanpaul.liukai.core.engine.EngineResult
 import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
+import com.hamanpaul.liukai.core.engine.ZhuyinStage
 
 /**
  * 輸入法的平台無關控制層：接收實體鍵、軟鍵盤、候選列與游標事件，
@@ -19,6 +20,8 @@ class ImeController(val engine: LiuEngine) {
     private val consumedKeys = HashSet<Int>()
     /** keyDown 經 InputConnection 轉送的鍵，其 keyUp 也要轉送。 */
     private val forwardedKeys = HashSet<Int>()
+    /** 完成注音讀音的實體按鍵，在 keyUp 前不可把硬體 repeat 解讀成候選選字。 */
+    private val zhuyinCompletionKeys = HashSet<Int>()
 
     val imeActive: Boolean get() = tableLoaded && !passwordField
 
@@ -30,20 +33,30 @@ class ImeController(val engine: LiuEngine) {
         tracker.reset()
         consumedKeys.clear()
         forwardedKeys.clear()
+        zhuyinCompletionKeys.clear()
         passwordField = EditorPolicy.isPassword(inputType)
     }
 
     fun finishInput() {
         engine.reset()
         tracker.reset()
+        zhuyinCompletionKeys.clear()
     }
 
     fun keyDown(keyCode: Int, repeatCount: Int, unicodeChar: Int, ctrl: Boolean, alt: Boolean, meta: Boolean): ImeOutcome {
         shift.onKeyDown(keyCode, repeatCount)
         if (ShiftTapDetector.isShift(keyCode) || !imeActive) return PASS
+        if (repeatCount > 0 && keyCode in zhuyinCompletionKeys) {
+            consumedKeys += keyCode
+            return ImeOutcome(true, emptyList())
+        }
         val action = HardwareKeys.translate(keyCode, unicodeChar, ctrl, alt, meta)
         if (action !is KeyAction.Engine) return PASS
+        val beforeStage = engine.zhuyinStage
         val result = engine.handle(action.event)
+        if (result.consumed && beforeStage == ZhuyinStage.COMPOSING && engine.zhuyinStage == ZhuyinStage.CANDIDATES) {
+            zhuyinCompletionKeys += keyCode
+        }
         val ops = tracker.sync(result, engine)
         if (result.consumed) {
             consumedKeys += keyCode
@@ -68,6 +81,7 @@ class ImeController(val engine: LiuEngine) {
     }
 
     fun keyUp(keyCode: Int): ImeOutcome {
+        zhuyinCompletionKeys.remove(keyCode)
         if (shift.onKeyUp(keyCode) && imeActive) {
             return ImeOutcome(false, tracker.sync(engine.handle(EngineEvent.ToggleEnglish), engine))
         }
@@ -85,6 +99,7 @@ class ImeController(val engine: LiuEngine) {
             SoftKey.Space -> ImeEvent.Space
             SoftKey.Enter -> ImeEvent.Enter
             SoftKey.Homophone -> ImeEvent.HomophoneKey
+            SoftKey.Zhuyin -> ImeEvent.HomophoneKey
             SoftKey.ToggleEnglish -> return tracker.sync(engine.handle(EngineEvent.ToggleEnglish), engine)
         }
         if (!imeActive) return passThrough(key, imeOptions, inputType)
@@ -112,7 +127,7 @@ class ImeController(val engine: LiuEngine) {
         is SoftKey.Text -> listOf(IcOp.Commit(key.char.toString()))
         SoftKey.Space -> listOf(IcOp.Commit(" "))
         SoftKey.Backspace -> listOf(IcOp.SendKey(HardwareKeys.KEYCODE_DEL))
-        SoftKey.Homophone -> emptyList()
+        SoftKey.Homophone, SoftKey.Zhuyin -> emptyList()
         else -> listOf(
             when (val enter = EditorPolicy.enterAction(imeOptions, inputType)) {
                 is EnterAction.EditorAction -> IcOp.EditorAction(enter.actionId)

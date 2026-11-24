@@ -1,0 +1,32 @@
+id: soft-zhuyin-reopen
+name: 同一輸入欄收起再展開鍵盤時繼續原注音查詢
+description: 部分組音時收起鍵盤，再點同一欄完成讀音；候選階段再收起、展開並選字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器
+preconditions:
+  keyboard: soft
+steps:
+- {id: open, action: tap_key, target: EMU, key: homophone}
+- {id: entry, action: tap_key, target: EMU, key: zhuyin}
+- {id: initial, action: tap_key, target: EMU, key: 'zhuyin:ㄓ'}
+- {id: hide, action: keys, target: EMU, keys: [BACK]}
+- {id: reopen, action: tap_field, target: EMU, field: plain}
+- {id: medial, action: tap_key, target: EMU, key: 'zhuyin:ㄨ'}
+- {id: final, action: tap_key, target: EMU, key: 'zhuyin:ㄥ'}
+- {id: confirm, action: tap_key, target: EMU, key: space}
+- {id: hide_choices, action: keys, target: EMU, keys: [BACK]}
+- {id: show_choices, action: tap_field, target: EMU, field: plain}
+- {id: choices, action: ime_state, target: EMU}
+- {id: choose, action: tap_key, target: EMU, key: 'zhuyin:2'}
+- {id: read, action: read_field, target: EMU, field: plain}
+pass_criteria:
+- {field: choices.candidates, operator: equals, value: [中, 鐘, 忠]}
+- {field: choices.layer, operator: equals, value: zhuyin}
+- field: choices.row_labels
+  operator: contains
+  value: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', ㄦ]
+- {field: read.text, operator: equals, value: 忠}
