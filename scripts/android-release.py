@@ -19,6 +19,30 @@ TABLE_SHA256 = "eb6cd2c28724a992a7864e33e6bf6b123a87f2aa3281a80053287d856786db28
 SIGNER_SHA256 = "a61ee662f83fd693890e1272e4d150d9797915d00f2655a2b4a32ff5c5eee222"
 
 
+def build_tools():
+    sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    if not sdk:
+        raise SystemExit("Set ANDROID_HOME or ANDROID_SDK_ROOT to the Android SDK directory")
+    root = Path(sdk) / "build-tools"
+    usable = [directory for directory in root.glob("*")
+              if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", directory.name)
+              and all(tool.is_file() and os.access(tool, os.X_OK)
+                      for tool in (directory / "apksigner", directory / "aapt"))]
+    if not usable:
+        raise SystemExit(f"No stable Android build-tools with apksigner and aapt under {root}")
+    return max(usable, key=lambda path: (path.name == "35.0.0", tuple(map(int, path.name.split(".")))))
+
+
+def check_signer(certs):
+    lines = [line.strip() for line in certs.splitlines() if line.lstrip().lower().startswith("signer")]
+    if any(not line.startswith("Signer #1 ") for line in lines):
+        raise SystemExit("Unexpected APK signer in apksigner output")
+    prefix = "Signer #1 certificate SHA-256 digest: "
+    digests = [line.removeprefix(prefix).lower() for line in lines if line.startswith("Signer #1 certificate SHA-256")]
+    if len(digests) != 1 or digests[0] not in (SIGNER_SHA256, bytes.fromhex(SIGNER_SHA256).hex(":")):
+        raise SystemExit("APK signer differs from the installed application")
+
+
 def verify(apk):
     with zipfile.ZipFile(apk) as archive:
         table = "assets/bundled.liutable"
@@ -26,12 +50,9 @@ def verify(apk):
             raise SystemExit("Expected exactly one bundled dictionary in the distribution APK")
         if sha256(archive.read(table)).hexdigest() != TABLE_SHA256:
             raise SystemExit("Packaged dictionary differs from the approved release dictionary")
-    sdk = Path(os.environ["ANDROID_HOME"])
-    tools = sdk / "build-tools/35.0.0"
+    tools = build_tools()
     certs = subprocess.check_output([tools / "apksigner", "verify", "--print-certs", apk], text=True)
-    signers = re.findall(r"^Signer #\d+ certificate SHA-256 digest: (\w+)$", certs, re.MULTILINE)
-    if signers != [SIGNER_SHA256]:
-        raise SystemExit("APK signer differs from the installed application")
+    check_signer(certs)
     manifest = subprocess.check_output(
         [tools / "aapt", "dump", "xmltree", apk, "AndroidManifest.xml"], text=True)
     if re.search(r'A: android:debuggable\([^)]*\)=\(type 0x12\)0x(?:f+|1)\b', manifest):

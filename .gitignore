@@ -6,6 +6,7 @@ local.properties
 .idea/
 captures/
 .kotlin/
+__pycache__/
 
 # 使用者自建字表與其轉換產物不進 git（見 CLAUDE.md「本專案規範」）
 liu-kai-data/
