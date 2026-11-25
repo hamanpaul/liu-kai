@@ -176,12 +176,16 @@ public:
         return it == data_->entries.end() ? std::vector<std::string>{} : it->second.readings;
     }
 
+    std::vector<std::string> matches_primary_reading(const std::string& reading) const {
+        auto it = data_->primary_index.find(reading);
+        if (it == data_->primary_index.end()) return {};
+        return {it->second.begin(), it->second.end()};
+    }
+
     std::vector<std::string> primary_matches(const std::string& seed) const {
         auto entry = data_->entries.find(seed);
         if (entry == data_->entries.end() || entry->second.readings.empty()) return {};
-        auto it = data_->primary_index.find(entry->second.readings.front());
-        if (it == data_->primary_index.end()) return {};
-        return {it->second.begin(), it->second.end()};
+        return matches_primary_reading(entry->second.readings.front());
     }
 
     std::vector<std::string> matches_reading(const std::string& reading) const {

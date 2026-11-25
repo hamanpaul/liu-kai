@@ -226,6 +226,16 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
  ITfContext* candidate_context=nullptr;ITfSource* layout_source=nullptr;DWORD layout_cookie=TF_INVALID_COOKIE;bool related_focus_cleanup_pending=false;
  HRESULT layout_watch_status=E_UNEXPECTED,layout_cleanup_status=S_OK;
  static bool same_context(ITfContext* a,ITfContext* b){if(!a||!b)return false;IUnknown *x=nullptr,*y=nullptr;HRESULT hx=a->QueryInterface(IID_IUnknown,(void**)&x),hy=b->QueryInterface(IID_IUnknown,(void**)&y);bool same=SUCCEEDED(hx)&&SUCCEEDED(hy)&&x==y;if(x)x->Release();if(y)y->Release();return same;}
+ // Some TSF hosts omit WM_KEYDOWN's previous-state bit on repeats. Keep the
+ // engine's confirmation key pending until this context reports its release.
+ bool owns_phonetic_confirmation_key(ITfContext* ctx,WPARAM key) const {
+  if(!engine||!candidate_context)return false;
+  const char confirming_key=engine->phonetic_confirmation_key();
+  return confirming_key!=0&&key==static_cast<WPARAM>(confirming_key)&&candidate_context&&same_context(ctx,candidate_context);
+ }
+ bool suppress_phonetic_confirmation_repeat(ITfContext* ctx,WPARAM key,bool shift,bool control,bool alt) const {
+  return !shift&&!control&&!alt&&has_focus&&owns_phonetic_confirmation_key(ctx,key);
+ }
  HRESULT stop_watching_context(){
   ++layout_generation;layout_refresh_pending=false;layout_subscription_active=false;
   if(layout_source&&layout_cookie!=TF_INVALID_COOKIE){
@@ -240,6 +250,7 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
  }
  void watch_context(ITfContext* ctx){
   if(layout_subscription_active&&same_context(ctx,candidate_context))return;
+   if(candidate_context&&!same_context(ctx,candidate_context)&&engine)engine->clear_phonetic_confirmation_key();
   if(FAILED(stop_watching_context()))return;
   candidate_context=ctx;candidate_context->AddRef();
   layout_watch_status=ctx->QueryInterface(IID_ITfSource,(void**)&layout_source);
@@ -661,7 +672,7 @@ public:
   HRESULT result=deactivate_impl();trace(boshiamy::runtime_diagnostics::Event::Deactivate,nullptr,result);return result;
  }
  HRESULT deactivate_impl() {
-  has_focus=false;candidate_placement.valid=false;hide_candidate();HRESULT reading_cleanup=end_reading_ui();HRESULT ui_cleanup=end_candidate_ui();if(SUCCEEDED(ui_cleanup))candidate_ui.reset();if(SUCCEEDED(reading_cleanup))reading_ui.reset();clear_query_releases();dismiss_learning_hint(false);conversion_cleanup_status=conversion.detach();open_close_cleanup_status=open_close.detach();pending_open.reset();reset_shift_gesture();HRESULT layout_cleanup=stop_watching_context();detach_language_bar();candidate_window.reset();ui_elements_only_activation=false;HRESULT hr=FAILED(ui_cleanup)?ui_cleanup:FAILED(reading_cleanup)?reading_cleanup:FAILED(layout_cleanup)?layout_cleanup:FAILED(conversion_cleanup_status)?conversion_cleanup_status:FAILED(open_close_cleanup_status)?open_close_cleanup_status:S_OK;
+  has_focus=false;if(engine)engine->clear_phonetic_confirmation_key();candidate_placement.valid=false;hide_candidate();HRESULT reading_cleanup=end_reading_ui();HRESULT ui_cleanup=end_candidate_ui();if(SUCCEEDED(ui_cleanup))candidate_ui.reset();if(SUCCEEDED(reading_cleanup))reading_ui.reset();clear_query_releases();dismiss_learning_hint(false);conversion_cleanup_status=conversion.detach();open_close_cleanup_status=open_close.detach();pending_open.reset();reset_shift_gesture();HRESULT layout_cleanup=stop_watching_context();detach_language_bar();candidate_window.reset();ui_elements_only_activation=false;HRESULT hr=FAILED(ui_cleanup)?ui_cleanup:FAILED(reading_cleanup)?reading_cleanup:FAILED(layout_cleanup)?layout_cleanup:FAILED(conversion_cleanup_status)?conversion_cleanup_status:FAILED(open_close_cleanup_status)?open_close_cleanup_status:S_OK;
   if(keys){preserved_cleanup_status=preserved_keys.clear(*keys).operation;if(FAILED(preserved_cleanup_status)&&SUCCEEDED(hr))hr=preserved_cleanup_status;
    if(advised){HRESULT unadvised=keys->UnadviseKeyEventSink(client);if(FAILED(unadvised)&&SUCCEEDED(hr))hr=unadvised;}advised=false;
    if(!preserved_keys.owns(boshiamy::preserved_keys::Key::language_toggle)&&!preserved_keys.owns(boshiamy::preserved_keys::Key::shape_toggle)){keys->Release();keys=nullptr;}
@@ -703,8 +714,8 @@ public:
  }
  HWND candidate_window_handle() const{return candidate_window?candidate_window->hwnd():nullptr;}
  HRESULT layout_watch_result() const{return layout_watch_status;}
- HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL focused) override{ServicePin pin(this);has_focus=focused!=FALSE;if(!has_focus){clear_query_releases();dismiss_learning_hint();reset_shift_gesture();++layout_generation;layout_refresh_pending=false;cancel_related_seed_on_focus_loss();end_candidate_ui();if(candidate_window)candidate_window->on_focus_lost();}else{if(related_focus_cleanup_pending)cancel_related_seed_on_focus_loss();if(engine&&engine->snapshot().composition.empty())reload_settings();if(related_focus_cleanup_pending){if(candidate_window)candidate_window->hide();}else request_candidate_refresh();}trace(boshiamy::runtime_diagnostics::Event::Focus);return S_OK;}
- HRESULT STDMETHODCALLTYPE OnLayoutChange(ITfContext* ctx,TfLayoutCode code,ITfContextView*) override{if(!layout_subscription_active||!same_context(ctx,candidate_context))return S_OK;if(code==TF_LC_DESTROY){ServicePin pin(this);if(!composition&&engine)engine->dismiss_hint();stop_watching_context();candidate_placement.valid=false;hide_candidate();end_reading_ui();end_candidate_ui();return S_OK;}request_candidate_refresh();return S_OK;}
+  HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL focused) override{ServicePin pin(this);has_focus=focused!=FALSE;if(!has_focus){if(engine)engine->clear_phonetic_confirmation_key();clear_query_releases();dismiss_learning_hint();reset_shift_gesture();++layout_generation;layout_refresh_pending=false;cancel_related_seed_on_focus_loss();end_candidate_ui();if(candidate_window)candidate_window->on_focus_lost();}else{if(related_focus_cleanup_pending)cancel_related_seed_on_focus_loss();if(engine&&engine->snapshot().composition.empty())reload_settings();if(related_focus_cleanup_pending){if(candidate_window)candidate_window->hide();}else request_candidate_refresh();}trace(boshiamy::runtime_diagnostics::Event::Focus);return S_OK;}
+  HRESULT STDMETHODCALLTYPE OnLayoutChange(ITfContext* ctx,TfLayoutCode code,ITfContextView*) override{if(!layout_subscription_active||!same_context(ctx,candidate_context))return S_OK;if(code==TF_LC_DESTROY){ServicePin pin(this);if(engine)engine->clear_phonetic_confirmation_key();if(!composition&&engine)engine->dismiss_hint();stop_watching_context();candidate_placement.valid=false;hide_candidate();end_reading_ui();end_candidate_ui();return S_OK;}request_candidate_refresh();return S_OK;}
  static bool root_key(WPARAM w,char& ch){ if(w>=0x41&&w<=0x5a){ch=(char)('a'+(w-0x41));return true;} switch(w){case VK_OEM_COMMA:ch=',';return true;case VK_OEM_PERIOD:ch='.';return true;case VK_OEM_7:ch=static_cast<char>(39);return true;case VK_OEM_4:ch='[';return true;case VK_OEM_6:ch=']';return true;default:return false;} }
  static bool lower_symbol_key(WPARAM w){return w==VK_OEM_COMMA||w==VK_OEM_PERIOD||w==VK_OEM_7||w==VK_OEM_4||w==VK_OEM_6;}
  static bool auxiliary_key(WPARAM w,char& ch){switch(w){case VK_OEM_1:ch=';';return true;case VK_OEM_2:ch='/';return true;case VK_OEM_MINUS:ch='-';return true;default:return false;}}
@@ -744,10 +755,12 @@ void set_shift_uppercase(bool uppercase){shift_uppercase=uppercase;}
   trace(boshiamy::runtime_diagnostics::Event::TestDown,ctx,hr,S_FALSE,eaten?*eaten:FALSE);return hr;
  }
  HRESULT test_key_down_impl(ITfContext* ctx,WPARAM w,LPARAM flags,bool shift,bool control,bool alt,BOOL* eaten){
-  if(!eaten)return E_POINTER;*eaten=FALSE;if(!engine||!mgr||!ctx||candidate_ui_publishing)return S_OK;
+  if(!eaten)return E_POINTER;*eaten=FALSE;
+  if(!engine||!mgr||!ctx||candidate_ui_publishing)return S_OK;
   if(boshiamy::tsf_activation::classify_context(boshiamy::tsf_activation::read_context_gates(ctx))==boshiamy::tsf_activation::ContextDisposition::Blocked)return S_OK;
   apply_pending_open();
   if(engine->snapshot().composition.empty())reload_settings();
+  if(suppress_phonetic_confirmation_repeat(ctx,w,shift,control,alt)){*eaten=TRUE;return S_OK;}
   auto state=engine->snapshot();observe_shift_down(ctx,w,flags,control,alt,!state.composition.empty());
   if(state.query_preview&&!control&&!alt&&(w==VK_TAB||(w>='0'&&w<='9')))return finish_query_preview(ctx,w==VK_TAB);
   *eaten=handles_key(w,shift,control,alt,!state.composition.empty(),!state.candidates.empty());
@@ -763,6 +776,7 @@ void set_shift_uppercase(bool uppercase){shift_uppercase=uppercase;}
   if(query_release_context&&!same_context(ctx,query_release_context))clear_query_releases();
   if(control||alt)forget_query_release(w);
   if(owns_query_release(ctx,w)){*eaten=TRUE;return S_OK;}
+   if(owns_phonetic_confirmation_key(ctx,w)){*eaten=TRUE;return S_OK;}
   bool composing=!engine->snapshot().composition.empty();unsigned key=shift_key(w,flags);
   if(composing&&!control&&!alt&&(w==VK_SPACE||w==VK_BACK)){*eaten=TRUE;return S_OK;}
   if(same_context(ctx,shift_context)&&shift_toggle.would_toggle(key,control,alt,composing)){*eaten=TRUE;return S_OK;}
@@ -789,6 +803,7 @@ HRESULT key_down_impl(ITfContext* ctx,WPARAM w,bool shift,bool control,bool alt,
   apply_pending_open();
   if(engine->snapshot().composition.empty())reload_settings();
   auto current=engine->snapshot();
+  if(suppress_phonetic_confirmation_repeat(ctx,w,shift,control,alt)){*eaten=TRUE;return S_OK;}
   if(current.query_preview&&!control&&!alt&&(w==VK_TAB||(w>='0'&&w<='9')))return finish_query_preview(ctx,w==VK_TAB);
   dismiss_learning_hint();
   observe_shift_down(ctx,w,flags,control,alt,!current.composition.empty());
@@ -805,7 +820,7 @@ HRESULT key_down_impl(ITfContext* ctx,WPARAM w,bool shift,bool control,bool alt,
    // Shift requests literal English in Chinese mode. CapsLock still controls
    // case; the explicit uppercase preference inverts that base consistently.
    const char literal=*boshiamy::printable_ascii(static_cast<int>(w),shift_uppercase,caps);
-   if(composing){out.commit=current.composition;for(char& letter:out.commit)if(letter>='a'&&letter<='z')letter=static_cast<char>(letter-'a'+'A');out.commit.push_back(literal);}
+   if(composing&&!engine->is_phonetic_input()){out.commit=current.composition;for(char& letter:out.commit)if(letter>='a'&&letter<='z')letter=static_cast<char>(letter-'a'+'A');out.commit.push_back(literal);}
    else if(modes.fullwidth())out.commit=boshiamy::fullwidth_utf8(static_cast<int>(w),shift_uppercase,caps);
    else out.commit.assign(1,literal);
   }
@@ -847,6 +862,9 @@ HRESULT STDMETHODCALLTYPE OnKeyDown(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* 
   if(query_release_context&&!same_context(ctx,query_release_context))clear_query_releases();
   if(control||alt)forget_query_release(w);
   if(owns_query_release(ctx,w)){forget_query_release(w);*eaten=TRUE;return S_OK;}
+   if(owns_phonetic_confirmation_key(ctx,w)){
+    engine->clear_phonetic_confirmation_key();*eaten=TRUE;return S_OK;
+   }
   bool same=same_context(ctx,shift_context),composing=!engine->snapshot().composition.empty();
   if(composing&&!control&&!alt&&(w==VK_SPACE||w==VK_BACK)){*eaten=TRUE;return S_OK;}
   bool toggle=shift_toggle.key_up(shift_key(w,flags),control,alt,composing);
