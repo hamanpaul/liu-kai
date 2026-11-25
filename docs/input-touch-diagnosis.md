@@ -33,7 +33,11 @@
 | 160 ms | 160 / 160 ms | 152–157 ms | 154–155 ms |
 | 241 ms | 240–242 / 240–242 ms | 231–233 ms | 231–233 ms |
 
-13-case focused run 的 cadence 欄位為 `eurjdyqpalzm` 重複五次，最終模式恢復為 CHINESE。Host command 執行時間和 lateness 都保存在 TestPilot 步驟資料；不能用要求的 interval 取代 guest event cadence。
+13-case focused run 的 cadence 欄位為 `eurjdyqpalzm` 重複五次，最終模式恢復為 CHINESE。Host command 執行時間和 lateness 都保存在 TestPilot 步驟資料；`soft-touch-cadence-sweep` 仍分開記錄 host 注入和 guest event cadence。`soft-touch-qazplm-edges` 的中心與外側 trace 則共用 241 ms 請求節奏作為驗收基準，維持 ±12 ms 容差。
+
+在 Windows 上的 Android 15 模擬器跑 `soft-touch-stress-40-80` 時，可用 Windows 原生 Python 執行 TestPilot，並在 testbed 指向同機的 `adb.exe`。2026-11-25 的同一份 APK 從 WSL 逐筆呼叫 `adb.exe` 時，要求按住 120 ms，觸控紀錄中最長達 534 ms，超過該模擬器的 400 ms 長按門檻並輸出數字。用原生工具重測，四組按住時間最長為 134 ms，252 字全文比對通過。遇到類似錯字時，可先比對 `key_touch` 的 DOWN／UP 時間與 `long_press_start` 記錄。
+
+Windows Python 3.12 的 `time.monotonic()` 在本機以 15.625 ms 為單位，241 ms 排程的主機測量曾交替出現 234 與 250 ms。TestPilot 改用 `time.perf_counter()` 排程並記錄實際送鍵時間，模擬器端仍以 `MotionEvent.eventTime` 獨立驗收。
 
 新增的 `soft-touch-stress-40-80` 包含 6 字單指序列控制 `edcedc`、`qazqaz`，以及 4 組各 60 字的 40/80 ms 中央與 QAZ/PLM 雙指重疊序列；總欄位長度為 252 字。四組各觀察到 60 個 guest down event、59 個相鄰間隔及多指事件。Guest 範圍分別為中央 40 ms 37–39、外側 40 ms 37–40、中央 80 ms 74–80、外側 80 ms 75–78。各組最高 `eventAgeMs` 為 15、15、2、3 ms；最高 `dispatchMs` 為 0.513、0.522、2.441、0.509 ms。這些 outlier 保留在報告中，沒有從摘要中排除。
 

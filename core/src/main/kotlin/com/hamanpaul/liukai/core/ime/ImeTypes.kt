@@ -23,6 +23,8 @@ sealed interface SoftKey {
     data object ToggleEnglish : SoftKey
     /** 中文模式的「同音」鍵。 */
     data object Homophone : SoftKey
+    /** 同音前置查詢的第二步「注音」鍵。 */
+    data object Zhuyin : SoftKey
 }
 
 /** 要對 App 的 InputConnection 執行的操作，依序執行。 */

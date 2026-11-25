@@ -2,6 +2,8 @@ package com.hamanpaul.liukai.core.reading
 
 import com.hamanpaul.liukai.core.Fixtures
 import com.hamanpaul.liukai.core.kana.Kana
+import com.hamanpaul.liukai.core.table.CompiledTable
+import com.hamanpaul.liukai.core.table.SectionKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -33,6 +35,26 @@ class ReadingTest {
         // 鐘（2 年級）排在忠（無年級，雖然字表頻率較高）之前
         assertEquals(listOf("中", "鐘", "忠"), r.homophones("忠", Fixtures.traditional))
         assertEquals(listOf("仲"), r.homophones("仲", Fixtures.traditional))
+    }
+
+    @Test
+    fun `直接依主要讀音查同音字並沿用字表過濾與排序`() {
+        val r = Fixtures.readings
+        assertEquals(listOf("中", "鐘", "忠"), r.homophonesByReading("ㄓㄨㄥ", Fixtures.traditional))
+        assertEquals(listOf("仲"), r.homophonesByReading("ㄓㄨㄥˋ", Fixtures.traditional))
+        assertEquals(emptyList(), r.homophonesByReading("不存在的讀音", Fixtures.traditional))
+    }
+
+    @Test
+    fun `直接讀音索引在不同字表間交替查詢時更新並可回到原表`() {
+        val r = Fixtures.readings
+        val traditional = Fixtures.traditional
+        val withoutBell = CompiledTable.build(
+            Fixtures.importResult.bundle.section(SectionKind.TRADITIONAL)!!.entries.filterNot { it.text == "鐘" },
+        )
+        assertEquals(listOf("中", "鐘", "忠"), r.homophonesByReading("ㄓㄨㄥ", traditional))
+        assertEquals(listOf("中", "忠"), r.homophonesByReading("ㄓㄨㄥ", withoutBell))
+        assertEquals(listOf("中", "鐘", "忠"), r.homophonesByReading("ㄓㄨㄥ", traditional))
     }
 
     @Test

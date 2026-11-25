@@ -38,8 +38,10 @@ import com.hamanpaul.liukai.core.engine.Candidate
 import com.hamanpaul.liukai.core.engine.CodeHint
 import com.hamanpaul.liukai.core.engine.InputMode
 import com.hamanpaul.liukai.core.engine.Language
+import com.hamanpaul.liukai.core.engine.ZhuyinStage
 import com.hamanpaul.liukai.core.ime.EnterAction
 import com.hamanpaul.liukai.core.ime.SoftKey
+import com.hamanpaul.liukai.core.reading.ZhuyinKeyboard
 import com.hamanpaul.liukai.data.KeyboardSettings
 import com.hamanpaul.liukai.data.KeyboardTheme
 import com.hamanpaul.liukai.data.VoiceMode
@@ -67,7 +69,6 @@ data class UiState(
     val composing: String,
     val candidates: List<Candidate>,
     val pageStart: Int,
-    val pageSize: Int,
     val homophoneOf: String?,
     val tableLoaded: Boolean,
     /** 組字失敗：整個輸入畫面加紅框，直到下一次按鍵。 */
@@ -81,7 +82,17 @@ data class UiState(
     val nextKeys: Set<Char>?,
     /** 輸入欄有文字（含組字）：中文模式空白鍵的 ⎵ 改為底線（與官方相同）。 */
     val fieldHasText: Boolean,
+    /** 單次注音同音查詢目前所在階段。 */
+    val zhuyinStage: ZhuyinStage,
+    /** 目前組成的注音讀音（只在注音入口期間顯示）。 */
+    val zhuyinText: String,
+    /** 此欄位目前允許輸入法介入（密碼欄為 false）。 */
+    val imeActive: Boolean,
+    /** 引擎目前是否有任何組字或查詢，包含同音前置入口。 */
+    val engineIsComposing: Boolean,
 )
+
+private fun ZhuyinStage.showsReadingKeyboard(): Boolean = this == ZhuyinStage.COMPOSING || this == ZhuyinStage.CANDIDATES
 
 /**
  * 輸入畫面：上方候選列、下方螢幕鍵盤。偵測到實體鍵盤時只顯示候選列。
@@ -104,7 +115,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val density = resources.displayMetrics.density
     private fun dp(v: Float) = (v * density).toInt()
 
-    private enum class Layer { LETTERS, SYMBOLS, ALT }
+    private enum class Layer { LETTERS, SYMBOLS, ALT, ZHUYIN }
 
     /** Shift：關、單次大寫（打一個字母後放開）、大寫鎖定。 */
     private enum class Shift { OFF, ONCE, LOCKED }
@@ -113,6 +124,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val composingView = TextView(context)
     private val candidateRow = LinearLayout(context)
     private val candidateScroll = HorizontalScrollView(context)
+    private val contextKey = TextView(context)
     private val keyboard = FrameLayout(context)
     private val rowsView = LinearLayout(context)
     /** 彈出鍵盤顯示時蓋住整個鍵盤區：點彈出區以外只收起彈出鍵盤。 */
@@ -149,6 +161,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val popupViews = LinkedHashMap<String, View>()
     private val punctViews = LinkedHashMap<String, View>()
     private val voiceKey = ImageView(context)
+    private var contextActionId: String? = null
     /** 目前畫出的按鍵配置與排高（見 [rebuildKeyboard]）。 */
     private var builtRows: List<List<KeyDef>> = emptyList()
     private var builtHeight = 0
@@ -222,6 +235,8 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         setBackgroundColor(pal.bg)
         bar.setBackgroundColor(pal.bar)
         composingView.setTextColor(pal.hint)
+        contextKey.setTextColor(pal.strip)
+        contextKey.background = pressedBackground()
         voiceKey.setColorFilter(pal.mic)
         // 彈出時其餘按鍵變暗
         popupCatcher.setBackgroundColor(pal.popupDim)
@@ -257,11 +272,30 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
     fun setKeyboardVisible(visible: Boolean) {
         keyboard.visibility = if (visible) VISIBLE else GONE
+        refreshBar()
     }
 
     fun render(state: UiState) {
         foreground = if (state.failed) failureFrame else null
+        val stageChanged = lastState?.zhuyinStage != state.zhuyinStage
         lastState = state
+        val targetLayer = when {
+            state.zhuyinStage.showsReadingKeyboard() -> Layer.ZHUYIN
+            layer == Layer.ZHUYIN -> Layer.LETTERS
+            else -> layer
+        }
+        val layerChanged = targetLayer != layer
+        if (layerChanged) {
+            layer = targetLayer
+            if (targetLayer == Layer.ZHUYIN) {
+                shift = Shift.OFF
+                autoShifted = false
+            }
+            typedSymbol = false
+        }
+        // Always rebuild on stage changes: entry changes the same-cell label and candidate mode changes key labels.
+        // This also restores the Zhuyin layer after the input view is hidden and shown again at the same stage.
+        if (layerChanged || stageChanged) rebuildKeyboard()
         if (state.mode != mode || state.tableLoaded != tableLoaded) {
             mode = state.mode
             tableLoaded = state.tableLoaded
@@ -278,6 +312,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         }
         // 字碼顯示在輸入欄（與官方相同），候選列左側只顯示同音查詢的字與同音查碼的結果
         composingView.text = when {
+            state.zhuyinStage.showsReadingKeyboard() -> state.zhuyinText
             state.homophoneOf != null -> "音:${state.homophoneOf}"
             state.codeHint != null -> hintText(state.codeHint)
             else -> ""
@@ -298,9 +333,35 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         candidateViews.clear()
         punctViews.clear()
         voiceKey.visibility = if (settings.idleStrip) VISIBLE else GONE
-        val state = lastState
-        shownCandidates = state?.candidates.orEmpty()
-        if (state == null) return
+        val state = lastState ?: return
+        shownCandidates = state.candidates
+        contextKey.setOnClickListener(null)
+        val contextActionAllowed = keyboard.visibility == GONE && state.imeActive && state.mode == InputMode.CHINESE
+        val contextAction = if (contextActionAllowed) {
+            when {
+                state.zhuyinStage == ZhuyinStage.ENTRY -> {
+                    contextKey.setOnClickListener { actions.onSoftKey(SoftKey.Zhuyin) }
+                    "zhuyin"
+                }
+                state.zhuyinStage == ZhuyinStage.INACTIVE && !state.engineIsComposing -> {
+                    contextKey.setOnClickListener { actions.onSoftKey(SoftKey.Homophone) }
+                    "homophone"
+                }
+                else -> null
+            }
+        } else {
+            null
+        }
+        contextActionId = contextAction
+        if (contextAction == null) {
+            contextKey.visibility = GONE
+            contextKey.text = "同音"
+            contextKey.contentDescription = ""
+        } else {
+            contextKey.visibility = VISIBLE
+            contextKey.text = if (contextAction == "zhuyin") "注音" else "同音"
+            contextKey.contentDescription = "key:$contextAction"
+        }
         state.candidates.forEachIndexed { index, cand ->
             val view = candidateView(index, cand, state)
             candidateViews += view
@@ -357,6 +418,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         for ((id, view) in keyViews) keys.put(id, bounds(view))
         for ((id, view) in popupViews) keys.put(id, bounds(view))
         for ((id, view) in punctViews) keys.put(id, bounds(view))
+        contextActionId?.let { keys.put(it, bounds(contextKey)) }
         if (voiceKey.visibility == VISIBLE) keys.put("voice", bounds(voiceKey))
         json.put("keys", keys)
         json.put("layer", layer.name.lowercase())
@@ -378,7 +440,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         json.put("rowHeight", dp(rowHeightDp()))
         json.put("shift", shift.name.lowercase())
         json.put("blank", JSONArray(builtRows.flatten().filter(::blank).map { it.id }))
-        json.put("spaceUnderline", chinese && fieldHasText)
+        json.put("spaceUnderline", chinese && fieldHasText && layer != Layer.ZHUYIN)
         json.put("preview", previewKey ?: JSONObject.NULL)
         json.put("feedback", JSONObject().put("vibrate", vibrations).put("sound", sounds))
     }
@@ -386,6 +448,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     /** 診斷輸出用的按鍵標籤（見 describe 的 rowLabels）。 */
     private fun shownLabel(def: KeyDef): String = when {
         blank(def) -> ""
+        def.id == "space" && layer == Layer.ZHUYIN -> def.label
         def.id == "space" -> if (chinese) LANGUAGE_LABELS.getValue(language) else def.label
         iconFor(def) != null -> def.label
         else -> labelFor(def)
@@ -465,6 +528,18 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         candidateScroll.contentDescription = "candidates"
         candidateScroll.addView(candidateRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         bar.addView(candidateScroll, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        contextKey.apply {
+            setTextColor(pal.strip)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            minWidth = dp(50f)
+            isClickable = true
+            contentDescription = ""
+            background = pressedBackground()
+        }
+        contextKey.visibility = GONE
+        bar.addView(contextKey, LayoutParams(dp(54f), LayoutParams.MATCH_PARENT))
         voiceKey.setImageResource(R.drawable.liukai_ic_mic)
         voiceKey.scaleType = ImageView.ScaleType.CENTER
         voiceKey.contentDescription = "key:voice"
@@ -530,11 +605,41 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
     private fun rowsFor(layer: Layer): List<List<KeyDef>> = when (layer) {
         Layer.LETTERS -> doneRow(
-            if (chinese) CHINESE_LETTERS + listOf(bottomRow(comma(), ROOT_PERIOD))
+            if (chinese) chineseLetterRows() + listOf(bottomRow(comma(), ROOT_PERIOD))
             else ENGLISH_LETTERS + listOf(bottomRow(f1(VoiceMode.MAIN), PERIOD)),
         )
         Layer.SYMBOLS -> SYMBOL_KEYS + listOf(if (chinese) bottomRow(comma(), ROOT_PERIOD) else bottomRow(f1(VoiceMode.SYMBOLS), PERIOD))
         Layer.ALT -> ALT_ROWS
+        Layer.ZHUYIN -> zhuyinRows()
+    }
+
+    private fun chineseLetterRows(): List<List<KeyDef>> {
+        val entryKey = if (lastState?.zhuyinStage == ZhuyinStage.ENTRY) ZHUYIN_ENTRY else HOMOPHONE
+        return CHINESE_LETTERS.take(2) + listOf(listOf(entryKey) + chars("zxcvbnm") + BACKSPACE)
+    }
+
+    /** 顯示鍵帽直接取自引擎共用的實體鍵映射；輸出的 char 仍是相同的實體鍵值。 */
+    private fun zhuyinRows(): List<List<KeyDef>> {
+        val glyphByPhysicalKey = ZhuyinKeyboard.layout.associate { it.physicalKey to it.glyph }
+        val candidateSelection = lastState!!.zhuyinStage == ZhuyinStage.CANDIDATES
+        fun phoneticRow(physicalKeys: String): List<KeyDef> = physicalKeys.map { physicalKey ->
+            val glyph = glyphByPhysicalKey.getValue(physicalKey)
+            val label = if (candidateSelection && physicalKey in '0'..'9') physicalKey.toString() else glyph
+            KeyDef("zhuyin:$label", label, char = physicalKey)
+        }
+        val controls = buildList {
+            if (settings.doneKey) add(HIDE)
+            add(BACKSPACE)
+            add(KeyDef("space", if (candidateSelection) "選字" else "ˉ", 4f, char = ' ', function = true))
+            add(ENTER)
+        }
+        return listOf(
+            phoneticRow("1234567890-"),
+            phoneticRow("qwertyuiop"),
+            phoneticRow("asdfghjkl;"),
+            phoneticRow("zxcvbnm,./"),
+            controls,
+        )
     }
 
     /** 英文模式最下排「,」的位置：設定的語音輸入位置在這一層時為麥克風鍵，否則為「,」。 */
@@ -551,8 +656,10 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val landscape: Boolean get() = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     /** 排高（dp）：直式、橫式各依設定的按鍵高度。 */
-    private fun rowHeightDp(): Float =
-        if (landscape) LANDSCAPE_ROW_DP[settings.landscapeHeight.ordinal] else PORTRAIT_ROW_DP[settings.portraitHeight.ordinal]
+    private fun rowHeightDp(): Float {
+        val configured = if (landscape) LANDSCAPE_ROW_DP[settings.landscapeHeight.ordinal] else PORTRAIT_ROW_DP[settings.portraitHeight.ordinal]
+        return if (layer == Layer.ZHUYIN) configured * 0.8f else configured
+    }
 
     /** 按鍵字體縮放：直式、橫式各依設定的字體大小。 */
     private fun fontScale(): Float =
@@ -582,7 +689,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val row = LinearLayout(context)
         row.orientation = HORIZONTAL
         row.gravity = Gravity.CENTER_HORIZONTAL
-        row.weightSum = ROW_WEIGHT
+        row.weightSum = if (layer == Layer.ZHUYIN) keys.sumOf { it.weight.toDouble() }.toFloat() else ROW_WEIGHT
         keys.forEach { def ->
             val key = buildKey(def)
             keyViews[def.id] = key
@@ -701,7 +808,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         if (!pal.cells && def.id == "space") frame.addView(shape(pal.spacePill, false), FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(26f), Gravity.CENTER))
         if (!pal.cells && def.id == "enter") frame.addView(shape(pal.enterCircle, true), FrameLayout.LayoutParams(dp(36f), dp(36f), Gravity.CENTER))
         when {
-            def.id == "space" -> spaceContent(frame)
+            def.id == "space" -> spaceContent(frame, def.label)
             icon != null -> frame.addView(
                 ImageView(context).apply { setImageResource(icon); setColorFilter(if (def.id == "enter") pal.enterText else pal.icon) },
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER),
@@ -755,7 +862,20 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
      * 空白鍵的內容（量測官方，以鍵的中心定位，與按鍵高度無關）：中文模式在中心上方 5.7dp 顯示「◂ 嘸 ▸」，
      * 下方 11dp 為 ⎵，輸入欄有文字時 ⎵ 改為帶光暈的底線；英文模式只有 ⎵。
      */
-    private fun spaceContent(frame: FrameLayout) {
+    private fun spaceContent(frame: FrameLayout, label: String) {
+        if (layer == Layer.ZHUYIN) {
+            frame.addView(
+                TextView(context).apply {
+                    val selecting = label == "選字"
+                    text = label
+                    setTextColor(pal.text)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, (if (selecting) 15f else 24f) * fontScale())
+                    gravity = Gravity.CENTER
+                },
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
+            )
+            return
+        }
         if (chinese) {
             val label = TextView(context).apply {
                 text = LANGUAGE_LABELS.getValue(language)
@@ -872,7 +992,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                     v.isPressed = false
                     hidePreview()
                     val dx = ev.x - startX
-                    val swiped = chinese && abs(dx) >= dp(LANGUAGE_SWIPE_DP)
+                    val swiped = chinese && layer != Layer.ZHUYIN && abs(dx) >= dp(LANGUAGE_SWIPE_DP)
                     if (swiped) {
                         TouchDiagnostics.gesture(def.id, "space_swipe", "dx=$dx")
                         switchLanguage(if (dx > 0) 1 else -1)
@@ -935,6 +1055,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             }
             "hide" -> actions.onHide()
             "homophone" -> actions.onSoftKey(SoftKey.Homophone)
+            "zhuyin" -> actions.onSoftKey(SoftKey.Zhuyin)
             "mic" -> actions.onVoice()
             "symbols" -> {
                 layer = if (layer == Layer.LETTERS) Layer.SYMBOLS else Layer.LETTERS
@@ -968,7 +1089,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 rebuildKeyboard()
             }
         }
-        if (layer != Layer.LETTERS) typedSymbol = true
+        if (layer != Layer.LETTERS && layer != Layer.ZHUYIN) typedSymbol = true
         actions.onSoftKey(SoftKey.Text(c))
     }
 
@@ -1244,6 +1365,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
         private val SHIFT = KeyDef("shift", "⇧", 1.5f, function = true, icon = R.drawable.liukai_ic_shift)
         private val HOMOPHONE = KeyDef("homophone", "同音", 1.5f, function = true)
+        private val ZHUYIN_ENTRY = KeyDef("zhuyin", "注音", 1.5f, function = true)
         private val BACKSPACE = KeyDef("backspace", "⌫", 1.5f, function = true, icon = R.drawable.liukai_ic_backspace)
         private val ALT = KeyDef("alt", "ALT", 1.5f, function = true)
 

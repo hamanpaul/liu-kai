@@ -1,0 +1,80 @@
+id: soft-zhuyin-touch
+name: 注音同音查詢後繼續嘸蝦米輸入
+description: 以智慧鍵盤點注音組成ㄓㄨㄥ，點「忠」並確認查碼提示，再用字根輸入「中」。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器
+preconditions:
+  keyboard: soft
+steps:
+- id: open
+  action: tap_key
+  target: EMU
+  key: 'homophone'
+- id: entry
+  action: ime_state
+  target: EMU
+- id: switch
+  action: tap_key
+  target: EMU
+  key: 'zhuyin'
+- id: initial
+  action: tap_key
+  target: EMU
+  key: 'zhuyin:ㄓ'
+- id: medial
+  action: tap_key
+  target: EMU
+  key: 'zhuyin:ㄨ'
+- id: final
+  action: tap_key
+  target: EMU
+  key: 'zhuyin:ㄥ'
+- id: confirm
+  action: tap_key
+  target: EMU
+  key: 'space'
+- id: choices
+  action: ime_state
+  target: EMU
+- id: choose
+  action: tap_candidate
+  target: EMU
+  text: 忠
+- id: returned
+  action: ime_state
+  target: EMU
+- id: nextroot
+  action: tap_key
+  target: EMU
+  key: 'q'
+- id: commit
+  action: tap_key
+  target: EMU
+  key: 'space'
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: entry.rows
+  operator: contains
+  value: [q, w, e, r, t, y, u, i, o, p]
+- field: returned.mode
+  operator: equals
+  value: CHINESE
+- field: choices.candidates
+  operator: equals
+  value: [中, 鐘, 忠]
+- field: returned.code_hint
+  operator: equals
+  value: 忠 qa
+- field: returned.composing
+  operator: equals
+  value: ''
+- field: read.text
+  operator: equals
+  value: 忠中

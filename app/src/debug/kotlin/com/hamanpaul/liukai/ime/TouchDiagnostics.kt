@@ -47,6 +47,12 @@ internal object TouchDiagnostics {
 
     internal fun keyFrame(context: Context, key: String): FrameLayout = TracedKeyFrame(context, key)
 
+    internal fun describeCaller(stackTrace: Array<StackTraceElement>): String {
+        if (stackTrace.size < 2) return "unknown"
+        val caller = stackTrace[1]
+        return caller.className + "." + caller.methodName
+    }
+
     @PublishedApi
     internal fun recordKeyViewTouch(
         key: String,
@@ -110,7 +116,7 @@ internal object TouchDiagnostics {
     }
 
 private class TracedKeyFrame(context: Context, key: String) : FrameLayout(context) {
-    private var diagnosticKey: String? = key
+    private val diagnosticKey: String = key
     private var lastAction = "NONE"
     private var lastEventTimeMs = 0L
     private var lastPointerIds = ""
@@ -137,20 +143,18 @@ private class TracedKeyFrame(context: Context, key: String) : FrameLayout(contex
         } finally {
             dispatchingTouch = previousDispatching
         }
-        if (keyId != null) {
-            TouchDiagnostics.recordKeyViewTouch(
-                keyId,
-                lastAction,
-                event.actionIndex,
-                event.eventTime,
-                pointers,
-                pressedBefore,
-                isPressed,
-                isFocusable,
-                isFocusableInTouchMode,
-                handled,
-            )
-        }
+        TouchDiagnostics.recordKeyViewTouch(
+            keyId,
+            lastAction,
+            event.actionIndex,
+            event.eventTime,
+            pointers,
+            pressedBefore,
+            isPressed,
+            isFocusable,
+            isFocusableInTouchMode,
+            handled,
+        )
         return handled
     }
 
@@ -158,13 +162,13 @@ private class TracedKeyFrame(context: Context, key: String) : FrameLayout(contex
         val keyId = diagnosticKey
         val before = isPressed
         val traceCaller = if (!pressed && activeTouch && !dispatchingTouch) {
-            Throwable().stackTrace.drop(1).firstOrNull()?.let { "${it.className}.${it.methodName}" } ?: "unknown"
+            TouchDiagnostics.describeCaller(Throwable().stackTrace)
         } else {
             "direct"
         }
         super.setPressed(pressed)
         val after = isPressed
-        if (keyId != null && before != after) {
+        if (before != after) {
             TouchDiagnostics.recordKeyPressed(
                 keyId,
                 before,

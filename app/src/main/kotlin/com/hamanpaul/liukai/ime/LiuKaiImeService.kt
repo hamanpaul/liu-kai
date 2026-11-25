@@ -221,7 +221,6 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         composing = controller.engine.displayComposing,
         candidates = controller.engine.candidates,
         pageStart = controller.engine.pageStart,
-        pageSize = controller.engine.config.pageSize,
         homophoneOf = controller.engine.homophoneOf,
         tableLoaded = controller.tableLoaded,
         failed = controller.engine.failed,
@@ -230,6 +229,10 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         codeHint = controller.engine.codeHint,
         nextKeys = controller.engine.nextKeys,
         fieldHasText = fieldHasText,
+        zhuyinStage = controller.engine.zhuyinStage,
+        zhuyinText = controller.engine.zhuyinText,
+        imeActive = controller.imeActive,
+        engineIsComposing = controller.engine.isComposing,
     )
 
     /** 輸入欄有文字（含組字）：每次 render 時由 InputConnection 讀取（中文模式空白鍵的底線）。 */

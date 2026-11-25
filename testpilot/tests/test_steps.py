@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,11 @@ def ex(adb, tmp_path):
 
 def run(ex, **step):
     return ex.execute({"id": "s", "target": "EMU", **step})
+
+
+def test_step_executor_defaults_to_high_resolution_clock(adb, tmp_path):
+    ex = StepExecutor(adb, DeviceConfig(repo_root=str(tmp_path)))
+    assert ex._clock is time.perf_counter
 
 
 def test_keycode_names():

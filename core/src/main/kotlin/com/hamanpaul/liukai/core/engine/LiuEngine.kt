@@ -1,9 +1,15 @@
 package com.hamanpaul.liukai.core.engine
 
 import com.hamanpaul.liukai.core.reading.Readings
+import com.hamanpaul.liukai.core.reading.ZhuyinKeyboard
 import com.hamanpaul.liukai.core.table.CompiledTable
 
 enum class InputMode { CHINESE, ENGLISH }
+
+/** Transient UI phase for the two-step homophone→Zhuyin entry. */
+enum class ZhuyinStage { INACTIVE, ENTRY, COMPOSING, CANDIDATES }
+
+private const val CONFIRMING_ZHUYIN_TONES = "346"
 
 /** 同音查碼：從同音字清單上屏的字與它的字碼（短碼在前）。 */
 data class CodeHint(val text: String, val codes: List<String>)
@@ -86,6 +92,21 @@ class LiuEngine(
         get() = if (table == null) emptyList() else Language.entries.filter { it == Language.TRADITIONAL || it in others }
     /** 同音鍵前置查詢中：打的字碼用來找要查同音的字，選字後列出該字的同音字。 */
     private var homophonePrefix = false
+    private var zhuyinInput = false
+    private var zhuyinLookup = false
+    private var zhuyinKeys = ""
+
+    /** UI stage; ENTRY marks the empty homophone prefix's second-step Zhuyin affordance. */
+    val zhuyinStage: ZhuyinStage
+        get() = when {
+            zhuyinLookup -> ZhuyinStage.CANDIDATES
+            zhuyinInput -> ZhuyinStage.COMPOSING
+            homophonePrefix && composing.isEmpty() -> ZhuyinStage.ENTRY
+            else -> ZhuyinStage.INACTIVE
+        }
+
+    /** Current composed reading glyphs, retained while its direct-reading candidates are shown. */
+    val zhuyinText: String get() = if (zhuyinInput || zhuyinLookup) ZhuyinKeyboard.display(zhuyinKeys) else ""
 
     /**
      * 智慧鍵盤：組字中可以接的下一個字根，加上可選字的 VRSF 鍵（組字是完整字碼且候選數夠）；
@@ -93,7 +114,7 @@ class LiuEngine(
      */
     val nextKeys: Set<Char>?
         get() {
-            if (!isComposing || homophoneOf != null || hasWildcard()) return null
+            if (!isComposing || homophoneOf != null || zhuyinInput || zhuyinLookup || hasWildcard()) return null
             val table = currentTable()!!
             val next = table.nextChars(composing).toMutableSet()
             if (table.isCode(composing)) {
@@ -103,7 +124,7 @@ class LiuEngine(
         }
 
     /** 同音模式下組字仍保留原字碼；同音鍵前置查詢剛開始時還沒有字碼。 */
-    val isComposing: Boolean get() = composing.isNotEmpty() || homophonePrefix
+    val isComposing: Boolean get() = composing.isNotEmpty() || homophonePrefix || zhuyinInput || zhuyinLookup
 
     /**
      * 欄位內顯示的組字：前置查詢時字碼前加「'」（與官方相同）；前置查詢選字後列出同音字時不顯示組字，
@@ -111,6 +132,8 @@ class LiuEngine(
      */
     val displayComposing: String
         get() = when {
+            zhuyinLookup -> ""
+            zhuyinInput -> zhuyinText
             !homophonePrefix -> composing
             homophoneOf != null -> ""
             else -> "'$composing"
@@ -145,6 +168,9 @@ class LiuEngine(
         pageStart = 0
         homophoneOf = null
         homophonePrefix = false
+        zhuyinInput = false
+        zhuyinLookup = false
+        zhuyinKeys = ""
         failed = false
     }
 
@@ -179,8 +205,17 @@ class LiuEngine(
     }
 
     private fun onHomophoneKey(table: CompiledTable): EngineResult = when {
+        zhuyinInput || zhuyinLookup -> EngineResult.CONSUMED
         homophoneOf != null -> EngineResult.CONSUMED
         composing.isNotEmpty() -> homophone(pageStart, table)
+        homophonePrefix -> {
+            homophonePrefix = false
+            zhuyinInput = true
+            zhuyinKeys = ""
+            candidates = emptyList()
+            pageStart = 0
+            EngineResult.CONSUMED
+        }
         else -> {
             homophonePrefix = true
             EngineResult.CONSUMED
@@ -192,12 +227,14 @@ class LiuEngine(
     private fun onKey(c: Char, table: CompiledTable): EngineResult {
         val lower = c.lowercaseChar()
 
+        if (zhuyinInput) return onZhuyinKey(lower, table)
+
         // Shift＋字母：沒有組字時直接輸出大寫英文；組字中為組字失敗。
         if (c.isLetter() && c.isUpperCase()) {
             return if (isComposing) fail() else EngineResult.PASS
         }
 
-        if (homophoneOf != null) {
+        if (homophoneOf != null || zhuyinLookup) {
             return when {
                 isAsciiDigit(c) -> selectDigit(c, table)
                 c in config.pageDownKeys -> page(+1)
@@ -240,6 +277,7 @@ class LiuEngine(
     private fun hasWildcard() = config.wildcard in composing
 
     private fun onSpace(table: CompiledTable): EngineResult {
+        if (zhuyinInput) return lookupZhuyin(table)
         if (!isComposing) return EngineResult.PASS
         if (candidates.isEmpty()) {
             // 空碼：清除組字，直接出空白
@@ -250,6 +288,23 @@ class LiuEngine(
     }
 
     private fun onBackspace(table: CompiledTable): EngineResult {
+        if (zhuyinLookup) {
+            zhuyinLookup = false
+            zhuyinInput = true
+            candidates = emptyList()
+            pageStart = 0
+            return EngineResult.CONSUMED
+        }
+        if (zhuyinInput) {
+            if (zhuyinKeys.isEmpty()) {
+                reset()
+            } else {
+                zhuyinKeys = zhuyinKeys.dropLast(1)
+                candidates = emptyList()
+                pageStart = 0
+            }
+            return EngineResult.CONSUMED
+        }
         if (homophoneOf != null) {
             homophoneOf = null
             refreshCandidates(table)
@@ -268,6 +323,10 @@ class LiuEngine(
 
     private fun onEnter(): EngineResult {
         if (!isComposing) return EngineResult.PASS
+        if (zhuyinInput || zhuyinLookup) {
+            reset()
+            return EngineResult(true)
+        }
         val raw = composing
         reset()
         return EngineResult(true, raw.ifEmpty { null })
@@ -294,7 +353,7 @@ class LiuEngine(
     private fun commitAt(index: Int, table: CompiledTable): EngineResult {
         if (homophonePrefix && homophoneOf == null) return homophone(index, table)
         val text = candidates[index].text
-        val fromHomophones = homophoneOf != null
+        val fromHomophones = homophoneOf != null || zhuyinLookup
         reset()
         // codesOf 已依碼長、字碼排序（短碼在前）
         if (fromHomophones) codeHint = CodeHint(text, table.codesOf(text))
@@ -319,6 +378,31 @@ class LiuEngine(
         }
         homophoneOf = ch
         candidates = list
+        pageStart = 0
+        return EngineResult.CONSUMED
+    }
+
+    private fun onZhuyinKey(key: Char, table: CompiledTable): EngineResult {
+        if (!ZhuyinKeyboard.isSymbol(key) && !ZhuyinKeyboard.isTone(key)) return fail()
+        val next = ZhuyinKeyboard.appendCanonical(zhuyinKeys, key)
+        val confirmsReading = ZhuyinKeyboard.isTone(key) && key != '7'
+        if (next == zhuyinKeys) return if (confirmsReading) lookupZhuyin(table) else EngineResult.CONSUMED
+        zhuyinKeys = next
+        candidates = emptyList()
+        pageStart = 0
+        val hasConfirmingTone = zhuyinKeys.last() in CONFIRMING_ZHUYIN_TONES
+        return if (hasConfirmingTone) lookupZhuyin(table) else EngineResult.CONSUMED
+    }
+
+    /** Confirm the current reading. A first-tone Space or neutral-tone Space only lists candidates. */
+    private fun lookupZhuyin(table: CompiledTable): EngineResult {
+        val reading = ZhuyinKeyboard.reading(zhuyinKeys) ?: return EngineResult.CONSUMED
+        val matches = readings.homophonesByReading(reading, table)
+        if (matches.isEmpty()) return EngineResult.CONSUMED
+
+        zhuyinInput = false
+        zhuyinLookup = true
+        candidates = matches.map { Candidate(it, readings.of(it).firstOrNull()) }
         pageStart = 0
         return EngineResult.CONSUMED
     }

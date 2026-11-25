@@ -1,0 +1,79 @@
+id: soft-zhuyin-landscape
+name: 橫向注音查詢以空白出字
+description: 第一個空白完成ㄓㄨㄥ，第二個空白輸出預設字；下個字根沿用原配列。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_return: 'false'
+    done_key: 'true'
+steps:
+- id: rotate
+  action: rotate
+  target: EMU
+  rotation: 1
+- id: open
+  action: tap_key
+  target: EMU
+  key: 'homophone'
+- id: entry
+  action: tap_key
+  target: EMU
+  key: 'zhuyin'
+- id: initial
+  action: tap_key
+  target: EMU
+  key: 'zhuyin:ㄓ'
+- id: medial
+  action: tap_key
+  target: EMU
+  key: 'zhuyin:ㄨ'
+- id: final
+  action: tap_key
+  target: EMU
+  key: 'zhuyin:ㄥ'
+- id: confirm
+  action: tap_key
+  target: EMU
+  key: 'space'
+- id: choices
+  action: ime_state
+  target: EMU
+- id: choose
+  action: tap_key
+  target: EMU
+  key: 'space'
+- id: returned
+  action: ime_state
+  target: EMU
+- id: next
+  action: tap_key
+  target: EMU
+  key: 'q'
+- id: end
+  action: tap_key
+  target: EMU
+  key: 'space'
+- id: portrait
+  action: rotate
+  target: EMU
+  rotation: 0
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: choices.candidates
+  operator: equals
+  value: [中, 鐘, 忠]
+- field: returned.code_hint
+  operator: equals
+  value: 中 q
+- field: read.text
+  operator: equals
+  value: 中中

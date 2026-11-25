@@ -1,0 +1,58 @@
+id: hw-zhuyin-select
+name: 實體鍵盤以注音查字並用數字選字
+description: 隱藏螢幕鍵盤，從候選列進入注音查詢，用標準鍵位及數字出字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器
+steps:
+- {id: start_code, action: keys, target: EMU, keys: [q]}
+- {id: ordinary_candidates, action: ime_state, target: EMU}
+- {id: cancel_code, action: keys, target: EMU, keys: [ESCAPE]}
+- id: open
+  action: tap_key
+  target: EMU
+  key: 'homophone'
+- id: entry
+  action: tap_key
+  target: EMU
+  key: 'zhuyin'
+- id: compose
+  action: keys
+  target: EMU
+  keys: ['5', j, '/', SPACE]
+- id: choices
+  action: ime_state
+  target: EMU
+- id: choose
+  action: keys
+  target: EMU
+  keys: ['2']
+- id: returned
+  action: ime_state
+  target: EMU
+- id: plain
+  action: keys
+  target: EMU
+  keys: [q, SPACE]
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- {field: ordinary_candidates.composing, operator: equals, value: q}
+- {field: ordinary_candidates.candidates, operator: equals, value: [中, 仲]}
+- field: choices.keyboard_visible
+  operator: equals
+  value: false
+- field: choices.candidates
+  operator: equals
+  value: [中, 鐘, 忠]
+- field: returned.code_hint
+  operator: equals
+  value: 忠 qa
+- field: read.text
+  operator: equals
+  value: 忠中
