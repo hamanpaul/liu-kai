@@ -3,7 +3,15 @@
 本專案所有重大變更都會記錄在此檔案。
 
 格式基於 [Keep a Changelog 1.1.0](https://keepachangelog.com/zh-TW/1.1.0/)，
-本專案遵循 hamanpaul project policy v1.0.17；未發行的變更以 `changelog.d/` fragment 累積。
+本專案遵循 hamanpaul project policy v1.0.19。未發行的變更以 `changelog.d/` fragment 累積。
+
+## [0.1.2] - 2026-11-25
+
+### Added
+
+- 將 Windows 輸入法和完整 Git 歷史納入同一專案。Android 與 Windows 的新發行線分別從 0.1.0 起算，保留先前安裝的升級路徑及歷史下載。
+- 兩端在中文模式可用單次注音反查選字與嘸蝦米碼，共用案例涵蓋「ㄌㄜˋ」選出「勒」後繼續打字。
+- 發版使用平台標籤、正式安裝檔及 SHA-256 收據，專案規範升級至 paulsha-conventions v1.0.19。
 
 ## [0.1.1] - 2026-10-18
 

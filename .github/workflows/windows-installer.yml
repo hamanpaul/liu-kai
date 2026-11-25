@@ -1,12 +1,17 @@
-name: Windows x64 WiX release
+name: Windows installer
 on:
+  pull_request:
+  workflow_dispatch:
   push:
     tags:
-      - 'r[0-9]*'
+      - 'windows-v*'
 permissions:
-  contents: write
+  contents: read
+defaults:
+  run:
+    working-directory: windows
 jobs:
-  build-and-release:
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,15 +20,6 @@ jobs:
         with:
           msystem: MINGW64
           install: mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils
-      - name: Validate tag and define release identity
-        shell: pwsh
-        run: |
-          $tag = '${{ github.ref_name }}'
-          if ($tag -cnotmatch '^r([1-9][0-9]*)$') { throw 'Release tag must be r followed by a positive number without leading zeroes.' }
-          $number = [uint64]::Parse($Matches[1])
-          if ($number -gt 255) { throw 'Release number exceeds the MSI major version limit.' }
-          "PACKAGE_VERSION=0.0.0-dev.$((Get-Date).ToUniversalTime().ToString('yyyyMMdd')).$tag.x64" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "MSI_VERSION=$number.0.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Acquire and verify WiX 6.0.2
         shell: pwsh
         env:
@@ -71,32 +67,19 @@ jobs:
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path 'native\tests' $name)
             if ($LASTEXITCODE -ne 0) { throw "Legacy safety test failed: $name" }
           }
-      - name: Build product files from source
+      - name: Build installer from Windows version and source commit
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
-          $env:PATH = $toolchain + ';' + $env:PATH
-          & .\native\build-fresh-release.ps1 -ToolchainBin $toolchain -Version $env:PACKAGE_VERSION -OutputDir "$pwd\dist\source" -SetupName "WuGai-$($env:GITHUB_REF_NAME)-x64-Setup.exe"
-      - name: Build and verify WiX installer
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
-          $env:PATH = $toolchain + ';' + $env:PATH
-          & .\native\wix\build-installer.ps1 -WixExe $env:WIX_EXE -BalExtension $env:WIX_BAL -SourceBundle "$pwd\dist\source\bundle" -OutputDir "$pwd\dist\wix" -R64Msi "$pwd\build\r64-baseline\LiuKai.msi" -ToolchainBin $toolchain -MsiVersion $env:MSI_VERSION -PublishBuild
-          $files = @('LiuKai-win-setup.exe','LiuKai.msi')
-          $sums = foreach ($name in $files) { "$((Get-FileHash -LiteralPath (Join-Path 'dist\wix' $name) -Algorithm SHA256).Hash.ToLowerInvariant())  $name" }
-          [IO.File]::WriteAllLines("$pwd\dist\wix\SHA256SUMS.txt", [string[]]$sums, [Text.UTF8Encoding]::new($false))
-          @("source_commit=$env:GITHUB_SHA", "tag=$env:GITHUB_REF_NAME", "package_version=$env:PACKAGE_VERSION", "msi_version=$env:MSI_VERSION", 'wix=6.0.2') | Set-Content -LiteralPath 'dist\wix\SOURCE.txt' -Encoding UTF8
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { '' }
+          & .\native\wix\build-platform-release.ps1 -WixExe $env:WIX_EXE -BalExtension $env:WIX_BAL -ToolchainBin $toolchain -R64Msi "$pwd\build\r64-baseline\LiuKai.msi" -OutputDir "$pwd\dist\platform" -Tag $tag
       - name: Test early failure diagnostics and staging cleanup
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
           $env:PATH = $toolchain + ';' + $env:PATH
-          & .\native\tests\wix-early-collector-tests.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\early-diagnostic-test" -Msi "$pwd\dist\wix\LiuKai.msi" -ExpectedScript "$pwd\native\collect-install-diagnostics.ps1"
+          & .\native\tests\wix-early-collector-tests.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\early-diagnostic-test" -Msi "$pwd\dist\platform\wix\LiuKai.msi" -ExpectedScript "$pwd\native\collect-install-diagnostics.ps1"
           if ($LASTEXITCODE -ne 0) { throw 'Early diagnostics test failed.' }
       - name: Test locked-file MSI rollback
         shell: powershell
@@ -106,20 +89,9 @@ jobs:
           $env:PATH = $toolchain + ';' + $env:PATH
           & .\native\tests\wix-retired-msi-tests.ps1 -ToolchainBin $toolchain -WixExe $env:WIX_EXE -WorkDir "$pwd\build\wix-retired-msi-test"
           if ($LASTEXITCODE -ne 0) { throw 'Locked-file MSI rollback test failed.' }
-      - name: Preserve verified release files
+      - name: Preserve verified Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: verified-${{ github.ref_name }}
-          path: |
-            dist/wix/LiuKai-win-setup.exe
-            dist/wix/LiuKai.msi
-            dist/wix/SHA256SUMS.txt
-            dist/wix/SOURCE.txt
+          name: windows-x64-${{ github.sha }}
+          path: windows/dist/platform/release/
           if-no-files-found: error
-      - name: Publish prerelease
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create $env:GITHUB_REF_NAME 'dist/wix/LiuKai-win-setup.exe' 'dist/wix/LiuKai.msi' 'dist/wix/SHA256SUMS.txt' 'dist/wix/SOURCE.txt' --repo $env:GITHUB_REPOSITORY --verify-tag --prerelease --title "嘸．改 $($env:GITHUB_REF_NAME.ToUpperInvariant())（Windows x64）" --notes-file RELEASE_NOTES.md
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

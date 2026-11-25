@@ -5,6 +5,7 @@ import com.hamanpaul.liukai.core.engine.ImeEvent.Key
 import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.core.table.CompiledTable
 import com.hamanpaul.liukai.core.table.SectionKind
+import com.hamanpaul.liukai.core.table.TableEntry
 import com.hamanpaul.liukai.core.table.UserPhrase
 import com.hamanpaul.liukai.core.table.UserPhrases
 import kotlin.test.Test
@@ -23,6 +24,35 @@ class LiuEngineTest {
     private fun enterZhuyin(engine: LiuEngine = e) {
         engine.handle(ImeEvent.HomophoneKey)
         engine.handle(ImeEvent.HomophoneKey)
+    }
+
+    @Test
+    fun `兩平台用正式讀音表查候選並只輸出選中的字`() {
+        val readings = Readings.loadBundled()
+        val table = CompiledTable.build(listOf(TableEntry("wpdt", "樂"), TableEntry("rcd", "勒")))
+        val rows = requireNotNull(javaClass.getResource("/zhuyin-candidates.tsv"))
+            .readText().lineSequence().drop(1).filter { it.isNotBlank() }.toList()
+        assertTrue(rows.isNotEmpty())
+        for (row in rows) {
+            val fields = row.split('\t')
+            assertEquals(5, fields.size)
+            val (keys, seedCode, candidate, primary, secondary) = fields
+            assertEquals(listOf(primary, secondary), readings.of(candidate))
+            val engine = LiuEngine(table, readings)
+            for (direct in listOf(true, false)) {
+                engine.handle(ImeEvent.HomophoneKey)
+                if (direct) engine.handle(ImeEvent.HomophoneKey)
+                for (key in if (direct) keys else seedCode) engine.handle(Key(key))
+                if (!direct || engine.zhuyinStage == ZhuyinStage.COMPOSING) engine.handle(ImeEvent.Space)
+                val position = engine.candidates.indexOfFirst { it.text == candidate }
+                assertTrue(position >= 0, "missing $candidate in $row, direct=$direct")
+                assertEquals(EngineResult(true, candidate), engine.handle(ImeEvent.Select(position)))
+                assertFalse(engine.isComposing)
+                engine.handle(Key('r'))
+                assertEquals("r", engine.composing)
+                engine.handle(ImeEvent.Escape)
+            }
+        }
     }
 
     @Test

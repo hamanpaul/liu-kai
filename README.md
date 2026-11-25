@@ -1,6 +1,13 @@
 # liu-kai
 
-自製的 Android 嘸蝦米輸入法（Kotlin IME）。字碼來源為使用者自建的字表（`liu_ibus_final.txt`＋`lime_liu7.txt`），於手機端匯入；本 repo 不附字表檔。
+嘸．改提供 Android 螢幕鍵盤與 Windows x64 輸入法。跨平台功能在此 repo 的同一張 issue 討論，兩端各自建置、驗收及升版。
+
+| 平台 | 整合後首版 | 使用說明 |
+| --- | --- | --- |
+| Android 11 以上 | [Android 0.1.0 APK](https://github.com/hamanpaul/liu-kai/releases/tag/android-v0.1.0) | 下方的 Android 安裝與操作說明 |
+| Windows x64 | [Windows 0.1.0 安裝程式](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.0) | [Windows 安裝、升級與卸載](windows/README.md) |
+
+每個平台的安裝檔、SHA-256、版本與來源可從發行頁查到。[版本對照](RELEASES.md) · [原 Windows issue、PR 與版本索引](docs/windows-history.md)
 
 設計與里程碑見 [`docs/plan.md`](docs/plan.md)。
 
@@ -17,7 +24,7 @@ export ANDROID_HOME=~/Android/Sdk
 
 內建字表：建置時若本機有使用者自建字表（預設 `~/prj_pri/liu-kai-data/`，可用 `-Pliukai.tableDir=<目錄>` 或環境變數 `LIU_KAI_DATA` 指定），會以 `liu-kai-cli bundle` 編譯後內建進 APK，裝好第一次使用就能打中文；沒有字表時（例如 CI）不內建，需在設定頁匯入。設定頁可匯入其他字表覆蓋，「清除字表」會改回內建字表。
 
-正式版的 APK 附在 GitHub Releases（例如 `v0.1.0` 的 `liu-kai-0.1.0.apk`），版本對照見 `RELEASES.md`；開發中的測試 APK 放在 test-apks 分支，下載連結、SHA-256 與對應的 source commit 見該分支的 APKS.md。需要 Android 11 以上。
+正式版 APK 附在對應的 Android GitHub Release；開發中的測試 APK 放在 `test-apks` 分支，下載連結、SHA-256 與來源提交見該分支的 APKS.md。需要 Android 11 以上。
 
 ## Usage
 

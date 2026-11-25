@@ -13,7 +13,9 @@ try {
         $source=Join-Path $PSScriptRoot ("tests\$name.cpp"); $exe=Join-Path $work ($name+'.exe')
         & $compiler -std=c++17 -O2 -static $source -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $exe
         if($LASTEXITCODE -ne 0){throw "Compilation failed: $name"}
-        if($name -eq 'engine_homophone_tests'){ & $exe (Join-Path $PSScriptRoot '..\assets\dictionary.tsv') (Join-Path $PSScriptRoot '..\assets\readings.tsv') (Join-Path $PSScriptRoot '..\assets\phonetic-candidates.tsv') } else { & $exe }
+        if($name -eq 'engine_homophone_tests'){
+            & $exe (Join-Path $PSScriptRoot '..\assets\dictionary.tsv') (Join-Path $PSScriptRoot '..\assets\readings.tsv') (Join-Path $PSScriptRoot '..\assets\phonetic-candidates.tsv') (Join-Path $PSScriptRoot '..\..\shared\testdata\zhuyin-candidates.tsv')
+        } else { & $exe }
         if($LASTEXITCODE -ne 0){throw "Test failed: $name"}
     }
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tests\run-tsf-uiless-input-tests.ps1') -ToolchainBin $bin -WorkDir (Join-Path $work 'tsf-uiless-input')

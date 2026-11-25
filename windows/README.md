@@ -4,7 +4,7 @@
 
 原生 Windows TSF 輸入法，使用 Android 手 key 字表與無改圖示。字碼以原字根表為準；品牌保持彩色，另有獨立中／英狀態。不包含自訂字詞、關聯詞或品牌灰階切換。
 
-目前的 Windows x64 預發布版為 **R70**：[下載安裝程式](https://github.com/hamanpaul/liu-kai_win/releases/download/r70/LiuKai-win-setup.exe) · [SHA256](https://github.com/hamanpaul/liu-kai_win/releases/download/r70/SHA256SUMS.txt) · [發行說明](https://github.com/hamanpaul/liu-kai_win/releases/tag/r70)。請使用 EXE 安裝或升級；R70 已在本機完成升級與記事本輸入測試，同源測試版已在 Windows Terminal／WSL 完成快速 Shift 與切換視窗後的測試。
+Windows 新發行線從 **0.1.0** 開始。請使用 EXE 安裝或原地升級；再次開啟同一支安裝檔可選擇解除安裝。[下載 Windows 0.1.0 安裝檔](https://github.com/hamanpaul/liu-kai/releases/download/windows-v0.1.0/liu-kai-windows-0.1.0-x64-setup.exe) · [版本與 SHA-256](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.0) · [先前 R70 發行紀錄](https://github.com/hamanpaul/liu-kai_win/releases/tag/r70)
 
 ## R60 歷史驗收紀錄
 
@@ -24,7 +24,7 @@ R60 新增明確的 x64 機器層級 COM 註冊，與使用者層級一起處理
 
 在中文輸入模式先按 `'`，接著輸入已知同音字的字碼，按空白選擇該字，顯示同音候選字；以空白鍵翻頁、數字鍵選字。例：`'`、`mnfo`、空白、`0` 可由「瞎」查找並輸出「蝦」。不同字的讀音和候選字以隨附字典資料為準。
 
-**本分支測試版也可以直接用注音查字碼。** 在中文模式依序按 `'`、`;`，再用標準注音鍵盤組音。例如按 `v`、`u`、`8` 輸入「ㄒㄧㄚ」，按空白可列出「蝦」等同音字。候選取自目前字表，依主要讀音查詢，每個候選旁的拆碼依你的顯示設定呈現。
+**也可以直接用注音查字碼。** 在中文模式依序按 `'`、`;`，再用標準注音鍵盤組音。例如按 `v`、`u`、`8` 輸入「ㄒㄧㄚ」，按空白可列出「蝦」等同音字。候選取自目前字表，依主要讀音查詢，每個候選旁的拆碼依你的顯示設定呈現。
 
 一聲按空白列出候選，二、三、四聲按聲調鍵即可列出，輕聲按 `7` 後再按空白。候選出現後，空白翻頁，上下鍵移動，Enter 選字，也能依畫面上的數字直接選字。選完只輸出漢字，下一鍵就能打一般嘸蝦米。要修正讀音，可在候選清單按 Backspace 返回組音，再按 Backspace 刪除最後一個注音符號或聲調。按 Esc 可取消整次查詢。
 
@@ -48,7 +48,7 @@ pwsh -NoProfile -File native/build-branding.ps1 -Architecture x64 -OutputDll bui
 
 `native/package-windows.ps1` 可將這些輸出與 `assets/` 建立 x64 offline package；必須提供 `-X64Only`、版本與輸出目錄。`native/package/Setup.cs` 是 .NET Framework 安裝外殼，`install-release.ps1` 需要完整的 release manifest 與註冊工具，不能直接當成單一獨立安裝檔執行。沒有附帶需保留歷史套件的本機增量 builder，也沒有附帶已消耗的部署續行工具。
 
-## 解除安裝（新版安裝器）
+## R60 系列舊安裝器的解除安裝方式
 
 R60.20 起，安裝或移除發生錯誤時，安裝程式會嘗試自動收集 WuGai 安裝紀錄、交易及相關狀態，在 `%LOCALAPPDATA%\LiuKai\diagnostics` 產生診斷 ZIP，並在錯誤視窗與安裝 LOG 中記錄路徑。診斷資料留在本機，不會自動上傳；可能包含 Windows 帳號路徑。若收集失敗且 LOG 可寫入，會記錄原始錯誤與收集失敗原因。取消安裝確認不視為錯誤。
 

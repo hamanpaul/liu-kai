@@ -1,15 +1,15 @@
-<!-- managed-by: hamanpaul/paulsha-conventions@v1.0.17 -->
+<!-- managed-by: hamanpaul/paulsha-conventions@v1.0.19 -->
 <!-- 此為 canonical 真檔；AGENTS.md / GEMINI.md / .github/copilot-instructions.md 為指向本檔的 symlink，只維護本檔 -->
-policy_version: 1.0.17
+policy_version: 1.0.19
 
 # Agent Policy Checklist
 
-本 repo 受 hamanpaul project policy v1.0.17 管轄。
+本 repo 受 hamanpaul project policy v1.0.19 管轄。
 所有 agent 進入 session 時，必須依下列 checklist 行動。
 
 ## 本 repo 的 profile
 - policy_profile: `flat` （見 `.project-policy.yml`）
-- policy_version: `1.0.17`
+- policy_version: `1.0.19`
 
 ## 動工前
 - [ ] 確認當前分支不是 `main`
@@ -33,7 +33,7 @@ policy_version: 1.0.17
   - `flat`: 一個 feature batch 完成
 - [ ] MINOR bump 需滿足：feature 群組全 landed + 7 天無 hotfix
 - [ ] MAJOR bump 需使用者明確核可
-- [ ] 若本 PR 將版本 bump 延後（feature 先進 `[Unreleased]`），merge 當下必須**立即**補做對應 release bump（`VERSION` / `policy_version` / canonical `CLAUDE.md`（其餘三檔 symlink 自動跟隨）/ `managed-by` 標記 / tag / `RELEASES.md`），不得留置
+- [ ] 發版時依 `RELEASES.md` 核對 repo 批次版號、兩端獨立的產品版號及 tag。升級政策引擎時才同步 `policy_version`、canonical `CLAUDE.md`、`managed-by` 和 workflow pin。
 
 ## 完成任務（claim done）前
 - [ ] 本 PR 有新增對應的 changelog fragment `changelog.d/<issue>-<slug>.md`（或 PR 標 `skip-changelog` + 理由）
@@ -42,7 +42,7 @@ policy_version: 1.0.17
 - [ ] 測試全綠且覆蓋率 100%（本 repo: `./gradlew :core:check :cli:check`、`(cd testpilot && .venv/bin/python -m pytest)`；動到 app 或輸入行為時另跑 `scripts/emulator-e2e.sh`，含 app 覆蓋率 100% 門檻）
 - [ ] `python3 -m policy_check --repo .` 無任何 failure
 - [ ] 已執行本 repo 擁有的 canonical `preflight-ci` skill（其核心為 `policy-preflight`），且全部 selected gates 通過
-- [ ] R-17：PR body 若引用 issue（`#N`），必須是 closing-keyword 形式（`Closes/Fixes/Resolves #N`）；只引用不關閉時上 `policy-exempt:issue-link`
+- [ ] R-17：PR body 的 `#N` 引用依規範使用 closing keyword。跨平台功能共用一張 issue，單邊 PR 用完整 issue URL 記錄關聯，雙端驗收並發版後才手動關單。
 - [ ] R-18：code 有變動時已評估並（如需要）同步 `README.md` / `docs/**`，或上 `policy-exempt:docs-sync`
 - [ ] R-19：repo 有 `tests/` 時，CI workflow 有實際執行測試（pytest 等）；新增測試套件而 CI 未涵蓋時同步補上
 - [ ] R-21：所有 tier 皆會掃描；`shareable` 命中一律失敗，其他 tier 依 repository visibility 分級（public/unknown 的結構或憑證命中失敗，marker-only 與 private/internal 命中警告）；合法引用上 `secret_scan.allow` 或命中時上 `policy-exempt:secret-scan` 並附理由
@@ -93,5 +93,5 @@ MOC 的**狀態語意對齊**（`moc.map` 上某 stage 宣稱 done 是否真 don
 - **clean-room**：不得複製 rime-liur、openxiami、OhMyBias 等未授權來源的程式碼或資料；只能以其公開文件描述的行為作為黑箱參考。
 - APK（minSdk 30）不宣告 `INTERNET` 權限、不做任何遙測；`allowBackup=false`。
 - 測試 APK 不建立 GitHub Releases，一律放到 `test-apks` 分支（檔名 `liu-kai-debug-YYYY-MM-DD.apk`，該分支的 APKS.md 記錄最新版、raw 下載連結、SHA-256 與 source commit）；該分支不跑 CI、不做 policy check、不開 PR。
-- 正式版（`vX.Y.Z` tag）另建 GitHub Release 並附 APK：附當時已通過全套測試的 APK，檔名 `liu-kai-X.Y.Z.apk`，檔名與 release 說明不出現 debug 字樣（使用者 2026-09-28 決定）；版本對照記在 `RELEASES.md`。
+- 正式發版依 `RELEASES.md` 的版本、tag 和檔名對照，Android 與 Windows 各自發布經過測試的安裝檔。
 - 設計與里程碑見 `docs/plan.md`。

@@ -20,6 +20,10 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
+sourceSets.test {
+    resources.srcDir(rootProject.file("shared/testdata"))
+}
+
 jacoco {
     toolVersion = "0.8.15"
 }

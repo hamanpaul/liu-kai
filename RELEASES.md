@@ -1,6 +1,24 @@
 # 版本紀錄
 
-liu-kai 正式版本 ↔ tag ↔ commit ↔ APK 的對照表。發版流程：release PR（`VERSION`、`CHANGELOG.md` 由 `changelog.d/` 彙整、本表）merge 後，在 merge commit 打 `vX.Y.Z` tag、建立 GitHub Release 並附上 APK，再回填本表的 commit SHA。
+## 雙平台版本
+
+整合後兩端各自從 **0.1.0** 起算，首版來自同一個合併提交。後續獨立遞增，例如 Android 可到 `0.1.1`，Windows 可到 `0.1.12`。下載時以平台前綴辨認新發行線。歷史 Android `v0.1.0` 和 Windows `r70` 等資產保留在原網址。
+
+| 平台 | 正式版、標籤與來源 | 下載檔 | 系統升級身分 |
+| --- | --- | --- | --- |
+| Android | [android-v0.1.0](https://github.com/hamanpaul/liu-kai/releases/tag/android-v0.1.0) | `liu-kai-android-0.1.0.apk` | `com.hamanpaul.liukai`，versionName 0.1.0、versionCode 2；保留相容簽章 |
+| Windows x64 | [windows-v0.1.0](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.0) | `liu-kai-windows-0.1.0-x64-setup.exe` | MSI／Burn 70.1.2；沿用原 MSI 與 Bundle 的 UpgradeCode |
+
+Android 公開版號在 [app/VERSION](app/VERSION)，Android 內部安裝序號在 [app/VERSION_CODE](app/VERSION_CODE)，每個正式版須大於所有已分發 APK 的安裝序號。Windows 公開版號在 [windows/VERSION](windows/VERSION)，安裝版號的換算與驗證見 [Windows 發行說明](windows/RELEASE_FLOW.md)。根層 [VERSION](VERSION) 和無平台前綴的 annotated tag 是 paulsha-conventions 的整合批次，例如這次 `v0.1.2`；兩個產品各自使用自己的 lightweight tag 和 GitHub Release。
+
+### 發行流程
+
+1. 更新要發行的平台版號、安裝序號與本表。整合 PR 通過雙端 CI 後，以正式提交建立批次 annotated tag 及該平台的 lightweight tag。首版的兩個平台標籤指向同一提交。只有一端升版時，只新增該端的產品標籤。
+2. 從同一提交製作及實測成品。Android 在有核准字表與原簽署身分的環境執行 `python3 scripts/android-release.py build <輸出目錄>`；Windows 使用 [Windows 發行入口](windows/RELEASE_FLOW.md)。各端均會輸出安裝檔、`SOURCE.txt`（來源 SHA 與版號）及 `SHA256SUMS.txt`。以成品做離線輸入、升級與資料保留驗收，將結果附在對應 issue。
+3. 在該提交執行 `python3 scripts/publish-platform-release.py --android <APK輸出目錄> --windows <EXE發布目錄>`。程式把兩端已測成品放入各自的草稿，並下載核對。只有一端發版時只給該平台參數。
+4. 實測通過後以相同參數加 `--publish`，另從安裝驗收紀錄傳入 `--accepted-android-sha256` 及／或 `--accepted-windows-sha256`。首版須同時提供兩端；後續只需提供本次發布的平台。所有草稿均通過後才開始公開，GitHub 對每份 Release 各執行一次公開操作。中斷時重跑同一命令，它會讀回原草稿／已公開狀態，核對既有檔案與雜湊，再補完剩餘步驟。修正已發出的程式時增加版本，保留原下載。
+
+## 歷史 Android 版本
 
 | 版本 | tag | commit | APK | 摘要 |
 |------|-----|--------|-----|------|

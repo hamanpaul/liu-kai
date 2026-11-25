@@ -127,7 +127,9 @@ private fun genReadings(args: List<String>, out: PrintStream): Int {
             val cols = line.split('\t')
             if (cols.size < 3 || cols[1] != "kMandarin") continue
             val ch = String(Character.toChars(cols[0].removePrefix("U+").toInt(16)))
-            val values = cols[2].trim().split(' ').filter { it.isNotEmpty() }.reversed()
+            val unihan = cols[2].trim().split(' ').filter { it.isNotEmpty() }.reversed()
+            // 教育部《重編國語辭典》「勒」先列 lè，再列 lēi（dictView.jsp?ID=3203）。
+            val values = if (ch == "勒") listOf("lè") + unihan else unihan
             val zhuyin = values.mapNotNull { PinyinZhuyin.convert(it) }.distinct()
             if (zhuyin.isEmpty()) {
                 skipped++

@@ -14,8 +14,8 @@ android {
         applicationId = "com.hamanpaul.liukai"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = file("VERSION_CODE").readText().trim().toInt()
+        versionName = file("VERSION").readText().trim()
         testInstrumentationRunner = "com.hamanpaul.liukai.ime.TouchDiagnosticsFrameworkTest"
     }
 
@@ -26,6 +26,11 @@ android {
         }
         release {
             isMinifyEnabled = false
+            // Public APKs use this historical signing identity for in-place upgrades.
+            // The release entry point verifies the public certificate before distribution.
+            if (providers.gradleProperty("liukai.signForDistribution").isPresent) {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 

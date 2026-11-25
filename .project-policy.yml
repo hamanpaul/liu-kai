@@ -1,5 +1,5 @@
 policy_profile: flat
-policy_version: 1.0.17
+policy_version: 1.0.19
 code_paths:
   - "**/*.kt"
   - "**/*.kts"
@@ -10,9 +10,21 @@ code_paths:
   - "core/src/**"
   - "cli/src/**"
   - "scripts/**"
+  - "shared/testdata/**"
+  - "windows/**/*.cpp"
+  - "windows/**/*.hpp"
+  - "windows/**/*.ps1"
+  - "windows/**/*.wxs"
+  - "windows/**/*.rc"
+  - "windows/**/*.def"
+  - "windows/assets/**"
 doc_paths:
   - "README.md"
   - "docs/**"
+  - "windows/README.md"
+  - "windows/RELEASE_FLOW.md"
+  - "windows/VALIDATION.md"
+  - "windows/native/INSTALL-DIAGNOSTICS.md"
 preflight:
   steps:
     - name: gradle-test

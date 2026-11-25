@@ -187,9 +187,47 @@ int main(int argc,char** argv){
  e.key('\'');e.key('s');e.key(Key::Space);for(int i=0;i<10;++i)e.key(Key::Down);CHECK(e.snapshot().page==1&&e.snapshot().candidate_selection==10);CHECK(e.key(Key::Enter).commit=="K");
  e.key('\'');e.key('s');e.key(Key::Space);auto cancel=e.key(Key::Escape);CHECK(cancel.commit.empty());CHECK(cancel.query==QueryStage::None);
  e.key('s');CHECK(e.key(Key::Space).commit=="Z");
- CHECK(argc==4); std::ifstream dictionary(argv[1],std::ios::binary), actualReadings(argv[2],std::ios::binary), phonetic(argv[3],std::ios::binary);
+ CHECK(argc==4 || argc==5); std::ifstream dictionary(argv[1],std::ios::binary), actualReadings(argv[2],std::ios::binary), phonetic(argv[3],std::ios::binary);
  CHECK(dictionary && actualReadings && phonetic); auto real=load_dictionary(dictionary).make_engine();
- real.set_readings(Readings::parse(actualReadings));real.set_phonetic_candidates(PhoneticCandidateIndex::parse(phonetic));real.set_observed_primary_homophones(ObservedPrimaryHomophoneIndex::built_in());
+ const auto bundledReadings = Readings::parse(actualReadings);
+ real.set_readings(bundledReadings);real.set_phonetic_candidates(PhoneticCandidateIndex::parse(phonetic));real.set_observed_primary_homophones(ObservedPrimaryHomophoneIndex::built_in());
+ if (argc == 5) {
+     std::ifstream cases(argv[4]);
+     std::string header, row;
+     CHECK(std::getline(cases, header) && header == "keys\tseed_code\tcandidate\tprimary\tsecondary");
+     unsigned rows = 0;
+     while (std::getline(cases, row)) {
+         std::istringstream fields(row);
+         std::string keys, seedCode, candidate, primary, secondary, extra;
+         CHECK(fields >> keys >> seedCode >> candidate >> primary >> secondary);
+         CHECK(!(fields >> extra));
+         ++rows;
+         CHECK(bundledReadings.of(candidate) == std::vector<std::string>({primary, secondary}));
+         for (auto mode : {Mode::Traditional, Mode::Simplified}) {
+             real.set_mode(mode);
+             for (bool direct : {true, false}) {
+                 real.key('\'');
+                 if (direct) real.key(';');
+                 for (char key : direct ? keys : seedCode) real.key(key);
+                 if (!direct || real.snapshot().query == QueryStage::PhoneticInput) real.key(Key::Space);
+                 auto list = real.snapshot();
+                 CHECK(list.query == QueryStage::Homophones && list.layout_candidates);
+                 const auto& entries = *list.layout_candidates;
+                 const auto match = std::find_if(entries.begin(), entries.end(), [&](const Candidate& item) {
+                     return item.text == candidate;
+                 });
+                 CHECK(match != entries.end());
+                 CHECK(real.set_candidate_selection_global(static_cast<std::size_t>(match - entries.begin())));
+                 const auto selected = real.key(Key::Enter);
+                 CHECK(selected.commit == candidate && selected.query == QueryStage::None);
+                 CHECK(real.key('r').composition == "r");
+                 real.key(Key::Escape);
+             }
+         }
+     }
+     CHECK(rows > 0 && cases.eof() && !cases.bad());
+     real.set_mode(Mode::Traditional);
+ }
  real.key('\'');for(char c:std::string("mnfo"))real.key(c);auto actual=real.key(Key::Space);
  CHECK(actual.query==QueryStage::Homophones);CHECK(!actual.candidates.empty());CHECK(actual.candidates[0].text=="\xe8\x9d\xa6");
  CHECK(candidate_display_text(actual.candidates[0])=="蝦 CFA");auto shrimp=real.key('0');CHECK(shrimp.commit=="\xe8\x9d\xa6");CHECK(shrimp.hint.empty());

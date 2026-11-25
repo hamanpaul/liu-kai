@@ -72,7 +72,7 @@ if($LASTEXITCODE -ne 0){throw 'Prototype MSI build failed.'}
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'native\tests\wix-product-layout-tests.ps1') -Msi $msi -Installable
 if($LASTEXITCODE -ne 0){throw 'Prototype MSI layout check failed.'}
 & (Join-Path $PSScriptRoot 'verify-msi-payload.ps1') -WixExe $wix -Msi $msi -SourceBundle $source -HistoryProbe $historyProbe -ActionDll $contextDll -ExtractDir (Join-Path $out 'msi-verification')
-& $wix build -arch x64 -ext $bal -d ("BundleVersion=$MsiVersion") -d ("IconPath=$icon") -d ("LicensePath=$(Join-Path $PSScriptRoot 'install-notice.rtf')") -d ("LogoPath=$(Join-Path $repo 'assets\liukai-installer-logo.png')") -d ("MsiPath=$msi") -d ("R64Patch=$migrationPatch") -o $setup (Join-Path $PSScriptRoot 'bundle-migration.wxs')
+& $wix build -arch x64 -ext $bal -d ("BundleVersion=$MsiVersion") -d ("RuntimeVersion=$version") -d ("IconPath=$icon") -d ("LicensePath=$(Join-Path $PSScriptRoot 'install-notice.rtf')") -d ("LogoPath=$(Join-Path $repo 'assets\liukai-installer-logo.png')") -d ("MsiPath=$msi") -d ("R64Patch=$migrationPatch") -o $setup (Join-Path $PSScriptRoot 'bundle-migration.wxs')
 if($LASTEXITCODE -ne 0){throw 'Prototype Burn build failed.'}
 & (Join-Path $PSScriptRoot 'verify-bundle.ps1') -WixExe $wix -Bundle $setup -Msi $msi -Patch $migrationPatch -Icon $icon -Logo (Join-Path $repo 'assets\liukai-installer-logo.png') -Notice (Join-Path $PSScriptRoot 'install-notice.rtf') -ExtractDir (Join-Path $out 'verification-extracted')
 if(-not $PublishBuild){$note='Test candidate only; do not distribute as a release.'; [IO.File]::WriteAllText((Join-Path $out 'TEST-ONLY.txt'),$note)}
