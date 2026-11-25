@@ -23,7 +23,7 @@
 namespace boshiamy {
 enum class HintKind { Shortest, Recommended, All };
 enum class Key { Space, Backspace, Escape, PageUp, PageDown, Enter, Up, Down };
-enum class QueryStage { None, HomophoneSeed, Homophones, PhoneticInput, PhoneticCandidates };
+enum class QueryStage { None, HomophoneSeed, Homophones, PhoneticInput };
 struct Candidate { std::string text; std::string reverse_code; };
 inline std::string candidate_display_text(const Candidate& candidate) {
     if(candidate.reverse_code.empty())return candidate.text;
@@ -60,6 +60,17 @@ public:
     }
 
     Outcome snapshot() const { return outcome_; }
+    bool is_phonetic_input() const noexcept {
+        return query_ == QueryStage::PhoneticInput || phonetic_homophones_;
+    }
+    // The key that opened the current phonetic homophone list: a tone digit
+    // for tone-triggered confirmation, or Space for explicit confirmation.
+    char phonetic_confirmation_key() const noexcept {
+        return phonetic_confirmation_key_;
+    }
+    void clear_phonetic_confirmation_key() noexcept {
+        phonetic_confirmation_key_ = 0;
+    }
     bool set_candidate_page_indices(const std::vector<std::size_t>& starts) {
         if (related_stage_ || reverse_mode_ == ReverseMode::Associated) return false;
         const auto all = visible_candidates();
@@ -142,6 +153,10 @@ public:
         show_extensions_ = show;
         outcome_.commit.clear();
         const auto visible = visible_candidates();
+        if(phonetic_homophones_&&visible.empty()){
+            query_=QueryStage::PhoneticInput;homophones_.clear();phonetic_homophones_=false;phonetic_confirmation_key_=0;page_=0;
+            refresh();return;
+        }
         const std::size_t last_page = visible.empty() ? 0 : (visible.size() - 1) / 10;
         page_ = std::min(page_, last_page);
         refresh();
@@ -174,7 +189,9 @@ public:
                 if(!starts.empty()&&candidate_selection_<all.size()){
                     select(candidate_selection_-starts[page_]);return outcome_;
                 }
+                if(phonetic_homophones_)break;
             }
+            if(query_==QueryStage::PhoneticInput)break;
             // Enter is an English-text commit while input is active. Keep the
             // original keys because query composition may be a Zhuyin display.
             if(!raw_input_.empty()){
@@ -183,22 +200,17 @@ public:
             }
             break;
         case Key::Space:
-            if(query_==QueryStage::PhoneticInput) open_phonetic(true);
-            else if(query_==QueryStage::Homophones)return this->key(Key::PageDown);
-            else if(query_==QueryStage::PhoneticCandidates)refresh();
+            if(query_==QueryStage::PhoneticInput) open_phonetic(true,' ');
+            else if(query_==QueryStage::Homophones){phonetic_confirmation_key_=0;return this->key(Key::PageDown);}
             else if (query_!=QueryStage::None) select(0, true);
             else if (!run_command()&&!open_related_after_seed()) select(0, true);
             break;
         case Key::Backspace:
-            if(query_==QueryStage::PhoneticCandidates){
-                query_=QueryStage::PhoneticInput;homophones_.clear();
-                if(!composition_.empty()&&zhuyin::is_tone(composition_.back())){
-                    const auto reading=zhuyin::reading(composition_);
-                    const bool neutral=reading&&reading->rfind("˙",0)==0;
-                    if(!neutral){composition_.pop_back();if(!raw_input_.empty())raw_input_.pop_back();}
-                }
+            if(query_==QueryStage::Homophones&&phonetic_homophones_){
+                query_=QueryStage::PhoneticInput;homophones_.clear();phonetic_homophones_=false;phonetic_confirmation_key_=0;
             }
             else if(query_==QueryStage::PhoneticInput&&composition_.empty()){clear_query();}
+            else if(query_==QueryStage::PhoneticInput){composition_.pop_back();}
             else if(query_==QueryStage::Homophones){
                 query_=QueryStage::HomophoneSeed;homophones_.clear();
                 if(!composition_.empty())composition_.pop_back();
@@ -272,15 +284,15 @@ public:
             return outcome_;
         }
         if(query_==QueryStage::PhoneticInput){
-            if((zhuyin::is_symbol(c)||zhuyin::is_tone(c))&&composition_.size()<4){
-                composition_=zhuyin::append_canonical(std::move(composition_),c);raw_input_.push_back(raw_character);page_=0;
-                if(zhuyin::has_tone(composition_))open_phonetic();else refresh();
+            if(zhuyin::is_symbol(c)||zhuyin::is_tone(c)){
+                composition_=zhuyin::append_canonical(std::move(composition_),c);page_=0;
+                if(zhuyin::has_tone(composition_))open_phonetic(false,raw_character);else refresh();
             }
             return outcome_;
         }
-        if(query_==QueryStage::Homophones||query_==QueryStage::PhoneticCandidates){if(c>='0'&&c<='9')select(static_cast<std::size_t>(c-'0'));return outcome_;}
+        if(query_==QueryStage::Homophones){if(c>='0'&&c<='9')select(static_cast<std::size_t>(c-'0'));return outcome_;}
         if(query_==QueryStage::None&&composition_=="'"&&!readings_.empty()&&c==';'){
-            query_=QueryStage::PhoneticInput;composition_.clear();raw_input_.push_back(input);page_=0;refresh();return outcome_;
+            query_=QueryStage::PhoneticInput;composition_.clear();raw_input_.clear();page_=0;refresh();return outcome_;
         }
         if(query_==QueryStage::None&&composition_=="'"&&!readings_.empty()&&is_root(c)&&!is_shifted_symbol(c)&&c!='\''){
             query_=QueryStage::HomophoneSeed;composition_.clear();
@@ -351,7 +363,9 @@ private:
     std::string fast_preview_code_;
     std::vector<std::string> query_preview_codes_;
     std::vector<Candidate> homophones_;
-    void clear_query(){query_=QueryStage::None;homophones_.clear();preview_.clear();fast_preview_code_.clear();query_preview_codes_.clear();raw_input_.clear();}
+    bool phonetic_homophones_=false; // Distinguishes the editable Zhuyin source from a seed query.
+    char phonetic_confirmation_key_=0;
+    void clear_query(){query_=QueryStage::None;homophones_.clear();preview_.clear();fast_preview_code_.clear();query_preview_codes_.clear();raw_input_.clear();phonetic_homophones_=false;phonetic_confirmation_key_=0;}
     void close_related_state(){related_stage_=false;related_candidates_.clear();}
     void close_related_stage(bool discard_seed){
         close_related_state();page_=0;raw_input_.clear();
@@ -435,8 +449,7 @@ private:
         }
     }
     std::vector<std::string> query_preview_codes(const std::string& text) const {
-        if(query_!=QueryStage::HomophoneSeed&&query_!=QueryStage::Homophones&&
-           query_!=QueryStage::PhoneticCandidates)return {};
+        if(query_!=QueryStage::HomophoneSeed)return {};
         if(reverse_mode_==ReverseMode::Recommended)
             return outcome_.hint.empty()?std::vector<std::string>{}:std::vector<std::string>{outcome_.hint};
         if(reverse_mode_!=ReverseMode::Shortest&&reverse_mode_!=ReverseMode::All)return {};
@@ -481,17 +494,6 @@ private:
         }
         return *traditional_eligible_texts_;
     }
-    void prepare_ordered_phonetic_query(const std::vector<std::string>& texts) {
-        if (texts.empty()) {
-            homophones_.clear();
-            return;
-        }
-        const auto& eligible = traditional_eligible_texts();
-        std::set<std::string> seen;
-        homophones_.clear();
-        for (const auto& text : texts)
-            if (eligible.count(text) && seen.insert(text).second) homophones_.push_back({text});
-    }
     void prepare_indexed_homophone_query(const std::vector<std::string>& texts) {
         const auto& eligible = traditional_eligible_texts();
         homophones_.clear();
@@ -528,17 +530,19 @@ private:
             }else candidate.reverse_code=values.front();
         }
     }
-    void open_phonetic(bool explicit_confirmation=false){
+    void open_phonetic(bool explicit_confirmation=false,char confirming_key=0){
         const auto reading=zhuyin::reading(composition_);
         const bool neutral=reading&&reading->rfind("˙",0)==0;
-        // Tone entry stays editable for neutral readings; explicit Space may
-        // confirm the reading while retaining its phonetic candidates.
         const bool confirmed = reading && (!neutral || explicit_confirmation);
-        const auto* official = confirmed && mode_ == Mode::Traditional
-            ? phonetic_candidates_.lookup(*reading) : nullptr;
-        if (official) prepare_ordered_phonetic_query(*official);
-        else prepare_query(confirmed ? readings_.matches_reading(*reading) : std::vector<std::string>{});
-        query_=homophones_.empty()?QueryStage::PhoneticInput:QueryStage::PhoneticCandidates;page_=0;refresh();
+        prepare_query(confirmed ? readings_.matches_primary_reading(*reading) : std::vector<std::string>{});
+        if(confirmed)annotate_homophones();
+        phonetic_homophones_=confirmed&&!homophones_.empty();
+        query_=phonetic_homophones_?QueryStage::Homophones:QueryStage::PhoneticInput;
+        if(phonetic_homophones_&&visible_candidates().empty()){
+            homophones_.clear();phonetic_homophones_=false;query_=QueryStage::PhoneticInput;
+        }
+        phonetic_confirmation_key_=phonetic_homophones_?confirming_key:0;
+        page_=0;refresh();
     }
     void preview_selection(std::size_t index){
         auto all=lookup(composition_);const auto starts=page_starts(all);
@@ -576,7 +580,7 @@ private:
     std::vector<Candidate> lookup(const std::string& code) const {
         std::vector<Candidate> result;
         if(query_==QueryStage::PhoneticInput)return result;
-        if(query_==QueryStage::Homophones||query_==QueryStage::PhoneticCandidates){result=homophones_;filter_extensions(result);return result;}
+        if(query_==QueryStage::Homophones){result=homophones_;filter_extensions(result);return result;}
         auto it = active_dict().find(code);
         if (it != active_dict().end()) {
             result = it->second;
@@ -659,7 +663,8 @@ private:
         if (start < all.size()) {
             page.assign(all.begin() + static_cast<std::ptrdiff_t>(start), all.begin() + static_cast<std::ptrdiff_t>(end));
         }
-        outcome_.composition = !preview_.empty()?preview_:(query_==QueryStage::PhoneticInput||query_==QueryStage::PhoneticCandidates)
+        outcome_.composition = !preview_.empty()?preview_:
+            (query_==QueryStage::PhoneticInput||phonetic_homophones_)
             ? "注"+zhuyin::display(composition_) : (query_==QueryStage::None?"":"'")+composition_;
         outcome_.candidates = std::move(page);
         outcome_.candidate_page_indices = starts;
@@ -682,11 +687,6 @@ private:
             if(query_==QueryStage::HomophoneSeed){open_homophones(text);return;}
             if(query_==QueryStage::Homophones){
                 outcome_.commit=text;composition_.clear();clear_query();page_=0;refresh();return;
-            }
-            if(query_==QueryStage::PhoneticCandidates){
-                preview_=text;query_hint(text);
-                query_preview_codes_=query_preview_codes(text);
-                refresh();return;
             }
             const bool fast_input=mode_==Mode::Fast&&query_==QueryStage::None;
             const auto shortest=fast_input?best_code(text):std::string{};

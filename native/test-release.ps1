@@ -16,6 +16,8 @@ try {
         if($name -eq 'engine_homophone_tests'){ & $exe (Join-Path $PSScriptRoot '..\assets\dictionary.tsv') (Join-Path $PSScriptRoot '..\assets\readings.tsv') (Join-Path $PSScriptRoot '..\assets\phonetic-candidates.tsv') } else { & $exe }
         if($LASTEXITCODE -ne 0){throw "Test failed: $name"}
     }
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tests\run-tsf-uiless-input-tests.ps1') -ToolchainBin $bin -WorkDir (Join-Path $work 'tsf-uiless-input')
+    if($LASTEXITCODE -ne 0){throw 'UI-less TSF input test failed.'}
     $framework=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
     $setupTest=Join-Path $work 'setup-tests.exe'
     & (Join-Path $framework 'csc.exe') /nologo /target:exe /platform:x64 /main:SetupLogTests ("/out:$setupTest") `
