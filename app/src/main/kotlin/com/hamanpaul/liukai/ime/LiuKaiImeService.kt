@@ -4,17 +4,21 @@ import android.content.Intent
 import android.graphics.Color
 import android.text.TextUtils
 import android.inputmethodservice.InputMethodService
+import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import com.hamanpaul.liukai.core.engine.InputMode
 import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.LiuEngine
+import com.hamanpaul.liukai.core.doctor.DoctorEditorState
+import com.hamanpaul.liukai.core.doctor.DoctorEventMode
 import com.hamanpaul.liukai.core.ime.EditorPolicy
 import com.hamanpaul.liukai.core.ime.IcOp
 import com.hamanpaul.liukai.core.ime.ImeController
@@ -24,6 +28,9 @@ import com.hamanpaul.liukai.core.reading.Readings
 import com.hamanpaul.liukai.data.ImePrefs
 import com.hamanpaul.liukai.data.KeyboardSettings
 import com.hamanpaul.liukai.data.TableStore
+import com.hamanpaul.liukai.doctor.AndroidDoctorController
+import com.hamanpaul.liukai.doctor.doctorEditorState
+import com.hamanpaul.liukai.doctor.doctorInputScope
 import com.hamanpaul.liukai.settings.SettingsActivity
 import org.json.JSONObject
 import java.io.FileDescriptor
@@ -40,10 +47,13 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
     private lateinit var view: ImeView
     /** 目前的鍵盤設定（每次顯示鍵盤時讀取）。 */
     private var settings = KeyboardSettings()
+    private lateinit var doctor: AndroidDoctorController
+    private var doctorEditor: DoctorEditorState? = null
 
     override fun onCreate() {
         super.onCreate()
-        view = ImeView(this, this)
+        doctor = AndroidDoctorController.get(this)
+        view = ImeView(this, this, doctor)
         reloadTables()
         // 還原上次選的語言模式（字表沒有該模式時維持繁中）
         controller.engine.selectLanguage(ImePrefs.language(this))
@@ -90,10 +100,15 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         super.onStartInput(attribute, restarting)
         reloadTables()
         controller.startInput(attribute.inputType)
+        doctorEditor = attribute.doctorEditorState()
+        updateDoctorInputState(focused = true)
+        doctor.recordInputStarted()
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        doctorEditor = info.doctorEditorState()
+        updateDoctorInputState(focused = true)
         // 換到新的輸入欄：軟鍵盤回到字母層並放開 Shift；Enter 標籤依欄位動作
         view.setEnterAction(EditorPolicy.enterAction(info.imeOptions, info.inputType))
         // 設定頁的變更在下一次顯示鍵盤時生效
@@ -113,7 +128,11 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
 
     override fun onFinishInput() {
         super.onFinishInput()
+        updateDoctorInputState(focused = false)
+        doctor.recordInputFinished()
         controller.finishInput()
+        doctorEditor = null
+        updateDoctorInputState(focused = false)
     }
 
     override fun onUpdateSelection(
@@ -127,11 +146,26 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
     // ---- 實體鍵盤 ----
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        val outcome = controller.keyDown(
-            keyCode, event.repeatCount, event.getUnicodeChar(event.metaState),
-            event.isCtrlPressed, event.isAltPressed, event.isMetaPressed,
-        )
-        return handled(outcome, event) || super.onKeyDown(keyCode, event)
+        val sampleStartedNs = SystemClock.elapsedRealtimeNanos()
+        return try {
+            withDoctorOperation {
+                val compositionStartedNs = SystemClock.elapsedRealtimeNanos()
+                var consumed = false
+                try {
+                    val outcome = controller.keyDown(
+                        keyCode, event.repeatCount, event.getUnicodeChar(event.metaState),
+                        event.isCtrlPressed, event.isAltPressed, event.isMetaPressed,
+                    )
+                    consumed = outcome.consumed
+                    handled(outcome, event) || super.onKeyDown(keyCode, event)
+                } finally {
+                    doctor.updateMode(doctorMode())
+                    doctor.recordComposition(consumed, elapsedUs(compositionStartedNs))
+                }
+            }
+        } finally {
+            doctor.recordHardware(sampleStartedNs)
+        }
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean =
@@ -145,11 +179,35 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
     // ---- 軟鍵盤與候選列 ----
 
     override fun onSoftKey(key: SoftKey) {
-        val info = currentInputEditorInfo
-        execute(controller.softKey(key, info.imeOptions, info.inputType))
+        withDoctorOperation {
+            val startedNs = SystemClock.elapsedRealtimeNanos()
+            var handled = false
+            try {
+                val info = currentInputEditorInfo
+                val ops = controller.softKey(key, info.imeOptions, info.inputType)
+                execute(ops)
+                handled = ops.isNotEmpty()
+            } finally {
+                doctor.updateMode(doctorMode())
+                doctor.recordComposition(handled, elapsedUs(startedNs))
+            }
+        }
     }
 
-    override fun onCandidateTap(index: Int) = execute(controller.tapCandidate(index))
+    override fun onCandidateTap(index: Int) {
+        withDoctorOperation {
+            val startedNs = SystemClock.elapsedRealtimeNanos()
+            var handled = false
+            try {
+                val ops = controller.tapCandidate(index)
+                execute(ops)
+                handled = ops.isNotEmpty()
+            } finally {
+                doctor.updateMode(doctorMode())
+                doctor.recordCandidate(handled, elapsedUs(startedNs))
+            }
+        }
+    }
 
     /**
      * 長按「,」的 ⚙：收起輸入法並開啟 liu-kai 設定主頁。設定頁的工作若還停在子頁（例如加字加詞），
@@ -186,7 +244,11 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
     override fun onHide() = requestHideSelf(0)
 
     /** 閒置時候選列的常用標點（選用設定）：直接上屏（只在沒有組字時顯示）。 */
-    override fun onPunctuation(text: String) = execute(listOf(IcOp.Commit(text)))
+    override fun onPunctuation(text: String) {
+        withDoctorOperation {
+            execute(listOf(IcOp.Commit(text)))
+        }
+    }
 
 
     // ---- 執行 InputConnection 操作 ----
@@ -195,9 +257,10 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
     private fun execute(ops: List<IcOp>, event: KeyEvent? = null) {
         val ic = currentInputConnection
         ic.beginBatchEdit()
+        doctor.updateMode(doctorMode())
         for (op in ops) {
             when (op) {
-                is IcOp.Commit -> ic.commitText(op.text, 1)
+                is IcOp.Commit -> commitTextWithDoctor(ic, doctor, op.text)
                 is IcOp.SetComposing -> ic.setComposingText(op.text, 1)
                 IcOp.ClearComposing -> {
                     ic.setComposingText("", 1)
@@ -214,6 +277,27 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
         if (controller.needsCandidates && !isInputViewShown) requestShowSelf(0)
         render()
     }
+
+    private inline fun <T> withDoctorOperation(block: () -> T): T {
+        val activeOperation = doctor.activeOperationId
+        if (activeOperation > 0L) return block()
+        val operation = doctor.beginOperation()
+        if (operation <= 0L) return block()
+        return doctor.withOperation(operation, operation, 0, false, block)
+    }
+
+    private fun updateDoctorInputState(focused: Boolean) {
+        doctor.updateInputState(doctorEditor, doctorMode(), focused)
+    }
+
+    private fun doctorMode(): DoctorEventMode =
+        when (controller.engine.mode) {
+            InputMode.CHINESE -> DoctorEventMode.LIU
+            InputMode.ENGLISH -> DoctorEventMode.ENGLISH
+        }
+
+    private fun elapsedUs(startedNs: Long): Long =
+        ((SystemClock.elapsedRealtimeNanos() - startedNs) / 1_000L).coerceAtLeast(0L)
 
     private fun uiState() = UiState(
         mode = controller.engine.mode,
@@ -266,6 +350,7 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
             .put("language", controller.engine.language.name)
             .put("languages", org.json.JSONArray(controller.engine.languages.map { it.name }))
             .put("codeHint", codeHintText())
+            .put("doctorInputScope", doctorEditor.doctorInputScope().name)
         view.describe(json)
         fout.println("LIUKAI_STATE " + Base64.encodeToString(json.toString().toByteArray(), Base64.NO_WRAP))
     }
@@ -277,5 +362,22 @@ class LiuKaiImeService : InputMethodService(), ImeActions {
 
     companion object {
         private const val TAG = "LiuKaiIme"
+    }
+}
+
+internal fun commitTextWithDoctor(
+    connection: InputConnection,
+    doctor: AndroidDoctorController,
+    text: CharSequence,
+): Boolean {
+    val startedNs = SystemClock.elapsedRealtimeNanos()
+    var committed = false
+    return try {
+        connection.commitText(text, 1).also { committed = it }
+    } finally {
+        doctor.recordCommit(
+            committed = committed,
+            durationUs = ((SystemClock.elapsedRealtimeNanos() - startedNs) / 1_000L).coerceAtLeast(0L),
+        )
     }
 }

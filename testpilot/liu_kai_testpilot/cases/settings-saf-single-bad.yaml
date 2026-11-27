@@ -24,6 +24,7 @@ steps:
   action: wait_text
   target: EMU
   contains: liukai-bad.txt
+  scroll: true
 - id: pick
   action: tap_text
   target: EMU

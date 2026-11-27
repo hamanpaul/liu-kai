@@ -234,6 +234,22 @@ def test_teardown_runs_case_cleanup_steps(plugin, adb):
     assert adb.of("shell")[-1] == ("shell", "run-as com.hamanpaul.liukai rm -f files/user_phrases.tsv")
 
 
+def test_pipeline_failure_restores_ime_after_bundled_disable_case(plugin, adb):
+    c = next(c for c in plugin.discover_cases() if c["id"] == "settings-ime-disabled")
+    adb.fail_on = "uiautomator"
+
+    outcome = plugin.run_pipeline(c, c["topology"])
+
+    assert outcome["verdict"] is False
+    steps = plugin.evidence[c["id"]]["steps"]
+    assert [(s["id"], s["success"]) for s in steps] == [("off", True), ("open", False)]
+    commands = [call[1] for call in adb.of("shell")]
+    component = plugin.config.ime_component
+    disabled_at = commands.index(f"ime disable {component}")
+    restored = [command for command in commands[disabled_at + 1:] if command.startswith("ime ")]
+    assert restored == [f"ime enable {component}", f"ime set {component}"]
+
+
 def test_failed_import_precondition_stops_case_without_caching_wrong_table(plugin, adb):
     adb.queue("#broadcast", (0, "FAIL incomplete table"))
     assert plugin.setup_env(case(preconditions={"table": "demo"}), None) is False

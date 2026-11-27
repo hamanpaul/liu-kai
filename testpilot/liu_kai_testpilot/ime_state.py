@@ -41,6 +41,7 @@ class CandidateView:
 @dataclass(frozen=True)
 class ImeState:
     mode: str
+    doctor_input_scope: str
     table_loaded: bool
     composing: str
     homophone_of: str | None
@@ -104,6 +105,7 @@ def parse_dump(output: str) -> ImeState:
             d = json.loads(base64.b64decode(payload))
             return ImeState(
                 mode=d["mode"],
+                doctor_input_scope=d.get("doctorInputScope", "UNKNOWN"),
                 table_loaded=d["tableLoaded"],
                 composing=d["composing"],
                 homophone_of=d["homophoneOf"],

@@ -25,6 +25,10 @@ steps:
   action: ime
   target: EMU
   enabled: true
+cleanup:
+- action: ime
+  target: EMU
+  enabled: true
 pass_criteria:
 - field: status.text
   operator: contains

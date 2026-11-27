@@ -29,6 +29,7 @@ import java.util.concurrent.Executors
 class SettingsActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var report: TextView
+    private lateinit var doctorSettings: DoctorSettingsSection
     private val io = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +61,7 @@ class SettingsActivity : Activity() {
             setTextIsSelectable(true)
         }
         root.addView(report)
+        doctorSettings = DoctorSettingsSection(this, root, savedInstanceState)
         root.addView(TextView(this).apply { text = "試打區" })
         root.addView(EditText(this).apply { minLines = 3; contentDescription = "try_area" })
         val scroll = ScrollView(this).apply { addView(root) }
@@ -82,8 +84,14 @@ class SettingsActivity : Activity() {
 
     /** 結束背景執行緒，避免 Activity 重建（例如旋轉）時累積。 */
     override fun onDestroy() {
+        doctorSettings.detach(isChangingConfigurations)
         io.shutdown()
         super.onDestroy()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        doctorSettings.saveState(outState)
+        super.onSaveInstanceState(outState)
     }
 
     private fun refresh() {
@@ -118,6 +126,7 @@ class SettingsActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (doctorSettings.onActivityResult(requestCode, resultCode, data)) return
         if (resultCode != RESULT_OK) return
         // 本頁只發出一種請求（選檔），RESULT_OK 時必有 data；多選時在 clipData，單選時在 data。
         val clip = data!!.clipData

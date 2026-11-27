@@ -4,7 +4,7 @@
 
 | 平台 | 整合後首版 | 使用說明 |
 | --- | --- | --- |
-| Android 11 以上 | [Android 0.1.0 APK](https://github.com/hamanpaul/liu-kai/releases/tag/android-v0.1.0) | 下方的 Android 安裝與操作說明 |
+| Android 11 以上 | [Android 0.1.1 APK](https://github.com/hamanpaul/liu-kai/releases/tag/android-v0.1.1) | 下方的 Android 安裝與操作說明 |
 | Windows x64 | [Windows 0.1.0 安裝程式](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.0) | [Windows 安裝、升級與卸載](windows/README.md) |
 
 每個平台的安裝檔、SHA-256、版本與來源可從發行頁查到。[版本對照](RELEASES.md) · [原 Windows issue、PR 與版本索引](docs/windows-history.md)
@@ -43,11 +43,11 @@ export ANDROID_HOME=~/Android/Sdk
 螢幕鍵盤照使用者手機上的官方非 PRO「嘸蝦米輸入法」2.6.8 的配置、外觀與行為（預設為使用者手機的「經典灰＋顯示按鍵＋直式鍵盤高度高」，尺寸在設定頁選）：
 - 中文模式：鍵帽大寫，字碼以大寫顯示在輸入欄（例如 SA）；Shift 位置是「同音」鍵（按同音、打字碼、選字後列出該字的同音字；從同音字上屏後候選列顯示該字的字碼）；中英鍵顯示 En；空白鍵標示「◂ 嘸 ▸」，左右滑動依序切換語言模式 嘸（繁中）／无（簡體）／台（打繁出簡）／日（日文漢字與假名），會記住上次的選擇；輸入欄有文字時空白鍵的 ⎵ 改為橘色底線；Enter 顯示 ↵；「.'[]」鍵點按為字根「.」、長按彈出常用標點；長按「,」彈出 ⚙（開啟設定）與 🎤（語音輸入）。
 - 英文模式：鍵帽小寫；最下排為 中 ?123 🎤 空白 . Enter（Enter 依欄位顯示 Next、Search…）；Shift 按一次單次大寫、再按一次大寫鎖定；a／s／c／n 長按彈出重音字母；長按「.」彈出常用標點；欄位開頭與句號後自動大寫。
-- ?123 層與 ALT 層：中文模式最下排為 En 中 , 空白 .'[] ↵（En 切到英文字母層、中 回中文字母層），英文模式為 中 ABC , 空白 . Enter；另有字根 `'` `[` `]`、萬用字元 `*` 與反引號 `` ` ``。
-- 組字中「智慧鍵盤」把不能接的字根鍵、「,」「.'[]」與同音鍵留白（不顯示標籤，點了沒有反應）。
+- ?123 層與 ALT 層：中文模式（含組字／選字）一律暫時切到英數直接輸入並取消未完成組字，SYMBOLS／ALT 往返不切模式，離開後恢復中文；原英文維持英文。符號鍵直接輸出 `*` 與反引號等字元，中文字母層的長按彈出標點不變。
+- 組字中「智慧鍵盤」把不能接的字根鍵、「,」「.'[]」與同音鍵留白（不顯示標籤，短按沒有反應）；唯獨空白右側「.'[]」仍可長按開既有常用標點清單。只開啟／收起不動組字；選取清單標點會取消未完成組字、直接輸出並保持中文，其他留白鍵的長按行為不變。
 - 候選列：橘色候選、預設字（空白上屏的字）粗體、候選之間以灰線分隔（照官方橫式畫面；官方直式畫面不顯示候選列是官方的問題，liu-kai 直式、橫式都顯示）；橫式為全螢幕編輯區＋候選列＋鍵盤，與官方相同。
 - 按住按鍵顯示放大預覽（空白鍵、Enter、🎤 也有）；在 ?123／ALT 層打符號後按空白或 Enter 自動回字母層；第一排字母長按輸入數字（組字中即選字）。
-- 快打時的連鍵（下一鍵在前一鍵放開前按下）不會漏字：打字時只就地更新按鍵內容，換配置延到手指全部放開。
+- 連鍵輸入（下一鍵在前一鍵放開前按下）採就地更新按鍵內容，換配置延到手指全部放開。40／80 毫秒的極快中文多指輸入仍有[已知偶發問題](https://github.com/hamanpaul/liu-kai/issues/22)。
 - 🎤 切換到系統的語音輸入（需先在系統設定啟用，例如 Google 語音輸入）；位置依設定「語音輸入」：於主鍵盤（英文字母層）、於符號鍵盤（英文 ?123 層）或關閉。
 
 App 圖示為使用者設計的「嘸＋改」logo（黑底橘圈，自適應圖示）。
@@ -69,6 +69,17 @@ testpilot/.venv/bin/liu-kai-diff --official <IME id>   # 與官方嘸蝦米對�
 ./gradlew :cli:run --args="stats <liu_ibus_final.txt> <lime_liu7.txt>"   # 桌機核對字表區段統計
 ```
 
+### Doctor Mode（Android）
+
+Doctor 在使用者開啟後，把不含輸入文字的診斷保存在本機；可標記問題時間、預覽固定內容的 ZIP、儲存及清除。
+原始紀錄最多 32 MiB、最長 7 天，容量先滿時會提早淘汰。停用會保留已落盤資料，清除才會刪除紀錄與待確認的匯出。
+敏感及未知欄位只保留健康狀態與生命週期，不產生逐鍵事件。判定依應用程式提供的欄位資訊，無法辨識未宣告的密碼提示。
+Android 不要求網路權限；Debug `TouchDiagnostics` 的按鍵與座標資料仍只供原測試，不進 Doctor。
+
+本批先交付 Android 設定與輸入診斷；Windows 另作實測及發版，共用議題保持開啟。
+測試來源與重跑方式見 [Doctor 驗證](docs/doctor-validation.md)，實作順序與驗收範圍見 [Android 先行計畫](docs/superpowers/plans/2026-11-27-doctor-android-release.md)。
+操作、匯出與保存範圍見 [Doctor 使用說明](docs/doctor.md)。
+
 端對端測試由 `testpilot/` 內的 TestPilot plugin（`liu_kai`）執行：案例為 `testpilot/liu_kai_testpilot/cases/*.yaml`（環境前置條件、步驟、通過條件），以 adb 驅動模擬器上的 liu-kai 與 testhost，報告輸出到 `testpilot/reports/<時間>/report.{md,json}`。測試環境設定見 `testpilot/liu_kai_testpilot/testbed.yaml.example`（`scripts/emulator-e2e.sh` 會依此範本自動產生實際使用的設定檔）。`real-*` 案例需要 `~/prj_pri/liu-kai-data/` 內的真實字表。
 
 `liu-kai-cli` 指令說明：
@@ -86,4 +97,4 @@ commands:
 
 ## Version
 
-`VERSION` 是本專案版本的唯一來源；變更記錄以 `changelog.d/` fragment 累積，release 時彙整進 `CHANGELOG.md`。
+根層 `VERSION` 記錄整合批次；Android 與 Windows 的產品版號分別以 `app/VERSION`、`windows/VERSION` 為準。版本、標籤及安裝序號對照見 [RELEASES.md](RELEASES.md)。變更記錄以 `changelog.d/` fragment 累積，release 時彙整進 `CHANGELOG.md`。

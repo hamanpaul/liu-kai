@@ -1,0 +1,40 @@
+# Android Doctor 剩餘覆蓋條件對帳
+
+本表摘要本機保留的原始 `jacocoE2eReport-plus-live.xml` SHA256 `f8bb9d37ab08dd18502b88a3b91addf648b092bc921d4661ebc9c5825c6ad0cf`。LINE 3196 covered／91 missed，BRANCH 1098 covered／113 missed；加入現存程序 EC 前執行的原 100% verification 實際 exit 1，兩份 XML 的全部 class、method 與 sourcefile coverage 內容一致，本次只重新產生報告，未重跑驗證或測試。完整 73 個缺口方法、descriptor 及原計數見[方法對帳](validation/doctor-android-20261127-methods.json)；本表說明各方法族的執行條件與目前證據。方法層計數與 source line 唯一計數不能直接相加。這不是 100% 宣告或自動例外。
+
+原十份 EC 均保留原件；其中七份舊 EC 按 class name 與目前 class CRC64 僅取相符資料，三份原新 EC 各自檢查無 app class mismatch。再加入本輪 unit／status 兩份 EC，分別 17／17、66／66 class ID 與目前 class 相符，且新舊快照 91／91 app production classes SHA 相同。另以正常 coverage dump 匯出當時仍活的 app 程序，前後身分一致、68／68 class ID 相符；只保證這個現存程序的資料，不能補稱已終止程序的資料。其餘六 symbols 及三 popup 的 TestPilot runner 沒有自行保存 EC。逐檔 match、skip、舊／新 ID 與原始 EC 保留本機；repo 只納入不含裝置資訊的來源層方法與計數摘要。舊 class 不相符的執行資料沒有作為新 class 覆蓋證據。
+
+## 已補與實際結果
+
+- `DoctorRuntimeSubscription.deliverStatus/deliverResult`：新 `doctor-status` 實際以 ReferenceQueue 觀察 listener 被回收，回收前的正向投遞與獨立強參照控制均有驗證，回收後兩種投遞不增加計數；真裝置 CODE -1、非 skip。新 XML 已不再列原 weak-null 兩個 branch 缺口。正常 detach、listener exception 的隔離亦有既存測試。
+- `DoctorWriterCore.pumpOneBatch/clear/enable/saveExport`：最新 68-case JVM 與 ART 含 sensitive、unknown lifecycle 真 Store append fault、不計 ordinary drop、恢復後普通事件真落盤，以及 clear deletion fault、pending clear、同新 epoch retry 後真落盤。新增真 fixture 目錄 POSIX 權限條件，在完整 ZIP 複製後令真 Store 的暫存刪除失敗，驗證不 discard、保留 epoch／consent／history，恢復權限後正常取消並繼續落盤；JVM 與 Android 均無 skip，不聲稱 Windows native 已測。成功與失敗輸出及同源 class ID 留存；不把其他分支據此視為已測。
+- `DoctorSettingsSection`／SAF 公開契約：本次 Actions 真跑取消、RESULT_OK 舊 preview、已刪 row、真 SAVE、權限失敗及恢復；符號／標點六個 TestPilot 案例 6/6。先前 F3 non-config destruction 有實機通過，Section class name／CRC `9291a85015005135` 對目前 class 精確相符；本輪額外 F3 因系統選項導航前置找不到而未開始產品斷言，該 exit 2 不稱本輪 PASS。
+- `AndroidDoctorController` 三個無 caller wrapper 與 `DoctorWriterCore` 未使用的 nullable metadata default 已清除；後者所有三個實際 constructor caller 都提供非空 metadata，`encodedLineBytes` 仍保留 codec Rejected 與 Store 失敗防衛。這是 API 清理，不是用測試宣稱它們被覆蓋。
+- `ImeView` 的設定／語音 popup：最新 Status 實機透過真 MotionEvent 長按與選取，分別核對各自持久的 KEY_ACTION 和 callback；此 component 以計數替身接 callback。另以 Doctor 啟用狀態實際跑三個既有 TestPilot，設定 popup、子頁返回主頁及切換語音／回 LiuKai 皆 PASS；逐案紀錄 KEY_ACTION 與 FOCUS 事件，僅按各案時間範圍關聯，不稱它們同 operation ID。
+
+清理的等價範圍：三個被刪 wrapper 在目前工作樹沒有引用，Producer 內部狀態及仍用的 `activeOperationId` 都保留。Writer 原非空路徑 `build?.let { encodedLineBytes(it, event) } ?: 0L` 與新 `encodedLineBytes(build, event)` 對三個現有非空 caller 執行相同計算；Store 的 codec Rejected、append 失敗與清除防衛沒有被刪。這不等於兩版 class bytecode 相同：Controller／Writer 的舊 CRC 不符而已自舊 EC 篩除，並以新 68-case JVM／ART 和新 status／Actions EC 驗證目前 class。
+
+## 具名 Kotlin inline／產生體
+
+`ImeView.doctorKeyAction`、`LiuKaiImeService.withDoctorOperation`、`AndroidDoctorController.withOperation`、`DoctorInputProducer.withOperation/enqueue`、`DoctorSpscRing.tryWrite/poll/discard` 的 raw declaration 保留體，已有 sealed javap 對照：caller 使用展開碼而不是呼叫 raw fallback。實際 q/voice、hardware/soft/candidate/punctuation、佇列與 writer 路徑均有真測；不因此宣稱所有展開分支已涵蓋。`getEntries`、`markIssue$default` 等編譯器產生方法另列於 [方法對帳](validation/doctor-android-20261127-methods.json)。JaCoCo 0.8.15／Kotlin 2.0.20 的 inline source mapping 限制及當前 bytecode 證據沿用既有正式資料；不排除整類、不改門檻、不以新增私有入口填數字。
+
+## 尚未完整觸發的條件，按方法族
+
+| 方法／範圍 | 已有正常路徑與尚未證實的條件 |
+|---|---|
+| `ImeView.dispatchTouchEvent`／posted cleanup（549、575、603、608） | 真 q/voice、rapid、cancel、detach 等有既存 target。549 在排定的 click callback 執行前 detached 而 generation 已改時會拒用舊 context；575 只清理仍屬該 click 的 context。這兩個時序不等於一般單次點擊；603／608 的 safe-call null arm 對應尚無 subscription 的 attach／detach 狀態，不能把 XML 的 arm 當已驗證的具體退化。 |
+| `ImeView.rowsFor/blank/buildKey/labelFor/restoreModeAfterSymbols/showPopup`（800、868、951、1248、1339、1371–1373） | 本次符號切換、組字、句點長按與直接輸出、重音等六例實機通過；Doctor ON 時設定／語音 popup component KEY_ACTION 及真 UI 導航的各案事件已如上驗證。800 的 symbols row 依 `chinese` 選底排，868 是 smart keyboard 單字母與 next keys 的判斷，951 是句點且有 popup 的長按例外，1248 是非字母層標籤，1339 在離開 symbols 時按原 mode 恢復；已有的公開行為測試不能反推 XML 每個短路 operand 均命中。 |
+| `ImeView.doctorListener.onDoctorResult`（515） | 目前實作是有意的 no-op；status 訂閱和異常隔離另有驗證，不偽稱 no-op 已被呼叫。 |
+| `LiuKaiImeService.onKeyDown/onSoftKey/onCandidateTap`（160、189、204） | 既有 target 已送真硬鍵、軟鍵、候選與標點；160 的未消耗按鍵才呼叫 `super.onKeyDown`，189／204 的 handled 由各自 `ops.isNotEmpty()` 決定。對應 XML 的單一 missing arm 尚不能單憑計數確定是哪個操作或呼叫次數；`withDoctorOperation` raw inline declaration 另見上一節。 |
+| `DoctorSettingsSection.<init>/request/onDoctorStatus/mark/preview/onActivityResult`（39、79、90、93、100、166、178、197–201） | 本次 Actions 已驗明確無標記、invalid mark、preview/cancel/save/clear及SAF錯誤。93 的「enabled 但不 collecting、不 interrupted」並非目前正常 publisher 可產生的狀態：`DoctorWriterCore.refreshState` 309–311 將 enabled 且 !collecting 設為 interrupted，Controller 512–517 原樣傳送；初始狀態 enabled=false，故前一個 interrupted 分支會先命中。79 busy 時按鈕已停用。197 的 RESULT_OK 但 URI 空屬異常 provider 回覆防衛；一般取消為 RESULT_CANCELED 已短路。200 的 RESULT_OK＋URI 但 prepared=null 屬異常或尚未證實的生命週期防衛：開 picker 前本地 prepared 非空，另一訂閱 CLEAR 改 epoch 不會把該 handle 清成 null，一般重建會保存 bundle；不能因此武斷說永不發生，也不偽造 provider 或 DTO。舊 preview 的實機 stale reject 可由 writer 的 epoch guard 完成，不能反推 200 已走過。 |
+| `DoctorSafExportTarget.validate`（29） | 真 document、無權限、非法 URI 與刪除真 row 的 SAVE 已驗；provider 的 null cursor 或 empty cursor 取決真實 provider，尚未強制。保留相容防衛，不以假 provider 製造。 |
+| `AndroidDoctorController.awaitWriterIdleForTest`（378–379） | 此為 test-only 同步helper的主執行緒拒絕防衛；不把它等同一般使用者功能缺失。 |
+| `AndroidDoctorController.execute/signalWriter/ordinaryMetricsAllowed/positiveId/get`（429、472、488、555–556、570–573、630） | `execute` exhaustive sealed-command default 為編譯器生成防衛；472 是 `WriterCommand.Idle` 中的 test-only barrier 排空迴圈，唯一建立 caller 為 377–383 行 `awaitWriterIdleForTest`，非一般 writerLoop 未測；正式背景批次在 410–423 行。`signalWriter` 的 null arm 是 writer thread 尚未啟動時的真啟動競態，command 先入 queue、worker 稍後 drain，尚未強制命中；Actions 有 performanceSampling=true 控制但當時 collecting 已啟，不能據此確認 collecting=false 的取樣短路分支。SecureRandom零重抽、singleton競態也未逐一強制。舊 Controller class ID不同，不能拿其舊 EC 當新覆蓋。 |
+| `DoctorInstrumentation.recordWritten/recordHardware`（56、76） | 真正寫入byte計數和普通硬鍵／隱私路徑已有測試。56 的零 byte 計數只在 encodedLineBytes 未接受時可能由目前 Writer 呼叫；正常編碼輸出至少含 newline，故不以假事件製造。76 分別把 enabled 與 disabled 的普通硬鍵記入不同 histogram，原 XML 尚缺其中一條 arm。 |
+| `DoctorSpscRing.toEventRecord`（61） | optional drop／gap 欄位的部分排列仍未全命中；真佇列overflow、drop accounting、privacy測試已存在。raw inline methods另見上一節。 |
+| `DoctorWriterCore.enable/disable/clear/refresh/refreshState`（84、96、116、264、305、311） | 普通啟停、epoch失敗、incomplete clear與重試有新舊真Store測試。84／116 僅在 Store 結果成功且刷新後 collecting 才啟動 producer；96 是 disable 成功才清 failure；264 按刷新後 collecting 啟動或關閉 producer。305／311 的 collecting、interrupted 由真 Store 狀態與 collectionFailed 推導，不能任意組裝 DTO 把不可能組合視為缺測。XML 未標出個別短路 operand 的實際取值，不能僅由 branch 計數推斷哪個故障尚未測。 |
+| `DoctorWriterCore.encodedLineBytes/prepareExport/saveExport`（156、158、185、218、241） | metadata現為必填，codec Rejected 仍是防衛：`encodedLineBytes` 在 `store.append` **之前**執行；未用private queue偽造非法事件。已複製後真目錄權限拒絕使 `cancelExport` 失敗之恢復契約，本輪 JVM／ART 均真測。handle Long.MAX 及 provider 例外的部分支線尚未強制。218 的零讀取是由 `Files.newInputStream` 讀非空 buffer 的防衛，不視為一般檔案讀取可重現的正常條件，也不以假 stream 刷覆蓋。SAF公開失敗與重試另有實測。 |
+| `DoctorInputProducer.isOrdinaryCollecting/beginOperation`（49–50、115） | 普通、sensitive、unknown及零ID gate已有測試；`activate` 先拒絕非正 producer/session ID，再寫入 ID，最後才設 collecting=true，正常啟用不能產生 collecting=true 且 ID<=0 的組合。Long.MAX操作序號回捲不是一般短期使用可穩定到達的條件，未反射修改私有計數。 |
+| `DoctorInputProducer.recordTouch/beginTouchChain/finishTouchChain/recordHealth`（144、157、161、181、186、200、206、247） | 同operation link、staging容量、overflow、close及same-epoch reactivation、wrong-scope路徑均有測試。成功的 `beginTouchChain` 必先將 DISPATCH 加入 staging；若首筆失敗會 `clearStaging`，故正常成功鏈進入 186 時至少有一筆；close 僅改 generation，不跨執行緒清 staging。157／161 涉及 close 後新鏈與舊 staging 的交錯；200 是 publish 部分失敗時對普通事件計 drop，206 僅發布過資料才喚醒 writer；這些佇列與時序不能只憑 XML missing arm 指稱產品已測或失敗。 |
+
+其餘 `DoctorNumericSnapshot`、`DoctorQueueSlot`、`PreviewDrawable`、`SettingsUi` 等方法層 getter／lambda missing 計數以原 XML 及 [方法對帳](validation/doctor-android-20261127-methods.json) 為準；有些對應 source line 已部分覆蓋，不能把方法級 missed 重複相加成新 line。所有未強制條件均如實保留，不以 reflection、fake provider、test hook、降低門檻或 `@Generated` 人工改寫結果。

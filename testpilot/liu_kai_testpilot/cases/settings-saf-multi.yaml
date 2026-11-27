@@ -30,6 +30,7 @@ steps:
   action: wait_text
   target: EMU
   contains: liukai-ibus.txt
+  scroll: true
 - id: lp
   action: long_press_text
   target: EMU

@@ -5,6 +5,19 @@
 格式基於 [Keep a Changelog 1.1.0](https://keepachangelog.com/zh-TW/1.1.0/)，
 本專案遵循 hamanpaul project policy v1.0.19。未發行的變更以 `changelog.d/` fragment 累積。
 
+## [0.1.3] - 2026-11-27
+
+本批次準備 Android 0.1.1；Windows 維持 0.1.0，其 Doctor 功能另行驗收發版。
+
+### Added
+
+- Android 新增預設關閉的 Doctor 本機匿名診斷：明確同意後背景收集、問題時間標記、固定內容 ZIP 預覽／儲存及清除。原始紀錄最多 32 MiB／七天，待確認 ZIP 最多一份 32 MiB，敏感與未知欄位停止逐鍵記錄；沒有自動上傳或新增網路權限。
+- 納入 Doctor 單元與 Android framework 測試、TestPilot 回歸及重跑說明；CI 執行 app JVM 測試，本機 preflight 對齊 CI 的測試與覆蓋檢查。
+
+### Fixed
+
+- 進入標點頁時一律取消未完成組字並切英數直出，回字母頁恢復原模式。智慧鍵盤留白的句點鍵仍可長按；選常用標點時取消組字、直接出字並保持中文，僅開／收清單不動組字。
+
 ## [0.1.2] - 2026-11-25
 
 ### Added

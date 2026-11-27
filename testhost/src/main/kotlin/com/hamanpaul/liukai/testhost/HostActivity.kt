@@ -4,13 +4,14 @@ import android.app.Activity
 import android.os.Bundle
 import android.text.InputType
 import android.view.WindowInsets
+import android.view.inputmethod.InputConnection
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
- * 端對端測試宿主：一般、密碼、多行、搜尋（imeOptions=actionSearch）、句首大寫（textCapSentences）五個輸入欄與一個結果標籤。
+ * 端對端測試宿主：一般、密碼、NO_PERSONALIZED、TYPE_NULL、多行、搜尋（imeOptions=actionSearch）、句首大寫與結果標籤。
  * 欄位不設 hint（uiautomator 會把空欄位的 hint 當成文字回報）；欄位設固定 id，旋轉重建 Activity 時由框架保存並還原文字與焦點。
  */
 class HostActivity : Activity() {
@@ -25,6 +26,22 @@ class HostActivity : Activity() {
         }
         field("plain", InputType.TYPE_CLASS_TEXT).requestFocus()
         field("password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        field("private", InputType.TYPE_CLASS_TEXT).apply {
+            imeOptions = imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        }
+        object : EditText(this) {
+            override fun onCheckIsTextEditor(): Boolean = true
+
+            override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+                val connection = super.onCreateInputConnection(outAttrs)
+                outAttrs.inputType = InputType.TYPE_NULL
+                return connection
+            }
+        }.apply {
+            id = root.childCount + 1
+            contentDescription = "unknown"
+            root.addView(this)
+        }
         field("multiline", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE)
         val result = TextView(this).apply { contentDescription = "result" }
         field("search", InputType.TYPE_CLASS_TEXT).apply {

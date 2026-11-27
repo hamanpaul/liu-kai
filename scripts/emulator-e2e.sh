@@ -216,7 +216,9 @@ if [ ${#CASES[@]} -eq 0 ]; then
   printf '%s\n' "$instrumentation_result"
   if [ $instrumentation_status -ne 0 ] ||
     [ "$instrumentation_code" != "-1" ] ||
-    [[ "$instrumentation_result" != *"Framework callback trace verified."* ]]; then
+    [[ "$instrumentation_result" != *"Framework callback trace verified."* ]] ||
+    [[ "$instrumentation_result" != *"Doctor device regressions verified:"* ]] ||
+    [[ "$instrumentation_result" != *"Doctor actions device probe verified:"* ]]; then
     log "Android framework touch instrumentation 失敗（exit=$instrumentation_status；需 success code 與 callback marker）"
     exit 1
   fi

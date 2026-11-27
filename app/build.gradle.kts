@@ -6,6 +6,28 @@ plugins {
     jacoco
 }
 
+val doctorSourceProperty = providers.gradleProperty("liukai.doctorSourceCommit")
+val distributionBuild = providers.gradleProperty("liukai.signForDistribution")
+val doctorGitHead = providers.exec {
+    workingDir(rootDir)
+    commandLine("git", "rev-parse", "HEAD")
+}.standardOutput.asText.map(String::trim)
+val doctorSourceCommit = when {
+    doctorSourceProperty.isPresent -> doctorSourceProperty.get()
+    distributionBuild.isPresent -> doctorGitHead.get()
+    else -> "0000000"
+}
+val doctorSourceCommitOrigin = when {
+    doctorSourceProperty.isPresent -> "gradle-property"
+    distributionBuild.isPresent -> "distribution-git-head"
+    else -> "development-synthetic"
+}
+if (!doctorSourceCommit.matches(Regex("[0-9a-f]{7,40}"))) {
+    throw GradleException(
+        "liukai.doctorSourceCommit must be 7..40 lowercase hexadecimal characters",
+    )
+}
+
 android {
     namespace = "com.hamanpaul.liukai"
     compileSdk = 35
@@ -17,6 +39,8 @@ android {
         versionCode = file("VERSION_CODE").readText().trim().toInt()
         versionName = file("VERSION").readText().trim()
         testInstrumentationRunner = "com.hamanpaul.liukai.ime.TouchDiagnosticsFrameworkTest"
+        buildConfigField("String", "DOCTOR_SOURCE_COMMIT", "\"$doctorSourceCommit\"")
+        buildConfigField("String", "DOCTOR_SOURCE_COMMIT_ORIGIN", "\"$doctorSourceCommitOrigin\"")
     }
 
     buildTypes {
@@ -53,6 +77,8 @@ android {
 
     // debug 版內建合成字表（與 core 單元測試共用同一份 fixture），供模擬器 E2E 使用。
     sourceSets["debug"].assets.srcDir("../core/src/test/resources/fixtures")
+    // Run the same pure Doctor regression tests on ART for device coverage.
+    sourceSets["androidTest"].java.srcDir("src/test/kotlin")
 }
 
 // 內建字表：本機有使用者自建字表時（預設 ~/prj_pri/liu-kai-data，可用 -Pliukai.tableDir 或環境變數
@@ -91,6 +117,10 @@ val cliRuntime: Configuration by configurations.creating
 dependencies {
     implementation(project(":core"))
     cliRuntime(project(":cli"))
+    testImplementation(kotlin("test-junit"))
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation(kotlin("test-junit"))
+    androidTestImplementation("junit:junit:4.13.2")
 }
 
 val tableDir = providers.gradleProperty("liukai.tableDir")

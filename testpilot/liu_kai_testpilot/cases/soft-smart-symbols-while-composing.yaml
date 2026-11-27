@@ -1,6 +1,6 @@
 id: soft-smart-symbols-while-composing
-name: 組字中切到符號層的智慧鍵盤狀態
-description: 中文組字中切到符號層，驗證智慧鍵盤對非字母單鍵的留白判斷路徑。
+name: 組字中切到符號層取消組字並直出
+description: 智慧鍵盤開啟時，中文組字 q 後切到符號層也必須進英數並取消未完成組字；不提交 q，回字母層恢復中文。
 topology:
   devices:
     EMU:
@@ -24,10 +24,33 @@ steps:
 - id: state
   action: ime_state
   target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+- id: letters
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: restored
+  action: ime_state
+  target: EMU
 pass_criteria:
 - field: state.composing
   operator: equals
-  value: q
+  value: ''
+- field: state.mode
+  operator: equals
+  value: ENGLISH
 - field: state.layer
   operator: equals
   value: symbols
+- field: read.text
+  operator: equals
+  value: ''
+- field: restored.mode
+  operator: equals
+  value: CHINESE
+- field: restored.layer
+  operator: equals
+  value: letters

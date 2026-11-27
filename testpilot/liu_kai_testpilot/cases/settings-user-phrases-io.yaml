@@ -67,6 +67,7 @@ steps:
   action: tap_text
   target: EMU
   text: liu-kai-phrases.tsv
+  scroll: true
   until: 匯出
 - id: count
   action: read_text
@@ -81,6 +82,7 @@ steps:
   action: tap_text
   target: EMU
   text: liukai-bad.txt
+  scroll: true
   until: 匯出
 - id: import3
   action: tap_text

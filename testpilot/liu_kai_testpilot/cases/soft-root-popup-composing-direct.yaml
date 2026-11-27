@@ -1,0 +1,91 @@
+id: soft-root-popup-composing-direct
+name: 組字中從長按清單選標點直接輸出並保持中文
+description: 組字 a 後長按空白右側句點，選 @ 時取消未完成組字且只輸出 @；再從清單選單引號也直接上屏，不作字根，模式仍為中文。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    smart_keyboard: 'true'
+steps:
+- id: a
+  action: tap_key
+  target: EMU
+  key: a
+- id: composing
+  action: ime_state
+  target: EMU
+- id: open
+  action: long_press_key
+  target: EMU
+  key: .
+- id: pick_at
+  action: tap_key
+  target: EMU
+  key: popup:@
+- id: after_at
+  action: ime_state
+  target: EMU
+- id: read_at
+  action: read_field
+  target: EMU
+  field: plain
+- id: reopen
+  action: long_press_key
+  target: EMU
+  key: .
+- id: pick_quote
+  action: tap_key
+  target: EMU
+  key: "popup:'"
+- id: after_quote
+  action: ime_state
+  target: EMU
+- id: read_quote
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: composing.mode
+  operator: equals
+  value: CHINESE
+- field: composing.composing
+  operator: equals
+  value: a
+- field: composing.blank
+  operator: not_contains
+  value: .
+- field: after_at.mode
+  operator: equals
+  value: CHINESE
+- field: after_at.composing
+  operator: equals
+  value: ''
+- field: after_at.failure_hint
+  operator: equals
+  value: false
+- field: after_at.popup
+  operator: equals
+  value: []
+- field: read_at.text
+  operator: equals
+  value: '@'
+- field: after_quote.mode
+  operator: equals
+  value: CHINESE
+- field: after_quote.composing
+  operator: equals
+  value: ''
+- field: after_quote.failure_hint
+  operator: equals
+  value: false
+- field: after_quote.popup
+  operator: equals
+  value: []
+- field: read_quote.text
+  operator: equals
+  value: "@'"

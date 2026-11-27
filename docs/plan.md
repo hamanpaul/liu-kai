@@ -121,7 +121,8 @@ liu70_jp.* ─────────┘                         └─► neut
   - 點彈出區以外只收起；萬用字元 `*`、反引號 `` ` `` 位置同官方（?123／ALT 層），切換鍵盤層不影響組字；
   - 🎤 切換到系統已啟用的語音輸入法（子類型 mode 為 voice，例如 Google 語音輸入），沒有啟用時提示到系統設定啟用；
   - Enter：中文模式一律 ↵ 圖示；英文模式依欄位動作（Next、Search、Go、Send、Done、Prev），會換行的欄位為 ↵；中英鍵與官方相同顯示「要切去的模式」（中文模式 En，英文模式「中」，沒有字表時為「無表」）；
-  - 智慧鍵盤：組字中不能接的字根鍵、「,」「.'[]」與同音鍵留白（只剩鍵格，不顯示標籤與數字提示，點了沒有反應），版面不變；
+  - 智慧鍵盤：組字中不能接的字根鍵、「,」「.'[]」與同音鍵留白（只剩鍵格，不顯示標籤與數字提示，短按沒有反應），版面不變；使用者於2026-11-26指定空白右側「.'[]」即使留白仍可長按開常用標點，開啟／收起保留組字，選標點則取消組字、直接輸出並保持中文。
+  - 使用者於2026-11-26調整符號層：從中文進入 ?123／ALT 時一律取消未完成組字並暫用英數直出，離開符號層恢復原模式；原本英文則保持英文，SYMBOLS／ALT 互換不再切模式。
   - 候選列（照官方橫式畫面量測）：黑底、候選 `#FCAE00` 22sp、預設字粗體、左右各 14.5dp、每個候選後一條 `#444444` 分隔線；字碼不在候選列，只顯示同音查詢的字與同音查碼結果；
   - 按鍵放大預覽：Shift、中英鍵、?123／ABC、ALT、退出鍵與 ⌫ 不顯示，其餘（含空白鍵、Enter、🎤）顯示；經典灰的預覽寬為鍵寬加 2/3 個字母鍵寬（字母鍵即 5/3 鍵寬）；
   - 打字時只就地更新按鍵內容（智慧鍵盤留白、大小寫、空白鍵語言與底線），不拆掉按鍵 View；按鍵的點擊、長按在放開當下才判斷是否留白。配置改變（鍵盤層、中英模式、設定）才重建，有手指按著時延到全部放開。原因：拆掉正被按住的鍵會讓它收到 CANCEL，快打連鍵（下一鍵在前一鍵放開前按下）時幾乎每鍵都遺失（使用者 2026-09-28 回報第三碼常漏）。`soft-rollover-typing` 以模擬器 console 注入兩手多點觸控（左半左手、右半右手，每 241ms 一鍵＝每分鐘 60 字）驗證；實際字表另以每分鐘 60／80 字實測 28 字無漏字；
@@ -154,7 +155,7 @@ liu70_jp.* ─────────┘                         └─► neut
 | core 單元測試 | 引擎、字表、讀音、IME 決策（`ImeController` 等） | `./gradlew :core:check`（CI） | JaCoCo 行＋分支 100% |
 | cli 單元測試 | stats／convert／gen-readings、main | `./gradlew :cli:check`（CI） | JaCoCo 行＋分支 100% |
 | TestPilot plugin | adb 包裝、狀態／UI 解析、step、判定、runner、報告 | `pytest`（CI） | 行＋分支 100% |
-| 模擬器端對端 | `testpilot run liu_kai`：100 個 YAML 案例（實體鍵盤、螢幕鍵盤配置與彈出鍵、設定頁、SAF 選檔、字表損毀、內建字表、真實字表抽測） | `scripts/emulator-e2e.sh`（本機 AVD `LiuKai35`） | app JaCoCo 行＋分支 100% |
+| 模擬器端對端 | `testpilot run liu_kai`：完整 YAML 案例集（實體鍵盤、螢幕鍵盤配置與彈出鍵、設定頁、SAF 選檔、字表損毀、內建字表、真實字表抽測與 Doctor） | `scripts/emulator-e2e.sh`（單一 Android 模擬器） | app JaCoCo 行＋分支 100% |
 | 官方行為對照 | `liu-kai-diff`：同一批實體鍵序列（`testpilot/liu_kai_testpilot/diff_cases.yaml`，對應行為確認清單題號）分別在官方嘸蝦米 PRO 與 liu-kai 上執行，記錄輸入法視窗是否實際顯示與輸入欄最後的文字，可附截圖；依使用者答案推得的預期逐項判定兩邊 | 本機 AVD（需先在模擬器安裝官方 PRO） | 參考用：官方不符使用者答案時視為官方偏差，不據以修改 liu-kai；沒有預期的項目由使用者決定 |
 
 Android 端刻意保持薄：輸入邏輯都在 `core` 的 `ImeController`；服務只轉送事件、執行 `IcOp`。IME 狀態透過 `dumpsys activity service` 的 `LIUKAI_STATE` 診斷輸出供案例讀取。模擬器限制：沒有 LINE／Messenger／Gmail 帳號，這些 App 留待實機驗收。
@@ -193,3 +194,9 @@ Android 端刻意保持薄：輸入邏輯都在 `core` 的 `ImeController`；服
 | VRSF／萬用字元／同音與官方行為不同 | 行為規格表標信心與需實測項，實測後更新；規則集中在 core，改動成本低 |
 | 字表檔誤入 repo | `.gitignore`、CLAUDE.md 規範；轉換產物只寫 repo 外或 app 私有目錄 |
 | 實體鍵盤事件差異（各 App、各鍵盤） | 模擬器以 `hw.keyboard=yes` 測；實機再補 |
+
+## 12. 跨平台 Doctor（Android 先行）
+
+Android 與 Windows 共用[議題 #11](https://github.com/hamanpaul/liu-kai/issues/11)、匿名事件欄位與匯出契約，沿用各自的輸入及設定介面。功能預設關閉，提供啟用、標記、預覽／儲存與清除，診斷只存本機。
+
+設計見 [Doctor 規格](superpowers/specs/2026-11-25-doctor-mode.md)，最新交付順序及未通過的閘門見 [Android 先行計畫](superpowers/plans/2026-11-27-doctor-android-release.md)，使用方式見 [Doctor 說明](doctor.md)。依使用者 2026-11-27 決定，Android 補齊真正缺測及清理後先發版，Windows 另排實測；雙端驗收並發版後才關閉共用議題。

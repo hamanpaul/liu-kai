@@ -1,0 +1,101 @@
+id: soft-symbols-default-direct
+name: 從中文切入符號層預設英數直接輸入
+description: 從中文軟鍵盤按 ?123 後應進入英文數符輸入；SYMBOLS 與 ALT 往返維持英文，標點直接上屏且不留下組字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    auto_cap: 'false'
+steps:
+- id: symbols
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: symbols_state
+  action: ime_state
+  target: EMU
+- id: apostrophe_before
+  action: tap_key
+  target: EMU
+  key: "'"
+- id: alt
+  action: tap_key
+  target: EMU
+  key: alt
+- id: alt_state
+  action: ime_state
+  target: EMU
+- id: equals
+  action: tap_key
+  target: EMU
+  key: '='
+- id: alt_back
+  action: tap_key
+  target: EMU
+  key: alt
+- id: returned_state
+  action: ime_state
+  target: EMU
+- id: apostrophe_after
+  action: tap_key
+  target: EMU
+  key: "'"
+- id: final_state
+  action: ime_state
+  target: EMU
+- id: back_to_letters
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: letters_state
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: symbols_state.layer
+  operator: equals
+  value: symbols
+- field: symbols_state.mode
+  operator: equals
+  value: ENGLISH
+- field: symbols_state.composing
+  operator: equals
+  value: ''
+- field: alt_state.layer
+  operator: equals
+  value: alt
+- field: alt_state.mode
+  operator: equals
+  value: ENGLISH
+- field: alt_state.composing
+  operator: equals
+  value: ''
+- field: returned_state.layer
+  operator: equals
+  value: symbols
+- field: returned_state.mode
+  operator: equals
+  value: ENGLISH
+- field: returned_state.composing
+  operator: equals
+  value: ''
+- field: final_state.composing
+  operator: equals
+  value: ''
+- field: letters_state.layer
+  operator: equals
+  value: letters
+- field: letters_state.mode
+  operator: equals
+  value: CHINESE
+- field: read.text
+  operator: equals
+  value: "'='"
