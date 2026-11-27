@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)][string]$ToolchainBin,
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$true)][string]$OutputDir,
-    [Parameter(Mandatory=$true)][string]$SetupName
+    [Parameter(Mandatory=$true)][string]$SetupName,
+    [string]$SourceCommit
 )
 $ErrorActionPreference='Stop'
 $repo=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -15,6 +16,8 @@ if((Test-Path -LiteralPath $output) -or (Test-Path -LiteralPath $work)){throw 'O
 if(-not (Test-Path -LiteralPath (Split-Path -Parent $output) -PathType Container)){throw 'Output parent does not exist.'}
 if($Version -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' -or $Version.Contains('..')){throw 'Invalid package version.'}
 if($SetupName -notmatch '^WuGai-[A-Za-z0-9._-]+-x64-Setup\.exe$'){throw 'Invalid setup name.'}
+if(-not $SourceCommit){$SourceCommit=(& git -C $repo rev-parse HEAD | Out-String).Trim()}
+if($SourceCommit -cnotmatch '^[0-9a-f]{40}$'){throw 'A full source commit is required for versioned builds.'}
 $oldPath=$env:PATH
 try {
     $env:PATH=$bin+';'+$oldPath
@@ -22,15 +25,18 @@ try {
     if($LASTEXITCODE -ne 0 -or $target -cne 'x86_64-w64-mingw32'){throw 'A working x64 MinGW toolchain is required.'}
     [IO.Directory]::CreateDirectory($work)|Out-Null
     $x64=Join-Path $work 'x64'; [IO.Directory]::CreateDirectory($x64)|Out-Null
+    $buildInfo=Join-Path $work 'build-info'; [IO.Directory]::CreateDirectory($buildInfo)|Out-Null
+    $metadata="#pragma once`n#define LIUKAI_PRODUCT_VERSION `"$Version`"`n#define LIUKAI_SOURCE_COMMIT `"$SourceCommit`"`n"
+    [IO.File]::WriteAllText((Join-Path $buildInfo 'liukai_build_info.generated.hpp'),$metadata,[Text.UTF8Encoding]::new($false))
     $resource=Join-Path $work 'resources.o'
     & $windres -I (Join-Path $repo 'assets') (Join-Path $PSScriptRoot 'tsf\resources.rc') -O coff -F pe-x86-64 -o $resource
     if($LASTEXITCODE -ne 0){throw 'TSF resource compilation failed.'}
-    $cpp=@('-std=c++17','-O2','-static')
-    & $compiler @cpp -shared -municode (Join-Path $PSScriptRoot 'tsf\service.cpp') (Join-Path $PSScriptRoot 'tsf\service.def') $resource -lole32 -loleaut32 -luuid -lgdi32 -o (Join-Path $x64 'BoshiamyTsf.dll')
+    $cpp=@('-std=c++17','-O2','-static','-I',$buildInfo)
+    & $compiler @cpp -shared -municode (Join-Path $PSScriptRoot 'tsf\service.cpp') (Join-Path $PSScriptRoot 'tsf\service.def') $resource -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -o (Join-Path $x64 'BoshiamyTsf.dll')
     if($LASTEXITCODE -ne 0){throw 'TSF DLL compilation failed.'}
     foreach($tool in @('lookup','settings')) {
         $name=if($tool -eq 'lookup'){'LiuKaiLookup.exe'}else{'LiuKaiSettings.exe'}
-        & $compiler @cpp -municode -mwindows (Join-Path $PSScriptRoot ('tools\'+$tool+'_main.cpp')) $resource -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -o (Join-Path $x64 $name)
+        & $compiler @cpp -municode -mwindows (Join-Path $PSScriptRoot ('tools\'+$tool+'_main.cpp')) $resource -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -ladvapi32 -lbcrypt -o (Join-Path $x64 $name)
         if($LASTEXITCODE -ne 0){throw "Compilation failed: $name"}
     }
     $cli=Join-Path $work 'LiuKaiInstaller.exe'; $register=Join-Path $work 'LiuKaiRegister.exe'; $branding=Join-Path $work 'branding.dll'

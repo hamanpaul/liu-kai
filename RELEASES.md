@@ -7,13 +7,17 @@
 | 平台 | 正式版、標籤與來源 | 下載檔 | 系統升級身分 |
 | --- | --- | --- | --- |
 | Android | [android-v0.1.1](https://github.com/hamanpaul/liu-kai/releases/tag/android-v0.1.1) | `liu-kai-android-0.1.1.apk` | `com.hamanpaul.liukai`，versionName 0.1.1、versionCode 3；保留相容簽章 |
-| Windows x64 | [windows-v0.1.0](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.0) | `liu-kai-windows-0.1.0-x64-setup.exe` | MSI／Burn 70.1.2；沿用原 MSI 與 Bundle 的 UpgradeCode |
+| Windows x64 | [windows-v0.1.1](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.1) | `liu-kai-windows-0.1.1-x64-setup.exe` | MSI／Burn 70.1.3；沿用原 MSI 與 Bundle 的 UpgradeCode |
 
 本表隨發行 PR 更新為目前來源的目標版本，成品是否已公開以對應 GitHub Release 為準。Android 公開版號在 [app/VERSION](app/VERSION)，Android 內部安裝序號在 [app/VERSION_CODE](app/VERSION_CODE)，每個正式版須大於所有已分發 APK 的安裝序號。Windows 公開版號在 [windows/VERSION](windows/VERSION)，安裝版號的換算與驗證見 [Windows 發行說明](windows/RELEASE_FLOW.md)。根層 [VERSION](VERSION) 和無平台前綴的 annotated tag 是 paulsha-conventions 的整合批次，例如這次 `v0.1.3`；兩個產品各自使用自己的 lightweight tag 和 GitHub Release。
 
 ### Android 0.1.1
 
 本批次 `0.1.3` 先交付 Android Doctor 與標點輸入修正。Windows 仍使用上表的 `0.1.0`，其 Doctor 功能另行驗收發版；[共用議題](https://github.com/hamanpaul/liu-kai/issues/11) 保持開啟。
+
+### Windows 0.1.1
+
+本批次 `0.1.4` 準備交付 Windows Doctor；Android 維持已發布的 `0.1.1`，不重新封裝或移動它的標籤。Windows 的正式包與完整宿主驗收仍待完成，[共用議題](https://github.com/hamanpaul/liu-kai/issues/11) 保持開啟。候選範圍見 [Windows 驗證紀錄](windows/VALIDATION.md)。
 
 ### 發行流程
 

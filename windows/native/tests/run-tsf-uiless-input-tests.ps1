@@ -8,7 +8,7 @@ if(Test-Path -LiteralPath $work){throw 'Test directory already exists.'}
 $exe=Join-Path $work 'tsf_uiless_input_tests.exe'
 & $compiler -std=c++17 -O2 -static -municode `
     (Join-Path $PSScriptRoot 'tsf_uiless_input_tests.cpp') `
-    -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lshlwapi -o $exe
+    -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $exe
 if($LASTEXITCODE -ne 0){throw 'UI-less TSF harness compilation failed.'}
 
 function Invoke-Fixture([string]$Name,[string[]]$ExtraArguments,[string]$ExpectedOutput) {

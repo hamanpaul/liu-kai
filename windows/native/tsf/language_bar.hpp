@@ -85,12 +85,16 @@ ITfLangBarItemButton : public ITfLangBarItem {
 #ifndef TF_LBMENUF_RADIOCHECKED
 #define TF_LBMENUF_RADIOCHECKED 0x00000008
 #endif
+#ifndef TF_LBMENUF_GRAYED
+#define TF_LBMENUF_GRAYED 0x00000010
+#endif
 namespace boshiamy {
 
 using LanguageBarMode = Mode;
 enum class MenuCommand : UINT {
     Traditional = 0x5101, Simplified, TradToSimplified, Japanese, Fast,
-    English, Chinese, Fullwidth, Halfwidth, Lookup, Settings = 0x5120
+    English, Chinese, Fullwidth, Halfwidth, Lookup, Settings = 0x5120,
+    DoctorSettings, DoctorFolder
 };
 
 struct LanguageBarDisplay {
@@ -246,10 +250,13 @@ static_assert(std::is_base_of<ITfLangBarItem, ITfLangBarItemButton>::value, "ITf
 class LanguageBarItem final : public ITfLangBarItemButton, public ITfSource {
 public:
     using MenuAction = std::function<HRESULT(MenuCommand)>;
+    using MenuPresenter = std::function<UINT(HMENU, POINT, const RECT*)>;
 
     explicit LanguageBarItem(const CLSID &service_clsid, MenuAction action,
-        IconSource icon = IconSource::from_path(L"assets/liukai.ico"), std::shared_ptr<void> module_lifetime = {})
-        : module_lifetime_(std::move(module_lifetime)), service_clsid_(service_clsid), action_(std::move(action)), icon_(std::move(icon)) {}
+        IconSource icon = IconSource::from_path(L"assets/liukai.ico"), std::shared_ptr<void> module_lifetime = {},
+        MenuPresenter presenter = {})
+        : module_lifetime_(std::move(module_lifetime)), service_clsid_(service_clsid), action_(std::move(action)),
+          icon_(std::move(icon)), menu_presenter_(std::move(presenter)) {}
 
     ~LanguageBarItem() {
         for (auto &entry : sinks_) entry.sink->Release();
@@ -306,7 +313,15 @@ public:
         return *tooltip ? S_OK : E_OUTOFMEMORY;
     }
 
-    HRESULT STDMETHODCALLTYPE OnClick(TfLBIClick click, POINT, const RECT *) override {
+    HRESULT STDMETHODCALLTYPE OnClick(TfLBIClick click, POINT point, const RECT *area) override {
+        if (click == TF_LBI_CLK_RIGHT) {
+            // The tray can deliver OnClick without invoking TSF's InitMenu.
+            // Pin this item while the native menu's modal loop dispatches messages.
+            AddRef();
+            std::unique_ptr<LanguageBarItem, void(*)(LanguageBarItem*)> pin(this,
+                [](LanguageBarItem* item) { item->Release(); });
+            try { return show_popup(point, area); } catch (...) { return E_FAIL; }
+        }
         if (click != TF_LBI_CLK_LEFT) return S_OK;
         if (!action_) return E_UNEXPECTED;
         try { return action_(display_.english ? MenuCommand::Chinese : MenuCommand::English); }
@@ -336,6 +351,21 @@ public:
             }
             HRESULT hr = menu->AddMenuItem(language_bar_detail::command_id(item.command), flags,
                 nullptr, nullptr, item.text, static_cast<ULONG>(lstrlenW(item.text)), nullptr);
+            if (FAILED(hr)) return hr;
+        }
+        if (doctor_metadata_available_) {
+            const std::wstring version = L"版本：" + doctor_version_;
+            HRESULT hr = menu->AddMenuItem(0x5123, TF_LBMENUF_GRAYED, nullptr, nullptr,
+                version.c_str(), static_cast<ULONG>(version.size()), nullptr);
+            if (FAILED(hr)) return hr;
+            const std::wstring directory = L"Doctor 記錄：" + doctor_directory_;
+            hr = menu->AddMenuItem(static_cast<UINT>(MenuCommand::DoctorFolder), 0,
+                nullptr, nullptr, directory.c_str(), static_cast<ULONG>(directory.size()), nullptr);
+            if (FAILED(hr)) return hr;
+            const std::wstring settings = L"Doctor 設定（" +
+                std::wstring(doctor_status_text()) + L"）";
+            hr = menu->AddMenuItem(static_cast<UINT>(MenuCommand::DoctorSettings), 0,
+                nullptr, nullptr, settings.c_str(), static_cast<ULONG>(settings.size()), nullptr);
             if (FAILED(hr)) return hr;
         }
         return S_OK;
@@ -400,6 +430,14 @@ public:
         return S_OK;
     }
     const LanguageBarDisplay &display_state() const noexcept { return display_; }
+    void set_doctor_metadata(std::wstring version, std::wstring directory) {
+        doctor_version_ = std::move(version);
+        doctor_directory_ = std::move(directory);
+        doctor_metadata_available_ = true;
+    }
+    void set_doctor_status_reader(std::function<bool()> reader) {
+        doctor_status_reader_ = std::move(reader);
+    }
 
 private:
     // Declared first so the module guard is destroyed after callback and sink state.
@@ -409,15 +447,94 @@ private:
     CLSID service_clsid_{};
     MenuAction action_;
     IconSource icon_;
+    MenuPresenter menu_presenter_;
     LanguageBarDisplay display_{};
     std::vector<SinkEntry> sinks_;
     DWORD next_cookie_ = 1;
     bool hidden_ = false;
+    bool doctor_metadata_available_ = false;
+    std::wstring doctor_version_;
+    std::wstring doctor_directory_;
+    std::function<bool()> doctor_status_reader_;
 
+    class NativeMenu final : public ITfMenu {
+    public:
+        NativeMenu() : handle(CreatePopupMenu()) {}
+        ~NativeMenu() { if (handle) DestroyMenu(handle); }
+        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** out) override {
+            if (!out) return E_POINTER;
+            *out = nullptr;
+            static constexpr GUID menu_iid = {0x6f8a98e4,0xaaa0,0x4f15,{0x8c,0x5b,0x07,0xe0,0xdf,0x0a,0x3d,0xd8}};
+            if (!IsEqualIID(iid, IID_IUnknown) && !IsEqualIID(iid, menu_iid)) return E_NOINTERFACE;
+            *out = static_cast<ITfMenu*>(this); AddRef(); return S_OK;
+        }
+        ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+        ULONG STDMETHODCALLTYPE Release() override { const auto left = --refs; if (!left) delete this; return left; }
+        HRESULT STDMETHODCALLTYPE AddMenuItem(UINT id, DWORD flags, HBITMAP, HBITMAP,
+            const WCHAR* text, ULONG length, ITfMenu** submenu) override {
+            if (submenu) *submenu = nullptr;
+            if (!handle || (flags & 2) || submenu) return E_NOTIMPL;
+            std::wstring label(text ? text : L"", text ? length : 0);
+            MENUITEMINFOW info{sizeof(info)};
+            info.fMask = MIIM_ID | MIIM_STATE | MIIM_FTYPE | MIIM_STRING;
+            info.wID = id;
+            info.fState = (flags & TF_LBMENUF_GRAYED) ? MFS_DISABLED : MFS_ENABLED;
+            if (flags & (TF_LBMENUF_CHECKED | TF_LBMENUF_RADIOCHECKED)) info.fState |= MFS_CHECKED;
+            info.fType = (flags & TF_LBMENUF_RADIOCHECKED) ? MFT_RADIOCHECK : MFT_STRING;
+            info.dwTypeData = label.data();
+            info.cch = static_cast<UINT>(label.size());
+            return InsertMenuItemW(handle, static_cast<UINT>(GetMenuItemCount(handle)), TRUE, &info)
+                ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+        }
+        HMENU handle;
+    private:
+        ULONG refs = 1;
+    };
+
+    HRESULT show_popup(POINT point, const RECT* area) {
+        std::unique_ptr<NativeMenu, void(*)(NativeMenu*)> menu(new NativeMenu,
+            [](NativeMenu* value) { value->Release(); });
+        if (!menu->handle) return E_OUTOFMEMORY;
+        const auto initialized = InitMenu(menu.get());
+        if (FAILED(initialized)) return initialized;
+        UINT chosen = 0;
+        if (menu_presenter_) {
+            chosen = menu_presenter_(menu->handle, point, area);
+        } else {
+            HWND owner = GetActiveWindow();
+            HWND temporary = nullptr;
+            if (!owner) {
+                temporary = CreateWindowExW(WS_EX_TOOLWINDOW, L"STATIC", L"", WS_POPUP,
+                    0, 0, 0, 0, nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+                owner = temporary;
+            }
+            if (!owner) return E_FAIL;
+            const HWND previous = GetForegroundWindow();
+            SetForegroundWindow(owner);
+            TPMPARAMS parameters{sizeof(parameters)};
+            if (area) parameters.rcExclude = *area;
+            chosen = TrackPopupMenuEx(menu->handle, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON,
+                point.x, point.y, owner, area ? &parameters : nullptr);
+            PostMessageW(owner, WM_NULL, 0, 0);
+            if (temporary) {
+                if (GetForegroundWindow() == temporary && previous) SetForegroundWindow(previous);
+                DestroyWindow(temporary);
+            }
+        }
+        return chosen ? OnMenuSelect(chosen) : S_OK;
+    }
+
+    const wchar_t* doctor_status_text() const noexcept {
+        if (!doctor_status_reader_) return L"狀態未知";
+        try { return doctor_status_reader_() ? L"收集中" : L"未收集"; }
+        catch (...) { return L"狀態未知"; }
+    }
     std::wstring tooltip_text() const {
-        return std::wstring(display_.english ? L"English input" : L"中文輸入 / Chinese input") +
+        auto text = std::wstring(display_.english ? L"English input" : L"中文輸入 / Chinese input") +
             L" · " + language_bar_detail::mode_name(display_.mode) +
             (display_.fullwidth ? L" · 全形 / Full-width" : L" · 半形 / Half-width");
+        if (doctor_metadata_available_) text += L" · Doctor：" + std::wstring(doctor_status_text());
+        return text;
     }
     static bool is_language_mode(MenuCommand command) noexcept {
         return command >= MenuCommand::Traditional && command <= MenuCommand::Fast;
@@ -433,7 +550,8 @@ private:
         case MenuCommand::Chinese: return !display_.english;
         case MenuCommand::Fullwidth: return display_.fullwidth;
         case MenuCommand::Halfwidth: return !display_.fullwidth;
-        case MenuCommand::Lookup: case MenuCommand::Settings: return false;
+        case MenuCommand::Lookup: case MenuCommand::Settings:
+        case MenuCommand::DoctorSettings: case MenuCommand::DoctorFolder: return false;
         }
         return false;
     }
@@ -445,6 +563,8 @@ private:
             id <= language_bar_detail::command_id(MenuCommand::Lookup))
             return static_cast<MenuCommand>(id);
         if (id == language_bar_detail::command_id(MenuCommand::Settings)) return MenuCommand::Settings;
+        if (id == language_bar_detail::command_id(MenuCommand::DoctorSettings)) return MenuCommand::DoctorSettings;
+        if (id == language_bar_detail::command_id(MenuCommand::DoctorFolder)) return MenuCommand::DoctorFolder;
         return std::nullopt;
     }
     void notify(DWORD flags) noexcept {

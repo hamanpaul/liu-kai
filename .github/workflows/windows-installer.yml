@@ -57,7 +57,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
           $env:PATH = $toolchain + ';' + $env:PATH
-          & .\native\test-release.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\release-tests"
+          & .\native\test-release.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\release-tests" -DoctorEphemeralTestUser
           if ($LASTEXITCODE -ne 0) { throw 'Release tests failed.' }
           & .\native\tests\wix-tls-detach-tests.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\wix-tls-test"
           if ($LASTEXITCODE -ne 0) { throw 'WiX TLS regression failed.' }

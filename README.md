@@ -2,12 +2,12 @@
 
 嘸．改提供 Android 螢幕鍵盤與 Windows x64 輸入法。跨平台功能在此 repo 的同一張 issue 討論，兩端各自建置、驗收及升版。
 
-| 平台 | 整合後首版 | 使用說明 |
+| 平台 | 來源目標版本 | 使用說明 |
 | --- | --- | --- |
 | Android 11 以上 | [Android 0.1.1 APK](https://github.com/hamanpaul/liu-kai/releases/tag/android-v0.1.1) | 下方的 Android 安裝與操作說明 |
-| Windows x64 | [Windows 0.1.0 安裝程式](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.0) | [Windows 安裝、升級與卸載](windows/README.md) |
+| Windows x64 | [Windows 0.1.1 安裝程式](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.1) | [Windows 安裝、升級與卸載](windows/README.md) |
 
-每個平台的安裝檔、SHA-256、版本與來源可從發行頁查到。[版本對照](RELEASES.md) · [原 Windows issue、PR 與版本索引](docs/windows-history.md)
+本表隨發行 PR 更新來源目標，成品是否已公開以對應 Release 為準。每個平台的安裝檔、SHA-256、版本與來源可從發行頁查到。[版本對照](RELEASES.md) · [原 Windows issue、PR 與版本索引](docs/windows-history.md)
 
 設計與里程碑見 [`docs/plan.md`](docs/plan.md)。
 

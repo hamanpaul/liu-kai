@@ -35,6 +35,7 @@ inline constexpr char kWixRuntimeVersion[] = "0.0.0-dev.20261030.r64.x64";
 inline constexpr char kWixManifestSha256[] = "$(HashFile 'package-manifest.json')";
 inline constexpr char kWixHelperSha256[] = "$(HashFile 'LiuKaiInstaller.exe')";
 inline constexpr char kWixTsfSha256[] = "$(HashFile 'BoshiamyTsf.dll')";
+inline constexpr char kWixSettingsSha256[] = "$(HashFile 'LiuKaiSettings.exe')";
 inline constexpr char kWixBrandingSha256[] = "$(HashFile 'branding.dll')";
 inline constexpr char kWixDiagnosticsSha256[] = "$(HashFile 'collect-install-diagnostics.ps1')";
 inline constexpr char kWixHistorySha256[] = "$(HashFile 'legacy-history-probe.exe')";

@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$ToolchainBin,
-      [Parameter(Mandatory=$true)][string]$WorkDir)
+      [Parameter(Mandatory=$true)][string]$WorkDir,
+      [switch]$DoctorEphemeralTestUser)
 $ErrorActionPreference='Stop'
 $bin=(Resolve-Path -LiteralPath $ToolchainBin).Path
 $compiler=(Resolve-Path -LiteralPath (Join-Path $bin 'g++.exe')).Path
@@ -18,8 +19,8 @@ try {
         } else { & $exe }
         if($LASTEXITCODE -ne 0){throw "Test failed: $name"}
     }
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tests\run-tsf-uiless-input-tests.ps1') -ToolchainBin $bin -WorkDir (Join-Path $work 'tsf-uiless-input')
-    if($LASTEXITCODE -ne 0){throw 'UI-less TSF input test failed.'}
+    & (Join-Path $PSScriptRoot 'run-doctor-tests.ps1') -ToolchainBin $bin `
+        -WorkDir (Join-Path $work 'doctor') -UseEphemeralTestUser:$DoctorEphemeralTestUser
     $framework=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
     $setupTest=Join-Path $work 'setup-tests.exe'
     & (Join-Path $framework 'csc.exe') /nologo /target:exe /platform:x64 /main:SetupLogTests ("/out:$setupTest") `

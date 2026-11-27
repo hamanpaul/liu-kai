@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <initguid.h>
 #include <objbase.h>
 #include <msctf.h>
 #include <atomic>
@@ -18,7 +19,9 @@
 #include "open_close_binding.hpp"
 #include "compartment_ids.hpp"
 #include "activation_diagnostics.hpp"
-#include "runtime_diagnostics.hpp"
+#include "doctor_scope.hpp"
+#include "../build_info.hpp"
+#include "../doctor_paths.hpp"
 
 static const CLSID CLSID_BoshiamyTsf={0x5d7c4291,0x2b34,0x4ce8,{0x8a,0x11,0x39,0x62,0x71,0x05,0xc4,0x2e}};
 static const GUID GUID_BoshiamyProfile={0x7254a21f,0x6eb1,0x4217,{0xa4,0x2c,0xc2,0x73,0x01,0x17,0x5d,0x90}};
@@ -47,13 +50,18 @@ static std::wstring to_wide(const std::string& s) {
  if(s.empty())return {};int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,s.data(),(int)s.size(),nullptr,0);if(n<=0)return {};
  std::wstring out((size_t)n,L'\0');MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,s.data(),(int)s.size(),out.data(),n);return out;
 }
-static HRESULT launch_tool_process(const std::filesystem::path& executable){
- std::wstring command=L"\""+executable.wstring()+L"\"";STARTUPINFOW startup{};startup.cb=sizeof(startup);PROCESS_INFORMATION process{};
+static HRESULT launch_tool_process_arguments(const std::filesystem::path& executable,const std::wstring& argument){
+ std::wstring command=L"\""+executable.wstring()+L"\"";
+ if(!argument.empty())command+=L" "+argument;
+ STARTUPINFOW startup{};startup.cb=sizeof(startup);PROCESS_INFORMATION process{};
  auto directory=executable.parent_path();
  if(!CreateProcessW(executable.c_str(),command.data(),nullptr,nullptr,FALSE,0,nullptr,directory.c_str(),&startup,&process))return HRESULT_FROM_WIN32(GetLastError());
  CloseHandle(process.hThread);CloseHandle(process.hProcess);return S_OK;
 }
+static HRESULT launch_tool_process(const std::filesystem::path& executable){return launch_tool_process_arguments(executable,L"");}
 class Service;
+using DoctorScopeReader=std::function<boshiamy::doctor::ScopeObservation(
+ ITfThreadMgr*,TfClientId,ITfContext**)>;
 class CompositionSink final: public ITfCompositionSink {
  std::atomic<ULONG> refs{1}; Service* owner;
 public: explicit CompositionSink(Service* s); ~CompositionSink();
@@ -62,7 +70,7 @@ public: explicit CompositionSink(Service* s); ~CompositionSink();
  HRESULT STDMETHODCALLTYPE OnCompositionTerminated(TfEditCookie,ITfComposition*) override;
 };
 class EditRequest final: public ITfEditSession {
- std::atomic<ULONG> refs{1}; Service* owner; ITfContext* context; boshiamy::Outcome outcome;boshiamy::Engine accepted_engine;
+ std::atomic<ULONG> refs{1}; Service* owner; ITfContext* context; boshiamy::Outcome outcome;boshiamy::Engine accepted_engine;std::uint64_t doctor_operation_id=0;
 public: EditRequest(Service*,ITfContext*,const boshiamy::Outcome&,boshiamy::Engine&&); ~EditRequest();
  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID,void**) override; ULONG STDMETHODCALLTYPE AddRef() override{return ++refs;} ULONG STDMETHODCALLTYPE Release() override{ULONG n=--refs;if(!n)delete this;return n;}
  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie) override;
@@ -77,24 +85,302 @@ public:
  ULONG STDMETHODCALLTYPE Release() override{ULONG n=--refs;if(!n)delete this;return n;}
  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie ec) override;
 };
-class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, public ITfTextLayoutSink {
- boshiamy::runtime_diagnostics::Journal diagnostics;
+class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink,
+ public ITfTextLayoutSink, public ITfThreadMgrEventSink, public ITfTextEditSink {
+ struct DoctorScopeLifetime {Service* owner=nullptr;};
+ boshiamy::doctor::ProcessProducer doctor;
+ boshiamy::doctor::ContextScopeCache doctor_scope_cache;
+ DoctorScopeReader doctor_scope_reader;
+ std::shared_ptr<DoctorScopeLifetime> doctor_scope_lifetime;
+ std::shared_ptr<void> doctor_scope_pin;
+ std::uint64_t doctor_operation_id=0;
+ std::uint64_t doctor_pending_test_operation=0;
+ ITfContext* doctor_pending_test_context=nullptr;
+ std::uint64_t doctor_pending_release_operation=0;
+ ITfContext* doctor_pending_release_context=nullptr;
+ bool doctor_composing=false;
+ bool doctor_context_blocked=false;
+ bool doctor_context_gate_blocked=false;
+ boshiamy::OpenCloseBinding doctor_keyboard_disabled;
+ boshiamy::OpenCloseBinding doctor_empty_context;
+ ITfSource* doctor_thread_source=nullptr;DWORD doctor_thread_cookie=TF_INVALID_COOKIE;
+ ITfSource* doctor_context_source=nullptr;ITfContext* doctor_context=nullptr;
+ ITfReadOnlyProperty* doctor_tracked_property=nullptr;DWORD doctor_context_cookie=TF_INVALID_COOKIE;
  std::uint32_t activation_entry_point=0;DWORD activation_argument_flags=0;bool ui_elements_only_activation=false;
- void trace(boshiamy::runtime_diagnostics::Event event,ITfContext* context=nullptr,HRESULT result=S_OK,HRESULT session=S_FALSE,BOOL eaten=FALSE,ITfThreadMgr* inspection_manager=nullptr) noexcept {
-  if(!diagnostics.enabled())return;
-  try {
-   boshiamy::runtime_diagnostics::Record record;
-   record.event=event;record.host_kind=boshiamy::runtime_diagnostics::detail::detect_host_kind();
-   record.activation_entry_point=activation_entry_point;record.activation_argument_flags=activation_argument_flags;
-   record.result_hr=static_cast<std::int32_t>(result);record.session_hr=static_cast<std::int32_t>(session);
-   record.engine_loaded=engine?1:0;record.mode_english=modes.english()?1:0;
-   record.composing=engine&&!engine->snapshot().composition.empty()?1:0;
-   record.eaten=eaten?1:0;record.has_focus=has_focus?1:0;
-   auto* inspected=inspection_manager?inspection_manager:mgr;
-   if(context)record=diagnostics.context(record,inspected,context);
-   else if(inspected){auto active=boshiamy::tsf_activation::read_active_flags(inspected);record.active_flags_hr=static_cast<std::int32_t>(FAILED(active.query_result)?active.query_result:active.read_result);if(active.has_value)record.activation_flags=active.value;}
-   diagnostics.write(record);
-  } catch(...) {/* Diagnostics never alter TSF input behavior. */}
+ void doctor_scope_completed(ITfContext* context,std::uint64_t generation,const boshiamy::doctor::ScopeObservation& scope) noexcept {
+  if(!doctor_scope_cache.complete(context,generation,scope))return;
+  if(doctor_context_gate_blocked&&!scope.context_disabled){
+   doctor_observe_blocked_context(context);
+   return;
+  }
+  doctor_context_blocked=doctor_context_gate_blocked||scope.context_disabled;
+  doctor.publish_scope(scope);
+ }
+ void doctor_request_scope(ITfContext* context) noexcept {
+  if(!doctor.ensure())return;
+  if(!context){clear_doctor_scope();return;}
+  if(doctor_context_gate_blocked){
+   doctor_observe_blocked_context(context);
+   return;
+  }
+  const auto generation=doctor_scope_cache.invalidate(context);
+  doctor_context_blocked=doctor_context_gate_blocked;
+  doctor.publish_scope(doctor_scope_cache.observation());
+  try{
+   if(doctor_scope_reader){
+    ITfContext* reader_context=nullptr;
+    auto scope=doctor_scope_reader(mgr,client,&reader_context);
+    if(reader_context)reader_context->Release();
+    doctor_scope_completed(context,generation,scope);
+   }
+   else{
+    std::weak_ptr<DoctorScopeLifetime> lifetime=doctor_scope_lifetime;
+    boshiamy::doctor::ScopeRequestResult request_status;
+    const auto hr=boshiamy::doctor::request_input_scope(client,context,generation,
+     [lifetime](ITfContext* completed,std::uint64_t completed_generation,const boshiamy::doctor::ScopeObservation& scope){
+      auto target=lifetime.lock();if(target&&target->owner)target->owner->doctor_scope_completed(completed,completed_generation,scope);
+     },&request_status,doctor_scope_pin);
+    if(FAILED(hr)){
+     boshiamy::doctor::ScopeObservation failed;
+     failed.context_available=true;failed.query_result=static_cast<std::int32_t>(hr);
+     failed.request_outer_hr=static_cast<std::int32_t>(request_status.outer);
+     failed.request_inner_hr=static_cast<std::int32_t>(request_status.inner);
+     doctor_scope_completed(context,generation,failed);
+    }else if(static_cast<HRESULT>(
+        doctor_scope_cache.observation().query_result)==E_PENDING){
+     auto pending=doctor_scope_cache.observation();
+     pending.request_outer_hr=static_cast<std::int32_t>(request_status.outer);
+     pending.request_inner_hr=static_cast<std::int32_t>(request_status.inner);
+     doctor_scope_completed(context,generation,pending);
+    }
+   }
+  }catch(...){
+   boshiamy::doctor::ScopeObservation failed;
+   failed.context_available=true;failed.query_result=static_cast<std::int32_t>(E_UNEXPECTED);
+   failed.request_outer_hr=static_cast<std::int32_t>(E_UNEXPECTED);
+   doctor_scope_completed(context,generation,failed);
+  }
+ }
+ std::function<void()> doctor_gate_callback() {
+  std::weak_ptr<DoctorScopeLifetime> lifetime=doctor_scope_lifetime;
+  return [lifetime](){
+   auto target=lifetime.lock();
+   if(target&&target->owner)target->owner->doctor_context_gate_changed();
+  };
+ }
+ static bool doctor_gate_flag_readable(
+  const boshiamy::tsf_activation::ContextFlag& flag) noexcept {
+  if(flag.enumerate_result!=S_OK&&flag.enumerate_result!=S_FALSE)return false;
+  return !flag.present||
+   flag.value_result==S_OK||flag.value_result==S_FALSE;
+ }
+ static bool doctor_gate_readable(
+  const boshiamy::tsf_activation::ContextGates& gates) noexcept {
+  return gates.manager_query_result==S_OK&&
+   gates.enumeration_result==S_OK&&
+   doctor_gate_flag_readable(gates.keyboard_disabled)&&
+   doctor_gate_flag_readable(gates.empty_context);
+ }
+ static bool doctor_gate_blocked(
+  const boshiamy::tsf_activation::ContextGates& gates) noexcept {
+  return (gates.keyboard_disabled.known&&
+    gates.keyboard_disabled.value)||
+   (gates.empty_context.known&&gates.empty_context.value);
+ }
+ void doctor_detach_gate_bindings() noexcept {
+  doctor_keyboard_disabled.detach();
+  doctor_empty_context.detach();
+ }
+ void doctor_attach_gate_bindings(ITfContext* context) noexcept {
+  doctor_detach_gate_bindings();
+  doctor_context_gate_blocked=false;
+  ITfCompartmentMgr* compartments=nullptr;
+  HRESULT hr=context?context->QueryInterface(
+   IID_ITfCompartmentMgr,reinterpret_cast<void**>(&compartments)):E_POINTER;
+  ITfCompartment* disabled=nullptr;
+  ITfCompartment* empty=nullptr;
+  if(SUCCEEDED(hr))
+   hr=compartments->GetCompartment(
+    GUID_COMPARTMENT_KEYBOARD_DISABLED,&disabled);
+  if(SUCCEEDED(hr))
+   hr=compartments->GetCompartment(
+    GUID_COMPARTMENT_EMPTYCONTEXT,&empty);
+  try{
+   auto callback=doctor_gate_callback();
+   if(SUCCEEDED(hr))
+    hr=doctor_keyboard_disabled.attach(
+     disabled,client,callback,doctor_scope_pin,
+     GUID_COMPARTMENT_KEYBOARD_DISABLED);
+   if(SUCCEEDED(hr))
+    hr=doctor_empty_context.attach(
+     empty,client,std::move(callback),doctor_scope_pin,
+     GUID_COMPARTMENT_EMPTYCONTEXT);
+  }catch(...){
+   hr=E_OUTOFMEMORY;
+  }
+  if(disabled)disabled->Release();
+  if(empty)empty->Release();
+  if(compartments)compartments->Release();
+  if(FAILED(hr)){
+   doctor_detach_gate_bindings();
+   doctor_context_gate_blocked=true;
+   doctor_observe_blocked_context(context);
+   return;
+  }
+  const auto gates=boshiamy::tsf_activation::read_context_gates(context);
+  if(!doctor_gate_readable(gates)||doctor_gate_blocked(gates)){
+   doctor_context_gate_blocked=true;
+   doctor_observe_blocked_context(context);
+  }
+ }
+ void doctor_context_gate_changed() noexcept {
+  if(!doctor_context)return;
+  ServicePin pin(this);
+  const auto gates=boshiamy::tsf_activation::read_context_gates(
+   doctor_context);
+  if(!doctor_gate_readable(gates)||doctor_gate_blocked(gates)){
+   doctor_context_gate_blocked=true;
+   doctor_observe_blocked_context(doctor_context);
+   return;
+  }
+  doctor_context_gate_blocked=false;
+  doctor_request_scope(doctor_context);
+ }
+ void doctor_detach_context() noexcept {
+  doctor_detach_gate_bindings();
+  if(doctor_context_source&&doctor_context_cookie!=TF_INVALID_COOKIE){
+   doctor_context_source->UnadviseSink(doctor_context_cookie);
+  }
+  if(doctor_context_source){doctor_context_source->Release();doctor_context_source=nullptr;}
+  doctor_context_cookie=TF_INVALID_COOKIE;
+  if(doctor_tracked_property){doctor_tracked_property->Release();doctor_tracked_property=nullptr;}
+  if(doctor_context){doctor_context->Release();doctor_context=nullptr;}
+ }
+ void doctor_attach_context(ITfContext* context,bool request_scope=true) noexcept {
+  if(context&&!doctor_scope_cache.is_context(context))doctor_scope_cache.invalidate(context);
+  if(!context){doctor_detach_context();doctor_request_scope(nullptr);return;}
+  if(!doctor_context||!same_context(doctor_context,context)){
+   doctor_detach_context();
+   doctor_context=context;doctor_context->AddRef();
+   doctor_attach_gate_bindings(context);
+   doctor_context->QueryInterface(IID_ITfSource,reinterpret_cast<void**>(&doctor_context_source));
+   const GUID* tracked[]={&GUID_PROP_INPUTSCOPE};
+   doctor_context->TrackProperties(nullptr,0,tracked,1,&doctor_tracked_property);
+   if(doctor_context_source){
+    doctor_context_source->AdviseSink(IID_ITfTextEditSink,
+     static_cast<ITfTextEditSink*>(this),&doctor_context_cookie);
+   }
+  }
+  if(request_scope)doctor_request_scope(context);
+ }
+ void doctor_advise_thread_events() noexcept {
+  if(!mgr||doctor_thread_source)return;
+  mgr->QueryInterface(IID_ITfSource,reinterpret_cast<void**>(&doctor_thread_source));
+  if(doctor_thread_source&&FAILED(doctor_thread_source->AdviseSink(
+      IID_ITfThreadMgrEventSink,static_cast<ITfThreadMgrEventSink*>(this),
+      &doctor_thread_cookie))){
+   doctor_thread_source->Release();doctor_thread_source=nullptr;
+   doctor_thread_cookie=TF_INVALID_COOKIE;
+  }
+ }
+ void doctor_unadvise_thread_events() noexcept {
+  if(doctor_thread_source&&doctor_thread_cookie!=TF_INVALID_COOKIE)
+   doctor_thread_source->UnadviseSink(doctor_thread_cookie);
+  if(doctor_thread_source)doctor_thread_source->Release();
+  doctor_thread_source=nullptr;doctor_thread_cookie=TF_INVALID_COOKIE;
+ }
+ void refresh_doctor_scope() noexcept {
+  if(!doctor.ensure())return;
+  ITfContext* context=boshiamy::doctor::focused_context(mgr);
+  doctor_attach_context(context);
+  if(context)context->Release();
+ }
+ void clear_doctor_scope() noexcept {
+  doctor_pending_test_operation=0;doctor_pending_test_context=nullptr;
+  doctor_pending_release_operation=0;doctor_pending_release_context=nullptr;
+  doctor_detach_context();
+  doctor_scope_cache.clear();
+  doctor_context_blocked=false;
+  doctor_context_gate_blocked=false;
+  doctor.publish_scope(doctor_scope_cache.observation());
+ }
+ boshiamy::doctor::ScopeClass doctor_scope_for_context(ITfContext* context) const noexcept {
+  if(doctor_context_gate_blocked||doctor_context_blocked)
+   return boshiamy::doctor::ScopeClass::Sensitive;
+  return doctor_scope_cache.classify(context);
+ }
+ std::uint64_t begin_doctor_operation(ITfContext* context) noexcept {
+  doctor_operation_id=doctor.begin_per_key_operation(
+   doctor_scope_for_context(context));
+  return doctor_operation_id;
+ }
+ void continue_doctor_operation(ITfContext* context,std::uint64_t& pending,ITfContext*& pending_context) noexcept {
+  const auto operation=pending;const auto* tested_context=pending_context;
+  pending=0;pending_context=nullptr;
+  if(operation&&tested_context==context&&doctor_scope_for_context(context)==boshiamy::doctor::ScopeClass::Ordinary)
+   doctor_operation_id=operation;
+  else begin_doctor_operation(context);
+ }
+ void doctor_observe_blocked_context(ITfContext* context) noexcept {
+  doctor_pending_test_operation=0;doctor_pending_test_context=nullptr;
+  doctor_pending_release_operation=0;doctor_pending_release_context=nullptr;
+  doctor_context_blocked=true;
+  doctor_context_gate_blocked=true;
+  doctor_operation_id=0;
+  boshiamy::doctor::ScopeObservation blocked;
+  blocked.context_available=true;blocked.context_disabled=true;
+  blocked.query_result=static_cast<std::int32_t>(E_PENDING);
+  blocked.app_property_hr=static_cast<std::int32_t>(S_OK);
+  if(context){
+   const auto generation=doctor_scope_cache.invalidate(context);
+   doctor_scope_cache.complete(context,generation,blocked);
+  }
+  doctor.publish_scope(blocked);
+ }
+ static bool doctor_per_key_event(boshiamy::doctor::Event event) noexcept {
+  switch(event){
+   case boshiamy::doctor::Event::TestDown:
+   case boshiamy::doctor::Event::KeyDown:
+   case boshiamy::doctor::Event::EditRequest:
+   case boshiamy::doctor::Event::EditApplied:
+   case boshiamy::doctor::Event::ShiftTestUp:
+    case boshiamy::doctor::Event::ExtendedInterfaceQuery:
+   case boshiamy::doctor::Event::ShiftUp:return true;
+   default:return false;
+  }
+ }
+ static std::uint32_t doctor_elapsed_us(std::uint64_t started) noexcept {
+  const auto now=boshiamy::doctor::monotonic_nanoseconds();
+  const auto elapsed=now>=started?(now-started)/1000:0;
+  return elapsed>0xffffffffULL?0xffffffffu:static_cast<std::uint32_t>(elapsed);
+ }
+ std::uint64_t trace(boshiamy::doctor::Event event,ITfContext* context=nullptr,HRESULT result=S_OK,HRESULT session=S_FALSE,BOOL eaten=FALSE,ITfThreadMgr* inspection_manager=nullptr,std::uint64_t operation_id=0,std::uint32_t duration_us=0) noexcept {
+  (void)context;(void)inspection_manager;
+  const auto scope=doctor_scope_for_context(context);
+  if(doctor_per_key_event(event)&&(scope!=boshiamy::doctor::ScopeClass::Ordinary||operation_id==0))return 0;
+  if(operation_id==0)operation_id=doctor.begin_operation();
+  if(operation_id==0)return 0;
+  boshiamy::doctor::EventRecord record;
+  record.operation_id=operation_id;
+  record.monotonic_ns=boshiamy::doctor::monotonic_nanoseconds();
+  record.event_code=static_cast<std::uint32_t>(event);
+  record.callback_source=static_cast<std::uint32_t>(event);
+  record.scope=static_cast<std::uint32_t>(scope);
+  record.result_code=static_cast<std::int32_t>(FAILED(result)?result:session);
+  record.duration_us=duration_us;
+  record.flags=(has_focus?1u:0u)|(engine?2u:0u)|(modes.english()?4u:0u)|(doctor_composing?8u:0u)|(eaten?16u:0u);
+  return doctor.try_write(record)==boshiamy::doctor::WriteResult::Written?operation_id:0;
+ }
+ std::uint64_t trace_operation(boshiamy::doctor::Event event,ITfContext* context,HRESULT result,HRESULT session,std::uint64_t operation_id,BOOL eaten=FALSE,std::uint32_t duration_us=0) noexcept {
+  return trace(event,context,result,session,eaten,nullptr,operation_id,duration_us);
+ }
+ HRESULT request_doctor_edit(ITfContext* context,ITfEditSession* edit,DWORD flags,HRESULT* session) {
+  const auto operation=doctor_operation_id;
+  const auto started=boshiamy::doctor::monotonic_nanoseconds();
+  const HRESULT hr=context->RequestEditSession(client,edit,flags,session);
+  trace_operation(boshiamy::doctor::Event::EditRequest,context,hr,session?*session:E_POINTER,
+   operation,SUCCEEDED(hr)&&session&&SUCCEEDED(*session),doctor_elapsed_us(started));
+  return hr;
  }
  std::atomic<ULONG> refs{1}; ITfThreadMgr* mgr=nullptr; ITfKeystrokeMgr* keys=nullptr; TfClientId client=0; bool advised=false;
  boshiamy::preserved_keys::PreservedKeys preserved_keys;
@@ -271,6 +557,7 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
   update_candidate(ctx,ec,engine->snapshot());return S_OK;
  }
  std::function<HRESULT(const std::filesystem::path&)> launch_tool;
+ std::function<HRESULT(const std::filesystem::path&,const std::wstring&)> launch_doctor_tool;
  boshiamy::KeyboardModes modes;
  std::unique_ptr<boshiamy::CandidateWindow> candidate_window;
  std::shared_ptr<boshiamy::candidate_ui::CandidateUiController> candidate_ui;
@@ -342,12 +629,12 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
  }
  HRESULT behavior_apply(boshiamy::Engine&& trial,const boshiamy::Outcome& out){
   if(!behavior_context_ready()||candidate_ui_publishing)return E_UNEXPECTED;
+  begin_doctor_operation(candidate_context);doctor_composing=!out.composition.empty();
   auto* context=candidate_context;context->AddRef();
   auto* edit=new(std::nothrow) EditRequest(this,context,out,std::move(trial));
   if(!edit){context->Release();return E_OUTOFMEMORY;}
   HRESULT session=E_FAIL;
-  HRESULT hr=context->RequestEditSession(client,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);
-  trace(boshiamy::runtime_diagnostics::Event::EditRequest,context,hr,session);
+  HRESULT hr=request_doctor_edit(context,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);
   edit->Release();context->Release();
   if(FAILED(hr)||FAILED(session))return FAILED(hr)?hr:session;
   if(mgr){publish_candidate(candidate_context);sync_language_bar();}
@@ -512,6 +799,11 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
  void attach_language_bar(){
   menu_target=std::make_shared<MenuTarget>();menu_target->owner=this;auto target=menu_target;
   language_bar=new boshiamy::LanguageBarItem(CLSID_BoshiamyTsf,[target](boshiamy::MenuCommand command)->HRESULT {return target->owner?target->owner->menu_command(command):E_UNEXPECTED;},boshiamy::IconSource::from_resource(dll_module(),101),std::make_shared<ModuleObjectLifetime>());
+  try{
+   language_bar->set_doctor_metadata(to_wide(boshiamy::build_info::product_version),boshiamy::doctor::doctor_directory().wstring());
+   language_bar->set_doctor_status_reader([target](){return target->owner&&target->owner->doctor.can_write();});
+  }
+  catch(...){language_bar->set_doctor_metadata(to_wide(boshiamy::build_info::product_version),L"無法取得資料夾");}
   sync_language_bar();
   language_bar_status=mgr->QueryInterface(IID_ITfLangBarItemMgr,(void**)&language_bar_manager);
   if(SUCCEEDED(language_bar_status)){language_bar_status=language_bar_manager->AddItem(language_bar);language_bar_added=SUCCEEDED(language_bar_status);}
@@ -523,9 +815,10 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
   if(!engine->snapshot().related_stage){related_focus_cleanup_pending=false;return S_FALSE;}
   if(!candidate_context){related_focus_cleanup_pending=true;if(candidate_window)candidate_window->hide();return E_UNEXPECTED;}
   boshiamy::Engine trial=*engine;trial.cancel_related_on_focus_loss();const auto outcome=trial.snapshot();
+  begin_doctor_operation(candidate_context);doctor_composing=!outcome.composition.empty();
   ITfContext* context=candidate_context;context->AddRef();auto* edit=new(std::nothrow)EditRequest(this,context,outcome,std::move(trial));if(!edit){context->Release();related_focus_cleanup_pending=true;if(candidate_window)candidate_window->hide();return E_OUTOFMEMORY;}
-  HRESULT session=E_FAIL;HRESULT hr=context->RequestEditSession(client,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);edit->Release();
-  trace(boshiamy::runtime_diagnostics::Event::EditRequest,context,hr,session);context->Release();
+  HRESULT session=E_FAIL;HRESULT hr=request_doctor_edit(context,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);edit->Release();
+  context->Release();
   if(FAILED(hr)||FAILED(session)){related_focus_cleanup_pending=true;if(candidate_window)candidate_window->hide();return FAILED(hr)?hr:session;}
   related_focus_cleanup_pending=false;publish_candidate(nullptr);sync_language_bar();return S_OK;
  }
@@ -638,8 +931,8 @@ class Service final: public ITfTextInputProcessorEx, public ITfKeyEventSink, pub
   ITfRange* r=nullptr;h=composition->GetRange(&r);if(SUCCEEDED(h)){h=write_composition(ctx,ec,r,composing);r->Release();}return h;
  }
 public:
- explicit Service(std::function<HRESULT(const std::filesystem::path&)> launcher=launch_tool_process,std::filesystem::path configuration={},boshiamy::AssociatedPhrases fixture_phrases={}):settings_path(std::move(configuration)),launch_tool(std::move(launcher)),engine(load_engine()){if(engine)engine->set_associated_phrases(std::move(fixture_phrases));shift_toggle.set_enabled(true);++objects;trace(boshiamy::runtime_diagnostics::Event::Created);} ~Service(){end_reading_ui();end_candidate_ui();reading_ui.reset();candidate_ui.reset();conversion.detach();open_close.detach();reset_shift_gesture();clear_query_releases();stop_watching_context();detach_language_bar();candidate_window.reset();if(composition){composition->Release();composition=nullptr;}if(compSink){compSink->Release();compSink=nullptr;}if(keys){preserved_keys.clear(*keys);keys->Release();}if(mgr)mgr->Release();--objects;}
- HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id,void** out) override {if(!out)return E_POINTER;*out=nullptr;if(IsEqualIID(id,IID_IUnknown)||IsEqualIID(id,IID_ITfTextInputProcessor))*out=static_cast<ITfTextInputProcessor*>(this);else if(IsEqualIID(id,boshiamy::tsf_activation::kTextInputProcessorExIid)){*out=static_cast<ITfTextInputProcessorEx*>(this);trace(boshiamy::runtime_diagnostics::Event::ExtendedInterfaceQuery,nullptr,S_OK);}else if(IsEqualIID(id,IID_ITfKeyEventSink))*out=static_cast<ITfKeyEventSink*>(this);else if(IsEqualIID(id,boshiamy::layout_sink_iid))*out=static_cast<ITfTextLayoutSink*>(this);else return E_NOINTERFACE;AddRef();return S_OK;}
+ explicit Service(std::function<HRESULT(const std::filesystem::path&)> launcher=launch_tool_process,std::filesystem::path configuration={},boshiamy::AssociatedPhrases fixture_phrases={},DoctorScopeReader scope_reader={},std::function<HRESULT(const std::filesystem::path&,const std::wstring&)> doctor_launcher=launch_tool_process_arguments):doctor_scope_reader(std::move(scope_reader)),settings_path(std::move(configuration)),launch_tool(std::move(launcher)),launch_doctor_tool(std::move(doctor_launcher)),engine(load_engine()){doctor_scope_lifetime=std::make_shared<DoctorScopeLifetime>();doctor_scope_lifetime->owner=this;doctor_scope_pin=std::make_shared<ModuleObjectLifetime>();doctor.ensure();if(engine)engine->set_associated_phrases(std::move(fixture_phrases));shift_toggle.set_enabled(true);++objects;trace(boshiamy::doctor::Event::Created);} ~Service(){if(doctor_scope_lifetime)doctor_scope_lifetime->owner=nullptr;clear_doctor_scope();doctor_unadvise_thread_events();end_reading_ui();end_candidate_ui();reading_ui.reset();candidate_ui.reset();conversion.detach();open_close.detach();reset_shift_gesture();clear_query_releases();stop_watching_context();detach_language_bar();candidate_window.reset();if(composition){composition->Release();composition=nullptr;}if(compSink){compSink->Release();compSink=nullptr;}if(keys){preserved_keys.clear(*keys);keys->Release();}if(mgr)mgr->Release();--objects;}
+ HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id,void** out) override {if(!out)return E_POINTER;*out=nullptr;if(IsEqualIID(id,IID_IUnknown)||IsEqualIID(id,IID_ITfTextInputProcessor))*out=static_cast<ITfTextInputProcessor*>(this);else if(IsEqualIID(id,boshiamy::tsf_activation::kTextInputProcessorExIid)){*out=static_cast<ITfTextInputProcessorEx*>(this);trace(boshiamy::doctor::Event::ExtendedInterfaceQuery,nullptr,S_OK);}else if(IsEqualIID(id,IID_ITfKeyEventSink))*out=static_cast<ITfKeyEventSink*>(this);else if(IsEqualIID(id,IID_ITfThreadMgrEventSink))*out=static_cast<ITfThreadMgrEventSink*>(this);else if(IsEqualIID(id,IID_ITfTextEditSink))*out=static_cast<ITfTextEditSink*>(this);else if(IsEqualIID(id,boshiamy::layout_sink_iid))*out=static_cast<ITfTextLayoutSink*>(this);else return E_NOINTERFACE;AddRef();return S_OK;}
  ULONG STDMETHODCALLTYPE AddRef() override{return ++refs;} ULONG STDMETHODCALLTYPE Release() override{ULONG n=--refs;if(!n)delete this;return n;}
  HRESULT STDMETHODCALLTYPE Activate(ITfThreadMgr* m,TfClientId c) override {
   return activate_from(m,c,1,0);
@@ -649,10 +942,10 @@ public:
  }
  HRESULT activate_from(ITfThreadMgr* m,TfClientId c,std::uint32_t entry,DWORD flags) {
   activation_entry_point=entry;activation_argument_flags=flags;ui_elements_only_activation=entry==2&&(flags&TF_TMAE_UIELEMENTENABLEDONLY)!=0;
-  trace(boshiamy::runtime_diagnostics::Event::ActivateBegin,nullptr,S_OK,S_FALSE,FALSE,m);
-  HRESULT hr=activate_impl(m,c);trace(boshiamy::runtime_diagnostics::Event::ActivateEnd,nullptr,hr);return hr;
+  trace(boshiamy::doctor::Event::ActivateBegin,nullptr,S_OK,S_FALSE,FALSE,m);
+  HRESULT hr=activate_impl(m,c);trace(boshiamy::doctor::Event::ActivateEnd,nullptr,hr);return hr;
  }
- HRESULT activate_impl(ITfThreadMgr* m,TfClientId c) {if(!m)return E_INVALIDARG;if(mgr==m)return S_OK;if(mgr||keys||layout_source||candidate_context||candidate_ui||reading_ui||open_close.subscribed()||conversion.subscribed()){HRESULT cleanup=Deactivate();if(FAILED(cleanup))return cleanup;}ui_elements_only_activation=activation_entry_point==2&&(activation_argument_flags&TF_TMAE_UIELEMENTENABLEDONLY)!=0;mgr=m;mgr->AddRef();client=c;has_focus=true;reload_settings(true);
+ HRESULT activate_impl(ITfThreadMgr* m,TfClientId c) {if(!m)return E_INVALIDARG;if(mgr==m){refresh_doctor_scope();return S_OK;}if(mgr||keys||layout_source||candidate_context||candidate_ui||reading_ui||open_close.subscribed()||conversion.subscribed()){HRESULT cleanup=Deactivate();if(FAILED(cleanup))return cleanup;}ui_elements_only_activation=activation_entry_point==2&&(activation_argument_flags&TF_TMAE_UIELEMENTENABLEDONLY)!=0;mgr=m;mgr->AddRef();client=c;has_focus=true;doctor_advise_thread_events();refresh_doctor_scope();reload_settings(true);
   compSink=new(std::nothrow) CompositionSink(this);if(!compSink){mgr->Release();mgr=nullptr;return E_OUTOFMEMORY;}
   // With no local dictionary, activation succeeds while every key remains available to the application.
   if(!engine)return S_OK;
@@ -663,16 +956,16 @@ public:
    ui_manager->Release();
   }
   HRESULT hr=m->QueryInterface(IID_ITfKeystrokeMgr,(void**)&keys);if(SUCCEEDED(hr))hr=keys->AdviseKeyEventSink(c,this,TRUE);
-  trace(boshiamy::runtime_diagnostics::Event::KeySinkAdvice,nullptr,hr);
+  trace(boshiamy::doctor::Event::KeySinkAdvice,nullptr,hr);
   if(SUCCEEDED(hr)){advised=true;preserved_registration=preserved_keys.register_all(*keys,client);attach_open_close();attach_language_bar();return S_OK;} if(hr==E_INVALIDARG){preserved_registration={hr,S_OK};if(keys){keys->Release();keys=nullptr;}attach_open_close();attach_language_bar();return S_OK;}
   if(keys){keys->Release();keys=nullptr;}candidate_ui.reset();reading_ui.reset();compSink->Release();compSink=nullptr;mgr->Release();mgr=nullptr;return hr;
  }
  HRESULT STDMETHODCALLTYPE Deactivate() override {
   ServicePin pin(this);
-  HRESULT result=deactivate_impl();trace(boshiamy::runtime_diagnostics::Event::Deactivate,nullptr,result);return result;
+  HRESULT result=deactivate_impl();trace(boshiamy::doctor::Event::Deactivate,nullptr,result);return result;
  }
  HRESULT deactivate_impl() {
-  has_focus=false;if(engine)engine->clear_phonetic_confirmation_key();candidate_placement.valid=false;hide_candidate();HRESULT reading_cleanup=end_reading_ui();HRESULT ui_cleanup=end_candidate_ui();if(SUCCEEDED(ui_cleanup))candidate_ui.reset();if(SUCCEEDED(reading_cleanup))reading_ui.reset();clear_query_releases();dismiss_learning_hint(false);conversion_cleanup_status=conversion.detach();open_close_cleanup_status=open_close.detach();pending_open.reset();reset_shift_gesture();HRESULT layout_cleanup=stop_watching_context();detach_language_bar();candidate_window.reset();ui_elements_only_activation=false;HRESULT hr=FAILED(ui_cleanup)?ui_cleanup:FAILED(reading_cleanup)?reading_cleanup:FAILED(layout_cleanup)?layout_cleanup:FAILED(conversion_cleanup_status)?conversion_cleanup_status:FAILED(open_close_cleanup_status)?open_close_cleanup_status:S_OK;
+  has_focus=false;clear_doctor_scope();doctor_unadvise_thread_events();if(engine)engine->clear_phonetic_confirmation_key();candidate_placement.valid=false;hide_candidate();HRESULT reading_cleanup=end_reading_ui();HRESULT ui_cleanup=end_candidate_ui();if(SUCCEEDED(ui_cleanup))candidate_ui.reset();if(SUCCEEDED(reading_cleanup))reading_ui.reset();clear_query_releases();dismiss_learning_hint(false);conversion_cleanup_status=conversion.detach();open_close_cleanup_status=open_close.detach();pending_open.reset();reset_shift_gesture();HRESULT layout_cleanup=stop_watching_context();detach_language_bar();candidate_window.reset();ui_elements_only_activation=false;HRESULT hr=FAILED(ui_cleanup)?ui_cleanup:FAILED(reading_cleanup)?reading_cleanup:FAILED(layout_cleanup)?layout_cleanup:FAILED(conversion_cleanup_status)?conversion_cleanup_status:FAILED(open_close_cleanup_status)?open_close_cleanup_status:S_OK;
   if(keys){preserved_cleanup_status=preserved_keys.clear(*keys).operation;if(FAILED(preserved_cleanup_status)&&SUCCEEDED(hr))hr=preserved_cleanup_status;
    if(advised){HRESULT unadvised=keys->UnadviseKeyEventSink(client);if(FAILED(unadvised)&&SUCCEEDED(hr))hr=unadvised;}advised=false;
    if(!preserved_keys.owns(boshiamy::preserved_keys::Key::language_toggle)&&!preserved_keys.owns(boshiamy::preserved_keys::Key::shape_toggle)){keys->Release();keys=nullptr;}
@@ -692,6 +985,8 @@ public:
  HRESULT shape_inheritance_result()const{return shape_inheritance_status;}
  HRESULT menu_command(boshiamy::MenuCommand command){
   if(!engine||!mgr)return E_UNEXPECTED;
+  if(command==boshiamy::MenuCommand::DoctorSettings||command==boshiamy::MenuCommand::DoctorFolder)
+   return launch_doctor_tool?launch_doctor_tool(dll_directory()/L"LiuKaiSettings.exe",command==boshiamy::MenuCommand::DoctorSettings?L"--doctor-settings":L"--doctor-folder"):E_UNEXPECTED;
   apply_pending_open();
   if(!engine->snapshot().composition.empty())return E_PENDING;
   dismiss_learning_hint();
@@ -714,7 +1009,41 @@ public:
  }
  HWND candidate_window_handle() const{return candidate_window?candidate_window->hwnd():nullptr;}
  HRESULT layout_watch_result() const{return layout_watch_status;}
-  HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL focused) override{ServicePin pin(this);has_focus=focused!=FALSE;if(!has_focus){if(engine)engine->clear_phonetic_confirmation_key();clear_query_releases();dismiss_learning_hint();reset_shift_gesture();++layout_generation;layout_refresh_pending=false;cancel_related_seed_on_focus_loss();end_candidate_ui();if(candidate_window)candidate_window->on_focus_lost();}else{if(related_focus_cleanup_pending)cancel_related_seed_on_focus_loss();if(engine&&engine->snapshot().composition.empty())reload_settings();if(related_focus_cleanup_pending){if(candidate_window)candidate_window->hide();}else request_candidate_refresh();}trace(boshiamy::runtime_diagnostics::Event::Focus);return S_OK;}
+ HRESULT STDMETHODCALLTYPE OnInitDocumentMgr(ITfDocumentMgr*) override{return S_OK;}
+ HRESULT STDMETHODCALLTYPE OnUninitDocumentMgr(ITfDocumentMgr* document) override{
+  auto* context=boshiamy::doctor::document_context(document);
+  if(context){if(doctor_scope_cache.is_context(context))clear_doctor_scope();context->Release();}
+  return S_OK;
+ }
+ HRESULT STDMETHODCALLTYPE OnSetFocus(ITfDocumentMgr* focus,ITfDocumentMgr*) override{
+  auto* context=boshiamy::doctor::document_context(focus);
+  if(context)doctor_attach_context(context);else clear_doctor_scope();
+  if(context)context->Release();
+  return S_OK;
+ }
+ HRESULT STDMETHODCALLTYPE OnPushContext(ITfContext* context) override{
+  if(!context)return E_POINTER;
+  auto* focused=boshiamy::doctor::focused_context(mgr);
+  if(focused&&same_context(focused,context))doctor_attach_context(context);
+  if(focused)focused->Release();
+  return S_OK;
+ }
+ HRESULT STDMETHODCALLTYPE OnPopContext(ITfContext* context) override{
+  if(context&&doctor_scope_cache.is_context(context))refresh_doctor_scope();
+  return S_OK;
+ }
+ HRESULT STDMETHODCALLTYPE OnEndEdit(ITfContext* context,TfEditCookie cookie,ITfEditRecord* record) override{
+  if(!context)return E_POINTER;
+  const bool invalid=doctor_scope_cache.needs_refresh(context);
+  if(!doctor_scope_cache.is_context(context))doctor_attach_context(context,false);
+  if(invalid||boshiamy::doctor::input_scope_property_changed(record)){
+   const auto generation=doctor_scope_cache.invalidate(context);
+   const auto observation=boshiamy::doctor::read_input_scope_with_cookie(context,cookie);
+   doctor_scope_completed(context,generation,observation);
+  }
+  return S_OK;
+ }
+ HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL focused) override{ServicePin pin(this);has_focus=focused!=FALSE;if(!has_focus){clear_doctor_scope();if(engine)engine->clear_phonetic_confirmation_key();clear_query_releases();dismiss_learning_hint();reset_shift_gesture();++layout_generation;layout_refresh_pending=false;cancel_related_seed_on_focus_loss();end_candidate_ui();if(candidate_window)candidate_window->on_focus_lost();}else{refresh_doctor_scope();if(related_focus_cleanup_pending)cancel_related_seed_on_focus_loss();if(engine&&engine->snapshot().composition.empty())reload_settings();if(related_focus_cleanup_pending){if(candidate_window)candidate_window->hide();}else request_candidate_refresh();}trace(boshiamy::doctor::Event::Focus);return S_OK;}
   HRESULT STDMETHODCALLTYPE OnLayoutChange(ITfContext* ctx,TfLayoutCode code,ITfContextView*) override{if(!layout_subscription_active||!same_context(ctx,candidate_context))return S_OK;if(code==TF_LC_DESTROY){ServicePin pin(this);if(engine)engine->clear_phonetic_confirmation_key();if(!composition&&engine)engine->dismiss_hint();stop_watching_context();candidate_placement.valid=false;hide_candidate();end_reading_ui();end_candidate_ui();return S_OK;}request_candidate_refresh();return S_OK;}
  static bool root_key(WPARAM w,char& ch){ if(w>=0x41&&w<=0x5a){ch=(char)('a'+(w-0x41));return true;} switch(w){case VK_OEM_COMMA:ch=',';return true;case VK_OEM_PERIOD:ch='.';return true;case VK_OEM_7:ch=static_cast<char>(39);return true;case VK_OEM_4:ch='[';return true;case VK_OEM_6:ch=']';return true;default:return false;} }
  static bool lower_symbol_key(WPARAM w){return w==VK_OEM_COMMA||w==VK_OEM_PERIOD||w==VK_OEM_7||w==VK_OEM_4||w==VK_OEM_6;}
@@ -743,25 +1072,31 @@ void set_shift_uppercase(bool uppercase){shift_uppercase=uppercase;}
  HRESULT finish_query_preview(ITfContext* ctx,bool preserve){
   boshiamy::Engine trial=*engine;
   auto out=preserve?trial.commit_query_preview():trial.key(boshiamy::Key::Escape);
+  doctor_composing=!out.composition.empty();
   auto* edit=new(std::nothrow) EditRequest(this,ctx,out,std::move(trial));if(!edit)return E_OUTOFMEMORY;
-  HRESULT session=E_FAIL;HRESULT hr=ctx->RequestEditSession(client,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);edit->Release();
-  trace(boshiamy::runtime_diagnostics::Event::EditRequest,ctx,hr,session);
+  HRESULT session=E_FAIL;HRESULT hr=request_doctor_edit(ctx,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);edit->Release();
   if(FAILED(hr)||FAILED(session))return FAILED(hr)?hr:session;
   publish_candidate(ctx);clear_query_releases();sync_language_bar();return S_OK;
  }
  HRESULT test_key_down_for_state(ITfContext* ctx,WPARAM w,LPARAM flags,bool shift,bool control,bool alt,BOOL* eaten){
   ServicePin pin(this);
+   const auto started=boshiamy::doctor::monotonic_nanoseconds();
+   doctor_operation_id=0;doctor_pending_test_operation=0;doctor_pending_test_context=nullptr;
   HRESULT hr=test_key_down_impl(ctx,w,flags,shift,control,alt,eaten);
-  trace(boshiamy::runtime_diagnostics::Event::TestDown,ctx,hr,S_FALSE,eaten?*eaten:FALSE);return hr;
+   trace_operation(boshiamy::doctor::Event::TestDown,ctx,hr,S_FALSE,doctor_operation_id,eaten?*eaten:FALSE,doctor_elapsed_us(started));
+   if(SUCCEEDED(hr)&&doctor_operation_id){doctor_pending_test_operation=doctor_operation_id;doctor_pending_test_context=ctx;}
+   return hr;
  }
  HRESULT test_key_down_impl(ITfContext* ctx,WPARAM w,LPARAM flags,bool shift,bool control,bool alt,BOOL* eaten){
   if(!eaten)return E_POINTER;*eaten=FALSE;
   if(!engine||!mgr||!ctx||candidate_ui_publishing)return S_OK;
-  if(boshiamy::tsf_activation::classify_context(boshiamy::tsf_activation::read_context_gates(ctx))==boshiamy::tsf_activation::ContextDisposition::Blocked)return S_OK;
+  if(boshiamy::tsf_activation::classify_context(boshiamy::tsf_activation::read_context_gates(ctx))==boshiamy::tsf_activation::ContextDisposition::Blocked){doctor_observe_blocked_context(ctx);return S_OK;}
+  begin_doctor_operation(ctx);
   apply_pending_open();
   if(engine->snapshot().composition.empty())reload_settings();
   if(suppress_phonetic_confirmation_repeat(ctx,w,shift,control,alt)){*eaten=TRUE;return S_OK;}
   auto state=engine->snapshot();observe_shift_down(ctx,w,flags,control,alt,!state.composition.empty());
+  doctor_composing=!state.composition.empty();
   if(state.query_preview&&!control&&!alt&&(w==VK_TAB||(w>='0'&&w<='9')))return finish_query_preview(ctx,w==VK_TAB);
   *eaten=handles_key(w,shift,control,alt,!state.composition.empty(),!state.candidates.empty());
   if(!*eaten)dismiss_learning_hint();
@@ -786,23 +1121,31 @@ void set_shift_uppercase(bool uppercase){shift_uppercase=uppercase;}
   return S_OK;
  }
  HRESULT STDMETHODCALLTYPE OnTestKeyUp(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* eaten) override {
+   const auto started=boshiamy::doctor::monotonic_nanoseconds();
+   if(is_shift(w)){doctor_pending_release_operation=0;doctor_pending_release_context=nullptr;begin_doctor_operation(ctx);}
   HRESULT hr=test_key_up_for_state(ctx,w,flags,(GetKeyState(VK_CONTROL)&0x8000)!=0,(GetKeyState(VK_MENU)&0x8000)!=0,eaten);
-  if(is_shift(w))trace(boshiamy::runtime_diagnostics::Event::ShiftTestUp,ctx,hr,S_FALSE,eaten?*eaten:FALSE);
+   if(is_shift(w))trace_operation(boshiamy::doctor::Event::ShiftTestUp,ctx,hr,S_FALSE,doctor_operation_id,eaten?*eaten:FALSE,doctor_elapsed_us(started));
+   if(is_shift(w)&&SUCCEEDED(hr)&&doctor_operation_id){doctor_pending_release_operation=doctor_operation_id;doctor_pending_release_context=ctx;}
   return hr;
  }
 HRESULT key_down_for_state(ITfContext* ctx,WPARAM w,bool shift,bool control,bool alt,BOOL* eaten,bool caps=false,LPARAM flags=0){
   ServicePin pin(this);
+   const auto started=boshiamy::doctor::monotonic_nanoseconds();
+   doctor_operation_id=0;
   HRESULT hr=key_down_impl(ctx,w,shift,control,alt,eaten,caps,flags);
-  trace(boshiamy::runtime_diagnostics::Event::KeyDown,ctx,hr,S_FALSE,eaten?*eaten:FALSE);return hr;
+   trace_operation(boshiamy::doctor::Event::KeyDown,ctx,hr,S_FALSE,doctor_operation_id,eaten?*eaten:FALSE,doctor_elapsed_us(started));
+   doctor_pending_test_operation=0;doctor_pending_test_context=nullptr;return hr;
  }
 HRESULT key_down_impl(ITfContext* ctx,WPARAM w,bool shift,bool control,bool alt,BOOL* eaten,bool caps,LPARAM flags){
   if(!eaten)return E_POINTER;
   *eaten=FALSE;
   if(!engine||!mgr||!ctx||candidate_ui_publishing)return S_OK;
-  if(boshiamy::tsf_activation::classify_context(boshiamy::tsf_activation::read_context_gates(ctx))==boshiamy::tsf_activation::ContextDisposition::Blocked)return S_OK;
+  if(boshiamy::tsf_activation::classify_context(boshiamy::tsf_activation::read_context_gates(ctx))==boshiamy::tsf_activation::ContextDisposition::Blocked){doctor_observe_blocked_context(ctx);return S_OK;}
+  continue_doctor_operation(ctx,doctor_pending_test_operation,doctor_pending_test_context);
   apply_pending_open();
   if(engine->snapshot().composition.empty())reload_settings();
   auto current=engine->snapshot();
+  doctor_composing=!current.composition.empty();
   if(suppress_phonetic_confirmation_repeat(ctx,w,shift,control,alt)){*eaten=TRUE;return S_OK;}
   if(current.query_preview&&!control&&!alt&&(w==VK_TAB||(w>='0'&&w<='9')))return finish_query_preview(ctx,w==VK_TAB);
   dismiss_learning_hint();
@@ -839,8 +1182,7 @@ HRESULT key_down_impl(ITfContext* ctx,WPARAM w,bool shift,bool control,bool alt,
   auto* edit=new(std::nothrow) EditRequest(this,ctx,out,std::move(trial));
   if(!edit)return E_OUTOFMEMORY;
   HRESULT session=E_FAIL;
-  HRESULT hr=ctx->RequestEditSession(client,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);
-  trace(boshiamy::runtime_diagnostics::Event::EditRequest,ctx,hr,session);
+  HRESULT hr=request_doctor_edit(ctx,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);
   edit->Release();
   if(FAILED(hr)||FAILED(session))return S_OK;
   if(!mgr){*eaten=TRUE;return S_OK;}
@@ -872,16 +1214,19 @@ HRESULT STDMETHODCALLTYPE OnKeyDown(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* 
   if(!same||!toggle)return S_OK;
   if(composing){
    boshiamy::Engine trial=*engine;auto out=trial.key(boshiamy::Key::Escape);
+   doctor_composing=!out.composition.empty();
    auto* edit=new(std::nothrow)EditRequest(this,ctx,out,std::move(trial));if(!edit)return E_OUTOFMEMORY;
-   HRESULT session=E_FAIL;HRESULT h=ctx->RequestEditSession(client,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);edit->Release();
+   HRESULT session=E_FAIL;HRESULT h=request_doctor_edit(ctx,edit,TF_ES_SYNC|TF_ES_READWRITE,&session);edit->Release();
    if(FAILED(h)||FAILED(session))return S_OK;
    publish_candidate(ctx);
   }
   pending_open.reset();modes.toggle_english();sync_language_bar();*eaten=TRUE;return S_OK;
  }
  HRESULT STDMETHODCALLTYPE OnKeyUp(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* eaten) override {
+   const auto started=boshiamy::doctor::monotonic_nanoseconds();
+   if(is_shift(w))continue_doctor_operation(ctx,doctor_pending_release_operation,doctor_pending_release_context);
   HRESULT hr=key_up_for_state(ctx,w,flags,(GetKeyState(VK_CONTROL)&0x8000)!=0,(GetKeyState(VK_MENU)&0x8000)!=0,eaten);
-  if(is_shift(w))trace(boshiamy::runtime_diagnostics::Event::ShiftUp,ctx,hr,S_FALSE,eaten?*eaten:FALSE);
+   if(is_shift(w))trace_operation(boshiamy::doctor::Event::ShiftUp,ctx,hr,S_FALSE,doctor_operation_id,eaten?*eaten:FALSE,doctor_elapsed_us(started));
   return hr;
  }
  HRESULT STDMETHODCALLTYPE OnPreservedKey(ITfContext* context,REFGUID command,BOOL* eaten) override {
@@ -894,10 +1239,10 @@ HRESULT STDMETHODCALLTYPE OnKeyDown(ITfContext* ctx,WPARAM w,LPARAM flags,BOOL* 
 CompositionSink::CompositionSink(Service* s):owner(s){owner->AddRef();}
 CompositionSink::~CompositionSink(){owner->Release();}
 HRESULT STDMETHODCALLTYPE CompositionSink::OnCompositionTerminated(TfEditCookie,ITfComposition* c){if(owner)owner->clear_composition(c);return S_OK;}
-EditRequest::EditRequest(Service* s,ITfContext* c,const boshiamy::Outcome& o,boshiamy::Engine&& accepted):owner(s),context(c),outcome(o),accepted_engine(std::move(accepted)){owner->AddRef();context->AddRef();}
+EditRequest::EditRequest(Service* s,ITfContext* c,const boshiamy::Outcome& o,boshiamy::Engine&& accepted):owner(s),context(c),outcome(o),accepted_engine(std::move(accepted)),doctor_operation_id(s->doctor_operation_id){owner->AddRef();context->AddRef();}
 EditRequest::~EditRequest(){context->Release();owner->Release();}
 HRESULT STDMETHODCALLTYPE EditRequest::QueryInterface(REFIID id,void** out){if(!out)return E_POINTER;*out=nullptr;if(IsEqualIID(id,IID_IUnknown)||IsEqualIID(id,IID_ITfEditSession))*out=this;else return E_NOINTERFACE;AddRef();return S_OK;}
-HRESULT EditRequest::DoEditSession(TfEditCookie ec){HRESULT h=owner->apply_edit(context,ec,outcome);owner->trace(boshiamy::runtime_diagnostics::Event::EditApplied,context,h);if(SUCCEEDED(h)){*owner->engine=std::move(accepted_engine);if(owner->mgr){if(!outcome.composition.empty()||!outcome.hint.empty())owner->watch_context(context);owner->update_candidate(context,ec,outcome,true,true);}}return h;}
+HRESULT EditRequest::DoEditSession(TfEditCookie ec){const auto started=boshiamy::doctor::monotonic_nanoseconds();HRESULT h=owner->apply_edit(context,ec,outcome);owner->doctor_composing=!outcome.composition.empty();owner->trace_operation(boshiamy::doctor::Event::EditApplied,context,h,S_OK,doctor_operation_id,SUCCEEDED(h),Service::doctor_elapsed_us(started));if(SUCCEEDED(h)){*owner->engine=std::move(accepted_engine);if(owner->mgr){if(!outcome.composition.empty()||!outcome.hint.empty())owner->watch_context(context);owner->update_candidate(context,ec,outcome,true,true);}}return h;}
 LayoutRefresh::LayoutRefresh(Service* s,ITfContext* c,std::size_t g):owner(s),context(c),generation(g){owner->AddRef();context->AddRef();}
 LayoutRefresh::~LayoutRefresh(){context->Release();owner->Release();}
 HRESULT LayoutRefresh::DoEditSession(TfEditCookie ec){return owner->refresh_candidate(context,ec,generation);}
