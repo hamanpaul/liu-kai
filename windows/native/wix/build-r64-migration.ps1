@@ -5,6 +5,7 @@ param(
  [Parameter(Mandatory=$true)][string]$WorkDir
 )
 $ErrorActionPreference='Stop'
+$windowsTargetFlags = & (Join-Path $PSScriptRoot '..\windows-target-flags.ps1')
 if($PSVersionTable.PSVersion.Major -lt 7){throw 'PowerShell 7 is required.'}
 $original=(Resolve-Path -LiteralPath $R64Msi).Path
 $expected='a5be4848ae645562473936bdd7c0bb1ae44bb8a3371c140cbe19321834b4a51e'
@@ -43,7 +44,7 @@ inline constexpr char kWixRecoveryProof[] = "$proofText";
 "@
 [IO.File]::WriteAllText((Join-Path $work 'wix-binding.hpp'),$binding,[Text.Encoding]::ASCII)
 $context=Join-Path $work 'patched-context.dll'
-& $compiler -std=c++17 -O2 -static -shared "-I$work" (Join-Path $PSScriptRoot 'user-context.cpp') (Join-Path $PSScriptRoot 'registration-action.cpp') -lmsi -lole32 -loleaut32 -luuid -ladvapi32 -lbcrypt -lshlwapi -lshell32 -lwtsapi32 -o $context
+& $compiler @windowsTargetFlags -std=c++17 -O2 -static -shared "-I$work" (Join-Path $PSScriptRoot 'user-context.cpp') (Join-Path $PSScriptRoot 'registration-action.cpp') -lmsi -lole32 -loleaut32 -luuid -ladvapi32 -lbcrypt -lshlwapi -lshell32 -lwtsapi32 -o $context
 if($LASTEXITCODE -ne 0){throw 'R64 migration action compilation failed.'}
 $base=Join-Path $work 'r64-original.msi';$updated=Join-Path $work 'r64-patched.msi'
 Copy-Item -LiteralPath $original -Destination $base;Copy-Item -LiteralPath $original -Destination $updated
