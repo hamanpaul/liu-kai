@@ -1,4 +1,20 @@
-# Windows Doctor 候選驗證（2026-11-27，尚未整體驗收）
+# Windows Doctor 0.1.1 正式成品驗證（2026-11-27）
+
+[正式發行](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.1)的來源為 `a3f2c65cea6db99e1a4cf3e7e468d6296621296f`，MSI／Burn 70.1.3、repo 批次 0.1.4。EXE SHA-256 為 `ba32e8e62dd4eddad057ca44218ea96860f94afaec86d026a7471515baef43ae`；EXE、SOURCE.txt 與 SHA256SUMS.txt 在公開前後均下載核對。
+
+- 合併前 CI／review 修正完成，正式平台標籤 CI 全綠。Windows 10 SDK 目標明確指定，完整原生回歸與 WiX 封裝使用相同 MSYS2 工具鏈；canonical preflight 使用固定引擎與真正 symlink，沒有豁免規則。
+- 同一正式 EXE 在單一沙盒完成安裝（exit 0）、12 個 manifest payload 雜湊核對、設定保留、已註冊 TIP 提交「對嘸」、一般權限下的 Doctor 同意開啟／標記／固定預覽／ZIP 儲存／停用／清除。匯出 21 筆匿名事件的白名單、來源、CRC 及清除 epoch 0→1 相符，另存 ZIP 不變。
+- 用同一 EXE 在沙盒卸載（3010），只重啟客體後，程式目錄、實際 MSI／Burn 登記、COM／profile、owner、Run、產品程序與待刪項目皆清理；設定、診斷歷史及另存 ZIP 保留。
+- 本機 R70／MSI 70.0.0 升級至本次成品，MSI 成功回傳 3010。12 個 payload、HKLM／HKCU COM 路徑與新版 DLL SHA 相符，官版嘸蝦米登記未變。桌面帳戶升級前及剛升級後均沒有 settings.conf，沒有把此條件冒稱為既有自訂設定的保留實測；既有設定的候選升級證據另列下方。
+- 本機 Search／Store 實際載入新 DLL，使用者回報「對／嘸」與中英切換正常。Store 另以逐次原生按鍵及畫面核對中文提交、左 Shift 轉英文、右 Shift 返回中文；兩個宿主的 Doctor mapping 皆核對 PID／建立時間，實際保存一般欄位輸入事件鏈，drop／queue 為 0。
+- 全新 Terminal 程序內的 Windows／WSL 分頁分別取得限定字串收據：Windows 為「對」、「嘸」、11 字母英文，WSL 為「對嘸」、11 字母英文。快速同顆／左右交替 Shift、焦點往返由使用者實體操作並回覆正常，不冒稱為自動量測按鍵次數。驗證後只清理自建測試視窗與子程序，保留使用者安裝及其主動啟用的 Doctor，沒有執行 WSL shutdown 或重開主機。
+- Terminal 1.25.3131.0 預設未提供欄位種類，實測 Unknown／逐鍵抑制、共享佇列有效且無 drop。輸入正常不等於具備輸入階段診斷；相容設定另依下方候選及 [README](README.md#terminal-的欄位資訊) 的範圍記錄。
+
+實體裝置及沙盒證據分開保留，原始診斷沒有公開。原新視窗曾共用 R70 程序而不列驗收；另一次測試啟動器的 30 秒逾時曾關閉自建測試視窗，修正觀察工具後才取得上述收據，沒有將其寫為產品故障或通過。八小時長跑、斷電及所有硬體／宿主組合未宣稱完成；舊效能反例保留。
+
+## Windows Doctor 候選歷史（2026-11-27，發版前紀錄）
+
+以下為發版前候選的原始範圍與失敗紀錄。後續正式成品及本機矩陣的完成情形以上節為準，不改寫候選的來源、雜湊或當時尚未驗收的狀態。
 
 目前測試包的執行版本為 `0.1.1-doctor-p0`、MSI `70.1.3`，EXE SHA-256 為 `021a4f295c0aa22dd351ed8e96f59d8a338151aa92049539227bc5df98cd636f`。它是私有驗證產物，尚非正式發行版。
 

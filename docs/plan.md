@@ -195,8 +195,8 @@ Android 端刻意保持薄：輸入邏輯都在 `core` 的 `ImeController`；服
 | 字表檔誤入 repo | `.gitignore`、CLAUDE.md 規範；轉換產物只寫 repo 外或 app 私有目錄 |
 | 實體鍵盤事件差異（各 App、各鍵盤） | 模擬器以 `hw.keyboard=yes` 測；實機再補 |
 
-## 12. 跨平台 Doctor（Android 先行）
+## 12. 跨平台 Doctor（雙端 0.1.1 已發布）
 
 Android 與 Windows 共用[議題 #11](https://github.com/hamanpaul/liu-kai/issues/11)、匿名事件欄位與匯出契約，沿用各自的輸入及設定介面。功能預設關閉，提供啟用、標記、預覽／儲存與清除，診斷只存本機。
 
-設計見 [Doctor 規格](superpowers/specs/2026-11-25-doctor-mode.md)，最新交付順序及未通過的閘門見 [Android 先行計畫](superpowers/plans/2026-11-27-doctor-android-release.md)，使用方式見 [Doctor 說明](doctor.md)。依使用者 2026-11-27 決定，Android 補齊真正缺測及清理後先發版，Windows 另排實測；雙端驗收並發版後才關閉共用議題。
+設計見 [Doctor 規格](superpowers/specs/2026-11-25-doctor-mode.md)，使用方式見 [Doctor 說明](doctor.md)。依使用者 2026-11-27 決定，Android 依[先行計畫](superpowers/plans/2026-11-27-doctor-android-release.md)完成驗收後先發布 0.1.1，Windows 再依[發行驗證計畫](superpowers/plans/2026-11-27-doctor-windows-release.md)補齊本機宿主與實體輸入驗證並發布 0.1.1。雙端公開附件均已下載核對，來源與限制見 [發行版本](../RELEASES.md) 及 [Windows 驗證紀錄](../windows/VALIDATION.md)；八小時觀測仍為非阻擋後續工作。
