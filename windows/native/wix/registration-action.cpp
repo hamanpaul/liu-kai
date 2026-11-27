@@ -12,6 +12,7 @@
 #include "failure-collector.hpp"
 #include "early-failure-collector.hpp"
 #include "legacy-recovery-runner.hpp"
+#include "doctor_lifecycle.hpp"
 #include "../installer/tsf_shared_store.hpp"
 #include "../installer/durable_cli_session.hpp"
 #include "../installer/dev_host_migration_history.hpp"
@@ -145,6 +146,121 @@ static bool metadata_string(HKEY key,const wchar_t* name,std::wstring& out) {
     out.assign(value,length);return true;
 }
 
+static UINT doctor_lifecycle_failed(
+        MSIHANDLE install,
+        const wchar_t* stage,
+        HRESULT result,
+        DWORD helper_exit,
+        bool optional) {
+    const auto message=std::wstring(L"LiuKai Doctor lifecycle: ")+stage+L" HRESULT="+
+        std::to_wstring(static_cast<unsigned long>(result))+L" helper_exit="+
+        std::to_wstring(static_cast<unsigned long>(helper_exit));
+    MSIHANDLE record=MsiCreateRecord(1);
+    if(record){
+        if(MsiRecordSetStringW(record,0,message.c_str())==ERROR_SUCCESS)
+            MsiProcessMessage(
+                install,
+                optional?INSTALLMESSAGE_WARNING:INSTALLMESSAGE_ERROR,
+                record);
+        MsiCloseHandle(record);
+    }
+    trace_stage(install,stage);
+    return ERROR_INSTALL_FAILURE;
+}
+struct DoctorLifecycleActionContext {
+    boshiamy::doctor::installer::DoctorLifecycleTarget target;
+};
+static bool doctor_lifecycle_context(MSIHANDLE install,DoctorLifecycleActionContext* output) {
+    if(!output)return false;
+    std::wstring data,sid;
+    if(!property(install,L"CustomActionData",data)||!elevated_process_user(sid))return false;
+    std::vector<std::wstring> parts;size_t start=0;
+    for(size_t i=0;i<=data.size();++i)
+        if(i==data.size()||data[i]==L'|'){parts.push_back(data.substr(start,i-start));start=i+1;}
+    if(parts.size()!=5||parts[0]!=sid)return false;
+    const std::wstring version(kWixRuntimeVersion,kWixRuntimeVersion+strlen(kWixRuntimeVersion));
+    if(parts[2]!=version)return false;
+    const auto valid_token=[](const std::wstring& value){
+        return value.size()==32&&std::all_of(value.begin(),value.end(),[](wchar_t ch){
+            return (ch>=L'0'&&ch<=L'9')||(ch>=L'a'&&ch<=L'f');
+        });
+    };
+    if(!valid_token(parts[3])||!valid_token(parts[4])||parts[3]==parts[4])return false;
+    PWSTR programFiles=nullptr;
+    if(SHGetKnownFolderPath(FOLDERID_ProgramFiles,KF_FLAG_DEFAULT,nullptr,&programFiles)!=S_OK)return false;
+    const auto root=(std::filesystem::path(programFiles)/L"LiuKai").lexically_normal();
+    CoTaskMemFree(programFiles);
+    if(!detail::same_path(root.wstring(),msi_registration::normalized_root(parts[1]).wstring()))return false;
+    output->target.product_root=root;
+    output->target.settings_exe_path=root/L"versions"/version/L"x64"/L"LiuKaiSettings.exe";
+    output->target.settings_sha256=kWixSettingsSha256;
+    output->target.expected_user_sid=sid;
+    output->target.timeout_ms=15'000;
+    return true;
+}
+static UINT run_doctor_lifecycle(
+        MSIHANDLE install,
+        boshiamy::doctor::installer::DoctorLifecycleAction action,
+        const wchar_t* stage) {
+    DoctorLifecycleActionContext context;
+    if(!doctor_lifecycle_context(install,&context))
+        return doctor_lifecycle_failed(
+            install,
+            stage,
+            E_ACCESSDENIED,
+            0xffffffffUL,
+            action==boshiamy::doctor::installer::DoctorLifecycleAction::ResumeAfterUpgrade);
+    boshiamy::doctor::installer::DoctorLifecycleResult result;
+    try {
+        result=boshiamy::doctor::installer::launch_as_same_user_medium(
+            context.target,action);
+    } catch(...) {
+        result.result=E_FAIL;
+    }
+    trace_stage(
+        install,
+        (std::wstring(stage)+
+            L"-token-source-linked="+
+            (result.used_linked_token?L"1":L"0")+
+            L"-shell="+
+            (result.used_shell_token?L"1":L"0")).c_str());
+    if(!result.ok())return doctor_lifecycle_failed(
+        install,
+        stage,
+        result.result,
+        result.helper_exit_code,
+        action==boshiamy::doctor::installer::DoctorLifecycleAction::ResumeAfterUpgrade);
+    if(result.disposition==
+        boshiamy::doctor::installer::DoctorLifecycleDisposition::StopNotNeeded) {
+        trace_stage(
+            install,
+            (std::wstring(stage)+
+                L"-not-needed-no-writer-no-run").c_str());
+    } else {
+        trace_stage(install,stage);
+    }
+    return ERROR_SUCCESS;
+}
+
+extern "C" __declspec(dllexport) UINT __stdcall StopDoctorForUpgrade(MSIHANDLE install) {
+    return run_doctor_lifecycle(
+        install,
+        boshiamy::doctor::installer::DoctorLifecycleAction::StopForUpgrade,
+        L"doctor-stop-upgrade");
+}
+extern "C" __declspec(dllexport) UINT __stdcall StopDoctorForRemoval(MSIHANDLE install) {
+    return run_doctor_lifecycle(
+        install,
+        boshiamy::doctor::installer::DoctorLifecycleAction::StopForRemoval,
+        L"doctor-stop-removal");
+}
+extern "C" __declspec(dllexport) UINT __stdcall ResumeDoctorAfterUpgrade(MSIHANDLE install) {
+    return run_doctor_lifecycle(
+        install,
+        boshiamy::doctor::installer::DoctorLifecycleAction::ResumeAfterUpgrade,
+        L"doctor-resume-upgrade");
+}
+
 extern "C" __declspec(dllexport) UINT __stdcall PrepareRemoval(MSIHANDLE install) {
     try {
         std::wstring root,sid,token,owner,recordedSid,recordedToken,recordedVersion,recordedHash;
@@ -165,6 +281,10 @@ extern "C" __declspec(dllexport) UINT __stdcall PrepareRemoval(MSIHANDLE install
         const std::wstring data=sid+L"|"+root+L"|"+recordedVersion+L"|"+token+L"|"+std::wstring(undo.begin(),undo.end());
         const std::wstring restoreData=data+L"|"+std::wstring(restore.begin(),restore.end());
         return prepare_failure_collection(install,L"CollectRemovalFailure",sid,root) &&
+            MsiSetPropertyW(install,L"StopDoctorForUpgrade",data.c_str())==ERROR_SUCCESS &&
+            MsiSetPropertyW(install,L"StopDoctorForRemoval",data.c_str())==ERROR_SUCCESS &&
+            MsiSetPropertyW(install,L"UndoDoctorStopForUpgrade",data.c_str())==ERROR_SUCCESS &&
+            MsiSetPropertyW(install,L"UndoDoctorStopForRemoval",data.c_str())==ERROR_SUCCESS &&
             MsiSetPropertyW(install,L"RemoveRegistration",data.c_str())==ERROR_SUCCESS &&
             MsiSetPropertyW(install,L"RetireFiles",data.c_str())==ERROR_SUCCESS &&
             MsiSetPropertyW(install,L"UndoRetireFiles",data.c_str())==ERROR_SUCCESS &&
@@ -189,6 +309,8 @@ extern "C" __declspec(dllexport) UINT __stdcall PrepareFreshRegistration(MSIHAND
     hr=msi_registration::require_absent_root(canonical);if(hr!=S_OK)return failed(install,L"prepare-existing-root",hr);
     root=canonical.wstring();
     const std::wstring data=sid+L"|"+root+L"|"+version+L"|"+std::wstring(token.begin(),token.end())+L"|"+std::wstring(undo.begin(),undo.end());
+    if(MsiSetPropertyW(install,L"ResumeDoctorAfterUpgrade",data.c_str())!=ERROR_SUCCESS)
+        trace_stage(install,L"doctor-resume-data-unavailable");
     return prepare_failure_collection(install,L"CollectInstallFailure",sid,root) &&
         MsiSetPropertyW(install,L"RecoverLegacyOrphan",data.c_str())==ERROR_SUCCESS &&
         MsiSetPropertyW(install,L"RegisterFresh",data.c_str())==ERROR_SUCCESS &&

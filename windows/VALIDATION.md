@@ -1,3 +1,22 @@
+# Windows Doctor 候選驗證（2026-11-27，尚未整體驗收）
+
+目前測試包的執行版本為 `0.1.1-doctor-p0`、MSI `70.1.3`，EXE SHA-256 為 `021a4f295c0aa22dd351ed8e96f59d8a338151aa92049539227bc5df98cd636f`。它是私有驗證產物，尚非正式發行版。
+
+- 最新來源的 `native/test-release.ps1 -DoctorEphemeralTestUser` 在單一沙盒以一般測試帳戶通過，包含19項host、14項真HWND設定測試及完整原生發行檢查。延後讀取named-pipe回覆的真實錯誤233已走RED→GREEN；無讀取客戶端仍須有界結束。
+- 符號連結條件另有強制入口：完整 Doctor 隔離帳戶流程結束後，由具權限的父程序執行 `doctor_store_tests <repo-root> clear-staging-symlink`。它必須成功建立真實連結，再以 Win32 reparse tag 核對清除前後仍為同一類型的符號連結，且外部與無關檔案不變；無法建立連結會失敗。一般帳戶的完整 suite 若缺少此權限，會明確輸出 `SKIP`，不能把它當成已覆蓋。此測試不依賴部分 MinGW 版本會誤報的 `std::filesystem::is_symlink()`。
+- 最新包在同一沙盒完成舊包卸載、重新安裝、已安裝檔案／註冊核對、Doctor歷史保留及登入後collector啟動。兩個私有候選MSI同為70.1.3，這次是卸載後重裝；較早候選另有正式0.1.0升級的證據。最新包最後卸載的Burn與MSI均回傳3010，僅重啟同一沙盒後，程式目錄、MSI／Burn登記、COM／profile、Run、owner及產品待刪項目均清除。獨立核對114項封存檔、16段舊紀錄前綴及52bytes同意控制檔相符；沙盒已關閉，主機安裝未變更。
+- 合成TSF／WM控制可輸出完整中文及英文，並核對Shift切換、匿名事件與提交計數；這不代表實體鍵盤或所有應用程式均已驗證。已完成受控ordinary／private切換、真實AppContainer、跨帳戶拒絕及collector重連；沙盒缺少的Search／Store／WSL仍列未驗。Terminal預設未提供欄位種類及選用相容設定的範圍見 [README](README.md#terminal-的欄位資訊)。
+- 已完成64分22秒、93輪穩定測試，每輪257提交／3089事件、drop0／queue0，32／64MiB限值與retention gap逐輪對帳。依使用者新範圍停止原八小時run，原計時與終止碼保留；八小時記憶體長跑另作非阻擋觀測。
+- 真collector中斷後正常Status自動恢復，原宿主續收完整工作量；第二個正常設定視窗清除使epoch1→2，第一視窗嘗試儲存舊預覽回報期次已變更且未產生ZIP，新epoch完整輸入亦通過。清除後temp查無檔，但沒有同一temp檔名的清除前清單，不宣稱逐檔前後比對。
+- 最後預定三對的功能、事件及提交計數均通過，但後兩對KeyDown p99增加52.975／22.482ms，超過同輪OFF跨輪3.426ms，效能驗收為失敗。背景CPU不同限制因果判定，不能據此豁免退化。既有匿名階段與固定按鍵位置已縮小同步edit的高成本範圍，尚未定位唯一函式。
+- 與WSL Thala協調後，較低背景負載的三對p99差為+2.170／+1.633／+6.661ms，OFF跨輪差3.996ms，仍未通過效能判定。單次collector優先權NORMAL／BELOW_NORMAL／NORMAL對照未見中段專屬改善，已還原優先權；所有Thala保留均已釋放並獲確認。
+- 2026-11-27 在背景負載較低、單一沙盒的同一原版宿主完成新三對 OFF／ON。使用原未增加 QPC metadata 的 `775c50a7…` 測試工具，每輪 775 對按鍵、260 字、2322 筆樣本；ON 各 3089 筆事件，drop／queue 均 0，OFF 沒有逐鍵事件。770 筆 KeyDown 的 p99 OFF／ON 分別為 7001.1／6961.7、6719.2／6612.4、6454.3／6790.2 µs，配對差 −39.4／−106.8／+335.9 µs；各小於原初始 500 µs 目標，OFF 跨輪幅度 546.8 µs。Root 由原 CSV、結果、queue 與 canonical 紀錄獨立重算相符。主機 CPU 逐輪平均約 4.57–7.29%；本結果僅支持此次受控環境，不覆寫前述高負載失敗，也不代表所有負載均達標。
+- 另以增加 QPC boundary metadata 的工具取得一對診斷資料及 ETL，並不混入上述原版三對。typed SDK 讀出的 clock 為 QPC 10 MHz，所有 loss 計數為 0；目標 thread／process 生命週期包住測量區間，165 次同 TID sleep 控制均有 switch-out／in。控制執行緒後來被另一程序重用，已依互不重疊的真實生命週期分開，原保守分析失敗仍保留。產品程序的 trace rundown 只當 capture 邊界，不冒稱真實出生或死亡；控制程序沒有捕捉 FILETIME，以 ETW ProcessStart／Stop QPC 識別。
+- 此工作量的 QPC 包住 `ITfKeystrokeMgr::KeyDown` 同步呼叫，包含 TSF 分派、同步處理及呼叫期間的排程延遲；不含呼叫前的 WM_TIMER 等待或呼叫後的 fallback 訊息分派。每輪各求 p99 再相減，不是逐事件差的 p99。ETL 的 guest scheduled 區段可包含主機對整個 VM 的搶占，未排程區段也不能直接區分等待與排程延遲；不同分布的 p99 不能相加，不據此推定舊退化的唯一根因。
+- 正式來源與下載包、宿主矩陣、CI／review 仍須完成；不把一小時結果寫成八小時通過。Search、Store、WSL、實體鍵盤及真實 Shift 長跑尚未驗證；真機安裝提案仍待使用者確認。
+
+本輪交付狀態見 [Windows 發行驗證計畫](../docs/superpowers/plans/2026-11-27-doctor-windows-release.md)；完整設計保留在 [Doctor 實作計畫](../docs/superpowers/plans/2026-11-25-doctor-mode.md)。
+
 # Windows x64 單次注音查字 70.1.1（2026-11-25）
 
 測試安裝檔為 `LiuKai-win-setup.exe`，SHA-256 為 `bd71002eb44a7aefeec31c0ff03fa77d59489ebee29860f71f90920b33937fd2`。

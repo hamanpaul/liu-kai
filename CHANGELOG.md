@@ -5,6 +5,15 @@
 格式基於 [Keep a Changelog 1.1.0](https://keepachangelog.com/zh-TW/1.1.0/)，
 本專案遵循 hamanpaul project policy v1.0.19。未發行的變更以 `changelog.d/` fragment 累積。
 
+## [0.1.4] - 2026-11-27
+
+本批次準備 Windows 0.1.1（MSI／Burn 70.1.3）；Android 維持已發布的 0.1.1。
+
+### Added
+
+- Windows 新增預設關閉的 Doctor 本機匿名診斷、問題時間標記、固定內容預覽、ZIP 匯出及清除。右下角嘸．改右鍵選單提供版本、目前使用者的資料夾路徑及設定入口。
+- Windows 安裝維護會協調同一使用者的背景收集程序，保留診斷與同意設定；CI 在暫建的一般測試帳號執行權限、儲存、設定及安裝維護測試。
+
 ## [0.1.3] - 2026-11-27
 
 本批次準備 Android 0.1.1；Windows 維持 0.1.0，其 Doctor 功能另行驗收發版。

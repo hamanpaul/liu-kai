@@ -25,6 +25,7 @@
     <Property Id="LIUKAISAFEREMOVAL" Secure="yes"><RegistrySearch Id="FindSafeRemoval" Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="SafeRetire" Type="raw" Bitness="always64" /></Property>
     <Property Id="LIUKAIINSTALLTOKEN" Secure="yes"><RegistrySearch Id="FindInstallToken" Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="Token" Type="raw" Bitness="always64" /></Property>
     <Property Id="LIUKAIINSTALLSID" Secure="yes"><RegistrySearch Id="FindInstallSid" Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="Sid" Type="raw" Bitness="always64" /></Property>
+    <Property Id="LIUKAIDOCTORCAPABLE" Secure="yes"><RegistrySearch Id="FindDoctorCapable" Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="DoctorLifecycle" Type="raw" Bitness="always64" /></Property>
     <CustomAction Id="CaptureUserContext" BinaryRef="UserContext" DllEntry="CaptureUserContext" Execute="immediate" Return="check" />
     <CustomAction Id="ValidateUserContext" BinaryRef="UserContext" DllEntry="ValidateUserContext" Execute="deferred" Impersonate="yes" TerminalServerAware="yes" Return="check" />
     <CustomAction Id="PrepareFreshRegistration" BinaryRef="UserContext" DllEntry="PrepareFreshRegistration" Execute="immediate" Return="check" />
@@ -34,6 +35,11 @@
     <CustomAction Id="CollectRemovalFailure" BinaryRef="UserContext" DllEntry="CollectFailure" Execute="rollback" Impersonate="yes" TerminalServerAware="yes" Return="ignore" />
     <CustomAction Id="RollbackFresh" BinaryRef="UserContext" DllEntry="RollbackFresh" Execute="rollback" Impersonate="yes" TerminalServerAware="yes" Return="check" />
     <CustomAction Id="PrepareRemoval" BinaryRef="UserContext" DllEntry="PrepareRemoval" Execute="immediate" Return="check" />
+    <CustomAction Id="UndoDoctorStopForUpgrade" BinaryRef="UserContext" DllEntry="ResumeDoctorAfterUpgrade" Execute="rollback" Impersonate="yes" TerminalServerAware="yes" Return="ignore" />
+    <CustomAction Id="StopDoctorForUpgrade" BinaryRef="UserContext" DllEntry="StopDoctorForUpgrade" Execute="deferred" Impersonate="yes" TerminalServerAware="yes" Return="check" />
+    <CustomAction Id="UndoDoctorStopForRemoval" BinaryRef="UserContext" DllEntry="ResumeDoctorAfterUpgrade" Execute="rollback" Impersonate="yes" TerminalServerAware="yes" Return="ignore" />
+    <CustomAction Id="StopDoctorForRemoval" BinaryRef="UserContext" DllEntry="StopDoctorForRemoval" Execute="deferred" Impersonate="yes" TerminalServerAware="yes" Return="check" />
+    <CustomAction Id="ResumeDoctorAfterUpgrade" BinaryRef="UserContext" DllEntry="ResumeDoctorAfterUpgrade" Execute="commit" Impersonate="yes" TerminalServerAware="yes" Return="ignore" />
     <CustomAction Id="RemoveRegistration" BinaryRef="UserContext" DllEntry="RemoveRegistration" Execute="deferred" Impersonate="yes" TerminalServerAware="yes" Return="check" />
     <CustomAction Id="UndoRemoval" BinaryRef="UserContext" DllEntry="UndoRemoval" Execute="rollback" Impersonate="yes" TerminalServerAware="yes" Return="check" />
     <CustomAction Id="UndoRetireFiles" BinaryRef="UserContext" DllEntry="UndoRetireFiles" Execute="rollback" Impersonate="yes" TerminalServerAware="yes" Return="check" />
@@ -47,7 +53,12 @@
       <Custom Action="RollbackFresh" After="CollectInstallFailure" Condition="NOT Installed" />
       <Custom Action="RecoverLegacyOrphan" After="RollbackFresh" Condition="NOT Installed" />
       <Custom Action="RegisterFresh" After="RecoverLegacyOrphan" Condition="NOT Installed" />
+      <Custom Action="ResumeDoctorAfterUpgrade" After="RegisterFresh" Condition="NOT Installed AND WIX_UPGRADE_DETECTED AND LIUKAIDOCTORCAPABLE = &quot;1&quot;" />
       <Custom Action="PrepareRemoval" After="InstallInitialize" Condition="REMOVE=&quot;ALL&quot;" />
+      <Custom Action="UndoDoctorStopForUpgrade" Before="StopDoctorForUpgrade" Condition="REMOVE=&quot;ALL&quot; AND UPGRADINGPRODUCTCODE" />
+      <Custom Action="StopDoctorForUpgrade" Before="CollectRemovalFailure" Condition="REMOVE=&quot;ALL&quot; AND UPGRADINGPRODUCTCODE" />
+      <Custom Action="UndoDoctorStopForRemoval" Before="StopDoctorForRemoval" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="StopDoctorForRemoval" Before="CollectRemovalFailure" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="CollectRemovalFailure" Before="UndoRemoval" Condition="REMOVE=&quot;ALL&quot;" />
       <Custom Action="UndoRemoval" Before="RemoveRegistration" Condition="REMOVE=&quot;ALL&quot;" />
       <Custom Action="RemoveRegistration" Before="RemoveRegistryValues" Condition="REMOVE=&quot;ALL&quot;" />
@@ -64,6 +75,7 @@
           <RegistryValue Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="Version" Value="$(var.RuntimeVersion)" Type="string" />
           <RegistryValue Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="ManifestSha256" Value="$(var.ManifestSha256)" Type="string" />
           <RegistryValue Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="SafeRetire" Value="1" Type="string" />
+          <RegistryValue Root="HKLM" Key="Software\LiuKai\MSI\{7E8341DC-CE5A-4A3A-A6BC-2C5E70FEFC39}" Name="DoctorLifecycle" Value="1" Type="string" />
         </Component>
         <Component Id="InstallerCli"><File Id="InstallerCliFile" Source="$(var.PayloadRoot)\LiuKaiInstaller.exe" /></Component>
         <Component Id="RegistrationTool"><File Id="RegistrationToolFile" Source="$(var.RegistrationTool)" /></Component>

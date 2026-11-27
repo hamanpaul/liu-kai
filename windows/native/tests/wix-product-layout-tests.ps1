@@ -6,7 +6,7 @@ $view=$db.OpenView("SELECT ``Value`` FROM ``Property`` WHERE ``Property`` = 'MSI
 if(-not $rm -or $rm.StringData(1) -cne 'DisableShutdown'){throw 'Installer must not automatically shut down applications.'}
 if(-not $LegacyMigration){
   $view=$db.OpenView("SELECT ``Value`` FROM ``Property`` WHERE ``Property`` = 'SecureCustomProperties'");$view.Execute();$secure=$view.Fetch()
-  if(-not $secure -or 'LIUKAIBUNDLEUPGRADE' -cnotin $secure.StringData(1).Split(';') -or 'LIUKAISAFEREMOVAL' -cnotin $secure.StringData(1).Split(';')){throw 'Upgrade safety properties must be secure.'}
+  if(-not $secure -or 'LIUKAIBUNDLEUPGRADE' -cnotin $secure.StringData(1).Split(';') -or 'LIUKAISAFEREMOVAL' -cnotin $secure.StringData(1).Split(';') -or 'LIUKAIDOCTORCAPABLE' -cnotin $secure.StringData(1).Split(';')){throw 'Upgrade safety properties must be secure.'}
 }
 $view=$db.OpenView('SELECT `FileName` FROM `File`');$view.Execute();$actual=@()
 while($row=$view.Fetch()){$parts=$row.StringData(1).Split('|');$actual+= $parts[$parts.Length-1]}
@@ -37,12 +37,27 @@ foreach($case in @(@('CollectInstallFailure',17729,'CollectFailure'),@('CollectR
   $name=$case[0]
   if(-not $actions.ContainsKey($name) -or $actions[$name][0] -ne $case[1] -or $actions[$name][1] -cne 'UserContext' -or $actions[$name][2] -cne $(if($case.Count -eq 3){$case[2]}else{$name})){throw "Invalid user context action: $name"}
 }
+if(-not $LegacyMigration){
+  foreach($case in @(@('UndoDoctorStopForUpgrade',17729,'ResumeDoctorAfterUpgrade'),@('StopDoctorForUpgrade',17409),@('UndoDoctorStopForRemoval',17729,'ResumeDoctorAfterUpgrade'),@('StopDoctorForRemoval',17409),@('ResumeDoctorAfterUpgrade',17985))){
+    $name=$case[0]
+    if(-not $actions.ContainsKey($name) -or $actions[$name][0] -ne $case[1] -or $actions[$name][1] -cne 'UserContext' -or $actions[$name][2] -cne $(if($case.Count -eq 3){$case[2]}else{$name})){throw "Invalid Doctor user context action: $name"}
+  }
+}
 $view=$db.OpenView('SELECT * FROM `InstallExecuteSequence`');$view.Execute();$sequence=@{}
 while($row=$view.Fetch()){$sequence[$row.StringData(1)]=[pscustomobject]@{condition=$row.StringData(2);order=$row.IntegerData(3)}}
 if(-not ($sequence['InstallInitialize'].order -lt $sequence['CaptureUserContext'].order -and $sequence['CaptureUserContext'].order -lt $sequence['PrepareFreshRegistration'].order -and $sequence['PrepareFreshRegistration'].order -lt $sequence['ValidateUserContext'].order -and $sequence['ValidateUserContext'].order -lt $sequence['RollbackFresh'].order -and $sequence['InstallFiles'].order -lt $sequence['CollectInstallFailure'].order -and $sequence['CollectInstallFailure'].order -lt $sequence['RollbackFresh'].order -and $sequence['RollbackFresh'].order -lt $sequence['RecoverLegacyOrphan'].order -and $sequence['RecoverLegacyOrphan'].order -lt $sequence['RegisterFresh'].order -and $sequence['RegisterFresh'].order -lt $sequence['InstallFinalize'].order)){throw 'Invalid registration action order.'}
+if(-not $LegacyMigration){
+  if(-not ($sequence['RegisterFresh'].order -lt $sequence['ResumeDoctorAfterUpgrade'].order -and $sequence['ResumeDoctorAfterUpgrade'].order -lt $sequence['InstallFinalize'].order)){throw 'Invalid Doctor resume action order.'}
+  if($sequence['ResumeDoctorAfterUpgrade'].condition -cne 'NOT Installed AND WIX_UPGRADE_DETECTED AND LIUKAIDOCTORCAPABLE = "1"'){throw 'Invalid Doctor resume action condition.'}
+}
 if(-not ($sequence['PrepareFreshRegistration'].order -lt $sequence['CreateFolders'].order -and $sequence['PrepareFreshRegistration'].order -lt $sequence['InstallFiles'].order -and $sequence['PrepareFreshRegistration'].order -lt $sequence['WriteRegistryValues'].order)){throw 'Fresh-install preflight must precede MSI directory, file and registry writes.'}
 foreach($name in @('CaptureUserContext','PrepareFreshRegistration','ValidateUserContext','CollectInstallFailure','RollbackFresh','RecoverLegacyOrphan','RegisterFresh')){if($sequence[$name].condition -cne 'NOT Installed'){throw "Invalid registration action condition: $name"}}
 if(-not ($sequence['InstallInitialize'].order -lt $sequence['PrepareRemoval'].order -and $sequence['PrepareRemoval'].order -lt $sequence['CollectRemovalFailure'].order -and $sequence['CollectRemovalFailure'].order -lt $sequence['UndoRemoval'].order -and $sequence['UndoRemoval'].order -lt $sequence['RemoveRegistration'].order -and $sequence['RemoveRegistration'].order -lt $sequence['RemoveRegistryValues'].order -and $sequence['RemoveRegistration'].order -lt $sequence['RemoveFiles'].order)){throw 'Invalid removal action order.'}
+if(-not $LegacyMigration){
+  if(-not ($sequence['PrepareRemoval'].order -lt $sequence['UndoDoctorStopForUpgrade'].order -and $sequence['UndoDoctorStopForUpgrade'].order -lt $sequence['StopDoctorForUpgrade'].order -and $sequence['StopDoctorForUpgrade'].order -lt $sequence['CollectRemovalFailure'].order -and $sequence['PrepareRemoval'].order -lt $sequence['UndoDoctorStopForRemoval'].order -and $sequence['UndoDoctorStopForRemoval'].order -lt $sequence['StopDoctorForRemoval'].order -and $sequence['StopDoctorForRemoval'].order -lt $sequence['CollectRemovalFailure'].order)){throw 'Invalid Doctor stop action order.'}
+  foreach($name in @('UndoDoctorStopForUpgrade','StopDoctorForUpgrade')){if($sequence[$name].condition -cne 'REMOVE="ALL" AND UPGRADINGPRODUCTCODE'){throw "Invalid Doctor upgrade stop condition: $name"}}
+  foreach($name in @('UndoDoctorStopForRemoval','StopDoctorForRemoval')){if($sequence[$name].condition -cne 'REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE'){throw "Invalid Doctor removal stop condition: $name"}}
+}
 if(-not ($sequence['RemoveRegistration'].order -lt $sequence['UndoRetireFiles'].order -and $sequence['UndoRetireFiles'].order -lt $sequence['RetireFiles'].order -and $sequence['RetireFiles'].order -lt $sequence['CommitRetireFiles'].order -and $sequence['CommitRetireFiles'].order -lt $sequence['RemoveFiles'].order)){throw 'Invalid retired file action order.'}
 foreach($name in @('PrepareRemoval','CollectRemovalFailure','UndoRemoval','RemoveRegistration','UndoRetireFiles','RetireFiles','CommitRetireFiles')){if($sequence[$name].condition -cne 'REMOVE="ALL"'){throw "Invalid removal action condition: $name"}}
 $view=$db.OpenView('SELECT `Root`, `Key`, `Name`, `Value`, `Component_` FROM `Registry`');$view.Execute();$identity=@{}
@@ -52,9 +67,9 @@ while($row=$view.Fetch()){
     $identity[$row.StringData(3)]=$row.StringData(4)
   }
 }
-if($identity.Count -ne 6 -or $identity['SafeRetire'] -cne '1' -or $identity['Owner'] -cne 'LiuKai-TSF-v1' -or $identity['Token'] -cne '[LIUKAIINSTALLTOKEN]' -or $identity['Sid'] -cne '[LIUKAIINSTALLSID]' -or $identity['ManifestSha256'] -cnotmatch '^[0-9a-f]{64}$' -or !$identity['Version']){throw 'Invalid MSI identity metadata.'}
+if($identity['SafeRetire'] -cne '1' -or $identity['Owner'] -cne 'LiuKai-TSF-v1' -or $identity['Token'] -cne '[LIUKAIINSTALLTOKEN]' -or $identity['Sid'] -cne '[LIUKAIINSTALLSID]' -or $identity['ManifestSha256'] -cnotmatch '^[0-9a-f]{64}$' -or !$identity['Version'] -or $identity.Count -ne $(if($LegacyMigration){6}else{7}) -or (-not $LegacyMigration -and $identity['DoctorLifecycle'] -cne '1')){throw 'Invalid MSI identity metadata.'}
 $view=$db.OpenView('SELECT `Property`, `Signature_` FROM `AppSearch`');$view.Execute();$search=@{}
 while($row=$view.Fetch()){$search[$row.StringData(1)]=$row.StringData(2)}
-if($search['LIUKAIINSTALLTOKEN'] -cne 'FindInstallToken' -or $search['LIUKAIINSTALLSID'] -cne 'FindInstallSid'){throw 'Missing MSI identity lookups.'}
+if($search['LIUKAIINSTALLTOKEN'] -cne 'FindInstallToken' -or $search['LIUKAIINSTALLSID'] -cne 'FindInstallSid' -or (-not $LegacyMigration -and $search['LIUKAIDOCTORCAPABLE'] -cne 'FindDoctorCapable')){throw 'Missing MSI identity lookups.'}
 if(-not $LegacyMigration -and $search['LIUKAISAFEREMOVAL'] -cne 'FindSafeRemoval'){throw 'Missing safe removal marker lookup.'}
 if($Installable){'product_layout_files_verified=25;installable_test_requires_x64=true'}else{'product_layout_files_verified=25;development_install_blocked=true'}

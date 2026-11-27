@@ -1,14 +1,15 @@
 param([Parameter(Mandatory=$true)][string]$ToolchainBin,
       [Parameter(Mandatory=$true)][string]$WorkDir)
 $ErrorActionPreference='Stop'
+$windowsTargetFlags = & (Join-Path $PSScriptRoot '../windows-target-flags.ps1')
 $compiler=Join-Path (Resolve-Path -LiteralPath $ToolchainBin).Path 'g++.exe'
 $work=[IO.Path]::GetFullPath($WorkDir)
 if(Test-Path -LiteralPath $work){throw 'Test directory already exists.'}
 [IO.Directory]::CreateDirectory($work)|Out-Null
 $exe=Join-Path $work 'tsf_uiless_input_tests.exe'
-& $compiler -std=c++17 -O2 -static -municode `
+& $compiler @windowsTargetFlags -std=c++17 -O2 -static -municode `
     (Join-Path $PSScriptRoot 'tsf_uiless_input_tests.cpp') `
-    -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lshlwapi -o $exe
+    -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $exe
 if($LASTEXITCODE -ne 0){throw 'UI-less TSF harness compilation failed.'}
 
 function Invoke-Fixture([string]$Name,[string[]]$ExtraArguments,[string]$ExpectedOutput) {

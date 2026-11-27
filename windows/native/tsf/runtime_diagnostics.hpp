@@ -20,6 +20,9 @@
 
 namespace boshiamy::runtime_diagnostics {
 
+// Legacy, explicit marker-file journal for standalone development tools.
+// The TSF Service does not call Journal: Doctor transport is the input-path
+// contract and avoids callback I/O, mutexes and host COM queries.
 inline constexpr wchar_t kMarkerName[] = L"tsf-diagnostics.enabled";
 inline constexpr wchar_t kMarkerMagic[] = L"LIUKAI_TSF_DIAGNOSTICS_V1";
 inline constexpr std::uint32_t kMaxEvents = 512;

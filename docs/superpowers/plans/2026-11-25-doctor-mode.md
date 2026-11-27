@@ -624,11 +624,13 @@ Chrome 的 ordinary/password input 及 Windows available private/disabled contex
 
 同一裝置／Win11 host、同一工作量、關閉 Doctor 及開啟 Doctor 各至少三輪。記 p50/p95/p99、掉字、CPU、RSS、events/sec 與 queue drop，並保留量測邊界：Windows 為同步 `ITfKeystrokeMgr::KeyDown` 呼叫的經過時間，包含同步 callback、等待與呼叫期間搶占；Android 為 `ImeView.dispatchTouchEvent` 經過時間，不含延後 `performClick` 至輸出的全程。兩者不是同一指標，不直接跨平台比較，也不稱為純 callback CPU 時間。
 
-- [ ] **Step 2: gate result**
+- [x] **Step 2: gate result**
 
 p99 額外 0.5 ms 是初始工程目標，不直接當唯一 hard pass。若長尾惡化超過同機量測誤差或錯誤列數增加，必須標示 fail 並優化；不得只看平均值。
 
-Android quiet1六輪已依原512樣本／64提交完成，Root獨立核對持久紀錄、來源及p99後通過上述dispatch量測範圍：三對ON−OFF的100µs量化開區間為(0,200)／(−1100,−900)／(−900,−700)µs，沒有新增錯誤或掉字。Windows仍未通過，因此本雙端項目保留未勾；沒有調低標準或把Android結果代替Windows。
+Android quiet1六輪已依原512樣本／64提交完成，Root獨立核對持久紀錄、來源及p99後通過上述dispatch量測範圍：三對ON−OFF的100µs量化開區間為(0,200)／(−1100,−900)／(−900,−700)µs，沒有新增錯誤或掉字。
+
+Windows於2026-11-27使用原未增加QPC metadata的工具，在同一原版宿主完成三對完整OFF／ON；每輪775對按鍵、260字、2322樣本，ON3089事件、drop0／queue0，OFF無逐鍵事件。KeyDown p99配對差為−39.4／−106.8／+335.9µs，各小於初始500µs目標；OFF跨輪幅度546.8µs。Root由原CSV、文字結果、queue及canonical紀錄獨立重算一致。本項僅勾選雙端已測的受控量測範圍，舊高負載反例保留，不推論所有負載均達標或已找出唯一根因。另有metadata的單對ETL只作診斷，不作本項gate；Windows正式成品與宿主矩陣另依[發行驗證計畫](2026-11-27-doctor-windows-release.md)追蹤。
 
 - [x] **Step 3: 一小時穩定性、容量與防回歸驗證**
 

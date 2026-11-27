@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$ToolchainBin,
-      [Parameter(Mandatory=$true)][string]$WorkDir)
+      [Parameter(Mandatory=$true)][string]$WorkDir,
+      [switch]$DoctorEphemeralTestUser)
 $ErrorActionPreference='Stop'
 $bin=(Resolve-Path -LiteralPath $ToolchainBin).Path
 $compiler=(Resolve-Path -LiteralPath (Join-Path $bin 'g++.exe')).Path
@@ -9,6 +10,7 @@ if(Test-Path -LiteralPath $work){throw 'Test directory already exists.'}
 $oldPath=$env:PATH
 try {
     $env:PATH=$bin+';'+$oldPath
+    & (Join-Path $PSScriptRoot 'tests\windows-target-tests.ps1') -ToolchainBin $bin -WorkDir (Join-Path $work 'windows-target')
     foreach($name in @('shift_toggle_tests','engine_long_english_tests','engine_homophone_tests','candidate_ui_contract_tests','installer_durable_compensation_projection_tests')) {
         $source=Join-Path $PSScriptRoot ("tests\$name.cpp"); $exe=Join-Path $work ($name+'.exe')
         & $compiler -std=c++17 -O2 -static $source -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $exe
@@ -18,8 +20,8 @@ try {
         } else { & $exe }
         if($LASTEXITCODE -ne 0){throw "Test failed: $name"}
     }
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tests\run-tsf-uiless-input-tests.ps1') -ToolchainBin $bin -WorkDir (Join-Path $work 'tsf-uiless-input')
-    if($LASTEXITCODE -ne 0){throw 'UI-less TSF input test failed.'}
+    & (Join-Path $PSScriptRoot 'run-doctor-tests.ps1') -ToolchainBin $bin `
+        -WorkDir (Join-Path $work 'doctor') -UseEphemeralTestUser:$DoctorEphemeralTestUser
     $framework=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
     $setupTest=Join-Path $work 'setup-tests.exe'
     & (Join-Path $framework 'csc.exe') /nologo /target:exe /platform:x64 /main:SetupLogTests ("/out:$setupTest") `

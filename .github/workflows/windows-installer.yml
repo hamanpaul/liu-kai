@@ -57,7 +57,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
           $env:PATH = $toolchain + ';' + $env:PATH
-          & .\native\test-release.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\release-tests"
+          & .\native\test-release.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\release-tests" -DoctorEphemeralTestUser
           if ($LASTEXITCODE -ne 0) { throw 'Release tests failed.' }
           & .\native\tests\wix-tls-detach-tests.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\wix-tls-test"
           if ($LASTEXITCODE -ne 0) { throw 'WiX TLS regression failed.' }
@@ -67,6 +67,13 @@ jobs:
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path 'native\tests' $name)
             if ($LASTEXITCODE -ne 0) { throw "Legacy safety test failed: $name" }
           }
+      - name: Preserve Doctor test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-doctor-test-diagnostics-${{ github.sha }}
+          path: windows/build/release-tests/doctor/**/*.log
+          if-no-files-found: warn
       - name: Build installer from Windows version and source commit
         shell: pwsh
         run: |

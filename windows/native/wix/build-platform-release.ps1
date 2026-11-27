@@ -33,7 +33,7 @@ $toolchain = (Resolve-Path -LiteralPath $ToolchainBin).Path
 $oldPath = $env:PATH
 try {
     $env:PATH = "$toolchain;$oldPath"
-    & (Join-Path $windows 'native\build-fresh-release.ps1') -ToolchainBin $toolchain -Version $version -OutputDir $source -SetupName "WuGai-$version-x64-Setup.exe"
+    & (Join-Path $windows 'native\build-fresh-release.ps1') -ToolchainBin $toolchain -Version $version -OutputDir $source -SetupName "WuGai-$version-x64-Setup.exe" -SourceCommit $commit
     & (Join-Path $PSScriptRoot 'build-installer.ps1') -ToolchainBin $toolchain -WixExe $WixExe -BalExtension $BalExtension -R64Msi $R64Msi -SourceBundle (Join-Path $source 'bundle') -OutputDir $wixOut -MsiVersion $msiVersion -PublishBuild
 } finally { $env:PATH = $oldPath }
 [IO.Directory]::CreateDirectory($release) | Out-Null
