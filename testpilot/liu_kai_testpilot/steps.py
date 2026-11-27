@@ -255,7 +255,7 @@ class StepExecutor:
                 width, height = self.adb.screen_size()
                 self.adb.swipe(width // 2, height * 4 // 5, width // 2, height // 3, 400)
                 self.settle()
-        raise LookupError(f"????????{text}?")
+        raise LookupError(f"捲動後仍找不到文字「{text}」")
 
     def _do_tap_text(self, step):
         """點畫面上的文字。指定 until 時確認點擊生效（畫面出現 until 文字）：系統忙碌時點擊可能被丟掉

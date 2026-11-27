@@ -995,6 +995,7 @@ def test_picker_scroll_stops_at_end_when_document_missing(ex, adb):
     result = run(ex, action="wait_text", contains="missing.txt", scroll=True)
     assert result["success"] is False
     assert "missing.txt" in result["output"]
+    assert "捲動後仍找不到文字" in result["output"]
     assert len(adb.of("swipe")) == 1
 
 
