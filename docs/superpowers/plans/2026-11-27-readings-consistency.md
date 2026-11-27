@@ -29,24 +29,24 @@
 
 ## Task D1：固定不改行為的契約與 RED
 
-- [ ] 用合成 readings 建立 A 主音 R1/次音 R2、B 主音 R2、字典包含 A/B、候選表包含 R1/A、R2/A/B、明示空組與注音符號的最小 fixture；不依賴私人字表或網路。
-- [ ] 先寫測試再執行 `python -m unittest discover -s scripts/tests -p test_audit_readings.py -v`，保存因缺少核對工具而出現的 RED；之後的解析錯誤必須明確指向資料，不以 exception 被吞掉當過關。
-- [ ] 定義程式入口 `audit_readings(canonical, windows_copy, candidates, dictionary, decisions)`；測試依 repo 現有腳本方式用 importlib 載入 hyphen 檔名，不再建立第二套 package。
-- [ ] 保證這個工具只讀 input，output 只能寫到指定 report 路徑；測試比較輸入前後 bytes，避免「核對」意外改候選或主要音。
+- [x] 用合成 readings 建立 A 主音 R1/次音 R2、B 主音 R2、字典包含 A/B、候選表包含 R1/A、R2/A/B、明示空組與注音符號的最小 fixture；不依賴私人字表或網路。
+- [x] 先寫測試再執行 `python -m unittest discover -s scripts/tests -p test_audit_readings.py -v`，保存因缺少核對工具而出現的 RED；之後的解析錯誤必須明確指向資料，不以 exception 被吞掉當過關。
+- [x] 定義程式入口 `audit_readings(canonical, windows_copy, candidates, dictionary, decisions)`；測試依 repo 現有腳本方式用 importlib 載入 hyphen 檔名，不再建立第二套 package。
+- [x] 保證這個工具只讀 input，output 只能寫到指定 report 路徑；測試比較輸入前後 bytes，避免「核對」意外改候選或主要音。
 
 合成期望：A/R2 屬 `listed_secondary`，不是缺漏；C/未知音屬 `unresolved_relation`；`ㄚ/ㄚ` 屬 `bopomofo_literal`；明示空組保持一筆 `explicit_empty`。次讀音出現在報告不表示 runtime 會查出該字。
 
 ## Task D2：最小離線工具與不變量 GREEN
 
-- [ ] 使用 `csv.DictReader`/明確 TSV 欄位、`hashlib`、`json`、`unicodedata`（只作識別/報告，不隱式改碼）及標準集合。沒有外部資料庫、網路、自然語言模型或 JVM 依賴。
-- [ ] 核對 canonical 與 Windows bytes；不只比較解析後集合。BOM、換行及輸出順序差異均呈現為資產同步問題，不能悄悄正規化後說一致。
-- [ ] 驗證 UTF-8、必要欄位、重複字／關聯、非空有效 readings、候選明示空組不得與非空列混用；輸入缺少、格式不合法與讀取失敗回非零，保留檔名/行號。
-- [ ] 分離 `primary_match`、`listed_secondary`、`bopomofo_literal`、`unresolved_relation`、`unexpected_missing_character`、`explicit_empty`。`bopomofo_literal` 僅容許單一 U+3105–U+3129 且 reading==text；不能用整個非漢字範圍當白名單。
-- [ ] `unexpected_missing_character > 0` 時 `--check` 必回非零。裁決表的 `status` 只接受 `consistent`、`confirmed_error`、`intentional_difference`、`unresolved`；source 必須非空，每個 `(char, reading)` 必須存在於當前讀音或候選輸入，重複/孤兒列必失敗。裁決不可壓掉結構錯誤；`confirmed_error` 未修復或仍有未判定關聯時，正音審查完成狀態仍為 false。
-- [ ] 字典過濾以明確 section 與 exact text 作投影，不把簡繁轉換、罕見字或長字串默認為等價。報告說明哪些差異是 active dictionary 的可用性，不冒稱讀音真偽。
-- [ ] 完整報告按 Unicode key 排序、固定 JSON 格式；同一 input 必須 byte-identical。source hash 記在報告，時間/機器路徑不進 deterministic 內容。
-- [ ] `--check` 只代表格式、雙端一致、裁決格式及已確認代表字契約通過；即使回 0 也要輸出 `pronunciation_review_complete=false` 與未判定數，不能命名成 all-correct。
-- [ ] 取得全部合成測試 GREEN；另外改動 Windows 複本一 byte、刪主要音、混合空組、重複關聯等負例必須失敗。
+- [x] 使用 `csv.DictReader`/明確 TSV 欄位、`hashlib`、`json`、`unicodedata`（只作識別/報告，不隱式改碼）及標準集合。沒有外部資料庫、網路、自然語言模型或 JVM 依賴。
+- [x] 核對 canonical 與 Windows bytes；不只比較解析後集合。BOM、換行及輸出順序差異均呈現為資產同步問題，不能悄悄正規化後說一致。
+- [x] 驗證 UTF-8、必要欄位、重複字／關聯、非空有效 readings、候選明示空組不得與非空列混用；輸入缺少、格式不合法與讀取失敗回非零，保留檔名/行號。
+- [x] 分離 `primary_match`、`listed_secondary`、`bopomofo_literal`、`unresolved_relation`、`unexpected_missing_character`、`explicit_empty`。`bopomofo_literal` 僅容許單一 U+3105–U+3129 且 reading==text；不能用整個非漢字範圍當白名單。
+- [x] `unexpected_missing_character > 0` 時 `--check` 必回非零。裁決表的 `status` 只接受 `consistent`、`confirmed_error`、`intentional_difference`、`unresolved`；source 必須非空，每個 `(char, reading)` 必須存在於當前讀音或候選輸入，重複/孤兒列必失敗。裁決不可壓掉結構錯誤；`confirmed_error` 未修復或仍有未判定關聯時，正音審查完成狀態仍為 false。
+- [x] 字典過濾以明確 section 與 exact text 作投影，不把簡繁轉換、罕見字或長字串默認為等價。報告說明哪些差異是 active dictionary 的可用性，不冒稱讀音真偽。
+- [x] 完整報告按 Unicode key 排序、固定 JSON 格式；同一 input 必須 byte-identical。source hash 記在報告，時間/機器路徑不進 deterministic 內容。
+- [x] `--check` 只代表格式、雙端一致、裁決格式及已確認代表字契約通過；即使回 0 也要輸出 `pronunciation_review_complete=false` 與未判定數，不能命名成 all-correct。
+- [x] 取得全部合成測試 GREEN；另外改動 Windows 複本一 byte、刪主要音、混合空組、重複關聯等負例必須失敗。
 
 CLI 契約（實作時才新增）：
 
@@ -59,20 +59,20 @@ python -m unittest discover -s scripts/tests -p test_audit_readings.py -v
 
 ## Task D3：全表對帳與具名裁決
 
-- [ ] 對基準與當前來源各執行一次，保存 source commit/hash、分類計數與關聯清單。初始計數應與共用設計的 17,972 關聯分解對上；計數是觀測基準，不寫死成永遠正確的數字。
-- [ ] 把全部 37 個無讀音項核實為注音符號文字，以結構規則處理而非新增 37 個假正音。保留 4,644 空組與既有來源 metadata。
-- [ ] 對 3,738 個未列關聯再做機械結構分類，例如只有聲調不同/音節不同；這些只作審查分組，不自動改成「合法次讀音」或「官版刻意相容」。
+- [x] 對基準與當前來源各執行一次，保存 source commit/hash、分類計數與關聯清單。初始計數應與共用設計的 17,972 關聯分解對上；計數是觀測基準，不寫死成永遠正確的數字。
+- [x] 把全部 37 個無讀音項核實為注音符號文字，以結構規則處理而非新增 37 個假正音。保留 4,644 空組與既有來源 metadata。
+- [x] 對 3,738 個未列關聯再做機械結構分類，例如只有聲調不同/音節不同；這些只作審查分組，不自動改成「合法次讀音」或「官版刻意相容」。
 - [ ] 「勒」的主要/次音、繁簡兩入口既有出字、候選字碼不入上屏列為回歸；另選報告中已列次音及疑似缺漏的代表，區分現行 query 契約與讀音資料。
 - [ ] 真正的正音裁決引用教育部官方字典或已固定的上游 Unihan 證據，記錄條目識別/來源版本/理由；不使用第三方輸入法未授權資料，不自動 scrape 全站。
-- [ ] 未找到真值的項目維持 unresolved。不能把全部剩餘關聯寫成 legacy_compatibility 就當全表核對完成；也不將殘餘搬到新 issue 後關原單。
+- [x] 未找到真值的項目維持 unresolved。不能把全部剩餘關聯寫成 legacy_compatibility 就當全表核對完成；也不將殘餘搬到新 issue 後關原單。
 - [ ] 若出現新且已證實的資料錯漏，先列出最小修正與影響範圍供審閱。未核准前不改主要音/候選資產；若之後核准，仍由原 `gen-readings` 單一 producer 修復，確有多個已證實 override 才抽成一份小表。
 
 此任務允許交付「完整集合核對已完成，但部分正音未判定」；這不是 issue 19 全部驗收通過。
 
 ## Task D4：門禁與既有輸入回歸
 
-- [ ] 現有 root Python unittest discovery 應自動包含新測試；Windows installer job 也明確執行 audit `--check` 並保存完整 report artifact。不要在 Android/Windows 各複製一個 audit 工具。
-- [ ] 原生 C++ 跑既有 homophone/phonetic/readings 測試，確保兩入口仍採主要音、傳統候選順序與純漢字上屏不變；此輪沒有理由改 query runtime。
+- [x] 現有 root Python unittest discovery 應自動包含新測試；Windows installer job 也明確執行 audit `--check` 並保存完整 report artifact。不要在 Android/Windows 各複製一個 audit 工具。
+- [x] 原生 C++ 跑既有 homophone/phonetic/readings 測試，確保兩入口仍採主要音、傳統候選順序與純漢字上屏不變；此輪沒有理由改 query runtime。
 - [ ] 如果後續核准了 generator 或 Kotlin 資料程式改動，先以已找到的 JDK 17 設定 `JAVA_HOME`，再跑 `gradlew.bat --no-daemon --max-workers=1 :core:check :cli:check`；記錄實際輸出，不因 JDK 存在就宣稱 Gradle/JVM 通過。
 - [ ] Windows 沙盒的代表字端到端可與安裝計畫共用同一 guest 串行安排；不新開第二 guest、不啟動 Android AVD、不碰 WSL。不宣稱 Android runtime 已測。
 - [ ] 更新 issue 19 的已修「勒」、已核對分類、未裁決數及證據。只有全部驗收需求真有證據，才提議關閉；否則保持開啟。
@@ -84,3 +84,11 @@ python -m unittest discover -s scripts/tests -p test_audit_readings.py -v
 - 不把候選觀察表當正音來源，不將集合差全部自動補進 readings。
 - 不為未知正音做大量 CI 豁免，不追求虛假的零差異。
 - 不加入資料庫、常駐分析器、雲端服務或另一個讀音產生引擎。
+
+## 2026-11-27 已核對的執行證據
+
+D1/D2：初始缺模組 RED、14-method 複審回歸 RED 與最終 GREEN 均保留。完整分類、37 個 literal 與 3,738 個未知關聯的機械分組已完成；只有兩份 readings 的 LF 格式同步，欄值與列序相同，沒有新增正音裁決。Neon round 6 已複審通過資料部分。
+
+D3：已補教育部「勒／都／阿」的具名來源抽查，區分讀音集合、canonical 缺列與產品主要音政策；不新增未核准的資料修正或裁決列。3,738 筆未裁決關聯保持原樣。
+
+D4：原生 Windows root discovery 共 22 個測試通過；同一 Windows Sandbox 以最終 LF 資產通過 14 個 audit 測試、完整 audit 與既有原生同音／注音回歸。JVM/generator 未改，條件式 JVM gate 不適用，沒有宣稱本輪執行 JVM 或 Android runtime。目前私有快照已證明兩份 Git blob 相同、canonical policy gate 通過（`skip-tests`，原生／Python 測試另跑）；新安裝成品端到端、交付提交的最終 blob／policy gate 仍待收尾。完整證據索引見 [讀音核對報告](../../data/readings-audit.md)。

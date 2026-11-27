@@ -6,6 +6,10 @@ param(
     [Parameter(Mandatory=$true)][string]$Icon,
     [Parameter(Mandatory=$true)][string]$Logo,
     [Parameter(Mandatory=$true)][string]$Notice,
+    [string]$Theme,
+    [string]$Localization,
+    [string]$UiLicense,
+    [Parameter(Mandatory=$true)][string]$GuardDll,
     [Parameter(Mandatory=$true)][string]$ExtractDir
 )
 $ErrorActionPreference = 'Stop'
@@ -16,6 +20,13 @@ $msiPath=(Resolve-Path -LiteralPath $Msi).Path
 $iconPath=(Resolve-Path -LiteralPath $Icon).Path
 $noticePath=(Resolve-Path -LiteralPath $Notice).Path
 $logoPath=(Resolve-Path -LiteralPath $Logo).Path
+if(-not $Theme){$Theme=Join-Path $PSScriptRoot 'ui\rtf-theme.xml'}
+if(-not $Localization){$Localization=Join-Path $PSScriptRoot 'ui\zh-TW.wxl'}
+if(-not $UiLicense){$UiLicense=Join-Path $PSScriptRoot 'ui\LICENSE.TXT'}
+$themePath=(Resolve-Path -LiteralPath $Theme).Path
+$localizationPath=(Resolve-Path -LiteralPath $Localization).Path
+$uiLicensePath=(Resolve-Path -LiteralPath $UiLicense).Path
+$guardDllPath=(Resolve-Path -LiteralPath $GuardDll).Path
 $extract=[IO.Path]::GetFullPath($ExtractDir)
 if (Test-Path -LiteralPath $extract) { throw 'Extraction directory already exists; choose a new directory.' }
 & $wix msi validate $msiPath
@@ -26,9 +37,18 @@ $embeddedLogo=Join-Path ($extract+'-ba') 'logo.png'
 if((Get-FileHash -LiteralPath $logoPath -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath $embeddedLogo -Algorithm SHA256).Hash){throw 'Embedded installer UI logo differs from source.'}
 $embeddedNotice=Join-Path ($extract+'-ba') 'license.rtf'
 if((Get-FileHash -LiteralPath $noticePath -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath $embeddedNotice -Algorithm SHA256).Hash){throw 'Embedded installation notice differs from source.'}
-$theme=Get-Content -LiteralPath (Join-Path ($extract+'-ba') 'thm.xml') -Raw
-if(-not $theme.Contains('Name="EulaAcceptCheckbox"')){throw 'Installation notice acceptance control is missing.'}
-if(-not $theme.Contains('ImageFile="logo.png"')){throw 'Installer theme does not display the embedded logo.'}
+$embeddedTheme=Join-Path ($extract+'-ba') 'thm.xml'
+if((Get-FileHash -LiteralPath $themePath -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath $embeddedTheme -Algorithm SHA256).Hash){throw 'Embedded installer theme differs from the shared source.'}
+$embeddedLocalization=Join-Path ($extract+'-ba') 'thm.wxl'
+if((Get-FileHash -LiteralPath $localizationPath -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath $embeddedLocalization -Algorithm SHA256).Hash){throw 'Embedded installer localization differs from the shared source.'}
+$embeddedUiLicense=Join-Path ($extract+'-ba') 'wix-theme-license.txt'
+if((Get-FileHash -LiteralPath $uiLicensePath -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath $embeddedUiLicense -Algorithm SHA256).Hash){throw 'Embedded WiX theme license differs from the shared source.'}
+$uiTest=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\tests\wix-installer-ui-tests.ps1')).Path
+& $uiTest -BaDir ($extract+'-ba')
+$guardTest=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\tests\wix-installer-guard-payload-tests.ps1')).Path
+$guardJson=(& $guardTest -BaDir ($extract+'-ba') -ExpectedGuardDll $guardDllPath|Out-String).Trim()
+$guardResult=$guardJson|ConvertFrom-Json
+if(-not $guardResult.guard_payload_verified){throw 'Installer guard payload verification did not pass.'}
 $expected=(Get-FileHash -LiteralPath $msiPath -Algorithm SHA256).Hash
 $matches=@(Get-ChildItem -LiteralPath $extract -File -Recurse | Where-Object { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash -ceq $expected })
 if ($matches.Count -ne 1) { throw "Embedded MSI hash match count was $($matches.Count), expected one." }
@@ -57,4 +77,4 @@ try {
         if($left.GetPixel($x,$y).ToArgb() -ne $right.GetPixel($x,$y).ToArgb()) { throw 'Bundle icon pixels differ from the project icon.' }
     }}
 } finally { if($left){$left.Dispose()}; if($right){$right.Dispose()}; $source.Dispose(); $embedded.Dispose() }
-[pscustomobject]@{msi_sha256=$expected.ToLowerInvariant();msi_validated=$true;embedded_msi_verified=$true;icon_32px_verified=$true;notice_verified=$true;ui_logo_verified=$true} | ConvertTo-Json
+[pscustomobject]@{msi_sha256=$expected.ToLowerInvariant();msi_validated=$true;embedded_msi_verified=$true;icon_32px_verified=$true;notice_verified=$true;ui_theme_verified=$true;ui_localization_verified=$true;ui_license_verified=$true;ui_logo_verified=$true;guard_payload_verified=$true;guard_sha256=$guardResult.sha256} | ConvertTo-Json

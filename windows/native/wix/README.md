@@ -11,6 +11,12 @@ This directory is under development. `bundle.wxs` creates a WiX Burn executable 
 - MSI owns the files it installs; do not simply put the legacy custom installer inside an MSI. Preserve release manifest provenance, signatures/hashes and machine-readable diagnostics.
 - Use standard MSI logs and validate MSI with ICEs. Verify the bundle's embedded MSI and icon and the actual downloaded GitHub artifact. Include clean install, upgrade, uninstall, reinstall, locked DLL, partial failure, rollback and interactive-user state checks; inspect both machine and actual interactive-user views.
 
+## Installer session guard integration
+
+Both Burn authoring files embed `LiuKaiInstallerGuard.dll` as the WixStdBA BAFunctions payload. The DLL uses the official WiX 6.0.2 ABI, validates the early `BAFunctionsCreate` command, and either fails there or installs a non-thread-owning named mutex duplicated into the verified direct Burn parent. The only bypass is Burn's embedded `UPGRADE` relationship for `UNINSTALL` or `INSTALL`, which preserves the existing-bundle removal/restore transaction. Destroy only closes the DLL's own local mutex handle; the parent handle remains until the engine exits.
+
+Only bundles containing this new guard can coordinate through it; no already published EXE is retrofitted. `build-installer-guard.ps1` verifies the pinned SDK header manifest before compiling, and bundle verification checks the extracted registration, payload, source SHA-256 and x64 PE header. The native Win32 mutex tests are part of release preflight, but ordinary/elevated reentry, cancellation, real BA interruption, the parent lifetime through engine cleanup and historical `0x800700e8` behavior still require Root's separate real-bundle Sandbox validation.
+
 ## Observed R63 issue on this machine
 
 Interactive launch and automation have the same user SID but observe different registry contents. The interactive R63 diagnostic reports absent TSF profile but an HKCU profile leaf and an owned profile marker; it returns 0x8007051A and refuses deployment. An earlier automated uninstall reported success in its own execution environment. Both runs reported the same user SID. The interactive history probe returned history_inspection=0; this verifies the machine-COM ledger classifier only, not all legacy histories. The source of the registry-view difference is not established. Do not clean or report success using only the automated view; collect and back up the real interactive view, verify transaction state and the exact owner before any recovery.
