@@ -1,0 +1,36 @@
+{
+  "repository": "wixtoolset/wix",
+  "tag": "v6.0.2",
+  "scope": "Four unmodified public ABI headers only; no upstream runtime/engine implementation",
+  "license": "Microsoft Reciprocal License (MS-RL)",
+  "files": [
+    {
+      "name": "BootstrapperApplicationTypes.h",
+      "upstream_path": "src/api/burn/inc/BootstrapperApplicationTypes.h",
+      "url": "https://raw.githubusercontent.com/wixtoolset/wix/v6.0.2/src/api/burn/inc/BootstrapperApplicationTypes.h",
+      "git_blob": "2ece1b7b9e51548ac146fe7c71bfb305decc9f4c",
+      "sha256": "db0f123723e240c9d4f925d29b6441016d605576abf1b91bd306ff7ab67cdc1a"
+    },
+    {
+      "name": "BootstrapperEngineTypes.h",
+      "upstream_path": "src/api/burn/inc/BootstrapperEngineTypes.h",
+      "url": "https://raw.githubusercontent.com/wixtoolset/wix/v6.0.2/src/api/burn/inc/BootstrapperEngineTypes.h",
+      "git_blob": "f89238c07d2c8c71ad443f787b2eaa7dd464975f",
+      "sha256": "1ca0c9267c89eb8611cc31af6b9894e8873e48c80585bc8e826d7c821f1a06c5"
+    },
+    {
+      "name": "BAFunctions.h",
+      "upstream_path": "src/ext/Bal/wixstdfn/inc/BAFunctions.h",
+      "url": "https://raw.githubusercontent.com/wixtoolset/wix/v6.0.2/src/ext/Bal/wixstdfn/inc/BAFunctions.h",
+      "git_blob": "7908a74ca9970524ac7610f860698d60c7e8b39b",
+      "sha256": "658ea9f8a6a387f8188e94bb3f439d1c2cd06c5b988f95277644b9f7063c49a6"
+    },
+    {
+      "name": "IBootstrapperEngine.h",
+      "upstream_path": "src/api/burn/balutil/inc/IBootstrapperEngine.h",
+      "url": "https://raw.githubusercontent.com/wixtoolset/wix/v6.0.2/src/api/burn/balutil/inc/IBootstrapperEngine.h",
+      "git_blob": "57fc9be9b7bbbd7f42727dcf6f28e155b04dcbe5",
+      "sha256": "8a136b220af601cd200c4eb601d463991e9f5864ddcdc58b79b509c9ab8c7932"
+    }
+  ]
+}

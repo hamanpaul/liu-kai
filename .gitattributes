@@ -2,3 +2,6 @@
 /shared/testdata/doctor-v1/*.jsonl text eol=lf
 /shared/testdata/doctor-v1/*.json text eol=lf
 /shared/testdata/doctor-v1/*.zip binary
+/core/src/main/resources/readings.tsv text eol=lf
+/windows/assets/readings.tsv text eol=lf
+/windows/native/wix/sdk/* text eol=lf

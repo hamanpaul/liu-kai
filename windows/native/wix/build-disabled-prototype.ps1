@@ -33,6 +33,8 @@ $version=[string]$manifest.version
 if($version -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' -or $version.Contains('..') -or $version -cne $release.version){throw 'Invalid runtime version.'}
 $runtime=Join-Path $package ('versions\'+$version+'\x64')
 [IO.Directory]::CreateDirectory($out)|Out-Null
+$guardDll=Join-Path $out 'LiuKaiInstallerGuard.dll'
+& (Join-Path $PSScriptRoot 'build-installer-guard.ps1') -ToolchainBin $ToolchainBin -OutputFile $guardDll
 $compiler=Join-Path (Resolve-Path -LiteralPath $ToolchainBin).Path 'g++.exe'
 $contextDll=Join-Path $out 'user-context.dll'
 $manifestHash=(Get-FileHash -LiteralPath (Join-Path $package 'manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -62,8 +64,8 @@ if($LASTEXITCODE -ne 0){throw 'Prototype MSI build failed.'}
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'native\tests\wix-product-layout-tests.ps1') -Msi $msi
 if($LASTEXITCODE -ne 0){throw 'Prototype MSI layout check failed.'}
 & (Join-Path $PSScriptRoot 'verify-msi-payload.ps1') -WixExe $wix -Msi $msi -SourceBundle $source -HistoryProbe $historyProbe -ActionDll $contextDll -ExtractDir (Join-Path $out 'msi-verification')
-& $wix build -arch x64 -ext $bal -d ("BundleVersion=$MsiVersion") -d ("IconPath=$icon") -d ("LicensePath=$(Join-Path $PSScriptRoot 'install-notice.rtf')") -d ("LogoPath=$(Join-Path $repo 'assets\liukai-installer-logo.png')") -d ("MsiPath=$msi") -o $setup (Join-Path $PSScriptRoot 'bundle.wxs')
+& $wix build -arch x64 -ext $bal -d ("BundleVersion=$MsiVersion") -d ("IconPath=$icon") -d ("LicensePath=$(Join-Path $PSScriptRoot 'install-notice.rtf')") -d ("LogoPath=$(Join-Path $repo 'assets\liukai-installer-logo.png')") -d ("GuardDll=$guardDll") -d ("MsiPath=$msi") -o $setup (Join-Path $PSScriptRoot 'bundle.wxs')
 if($LASTEXITCODE -ne 0){throw 'Prototype Burn build failed.'}
-& (Join-Path $PSScriptRoot 'verify-bundle.ps1') -WixExe $wix -Bundle $setup -Msi $msi -Icon $icon -Logo (Join-Path $repo 'assets\liukai-installer-logo.png') -Notice (Join-Path $PSScriptRoot 'install-notice.rtf') -ExtractDir (Join-Path $out 'verification-extracted')
+& (Join-Path $PSScriptRoot 'verify-bundle.ps1') -WixExe $wix -Bundle $setup -Msi $msi -Icon $icon -Logo (Join-Path $repo 'assets\liukai-installer-logo.png') -Notice (Join-Path $PSScriptRoot 'install-notice.rtf') -GuardDll $guardDll -ExtractDir (Join-Path $out 'verification-extracted')
 [IO.File]::WriteAllText((Join-Path $out 'DO-NOT-INSTALL.txt'),"Development prototype only. The MSI intentionally refuses installation; TSF lifecycle and rollback are not implemented.`r`n")
 [pscustomobject]@{kind='wix-disabled-prototype';runtime_version=$version;msi=$msi;setup=$setup;installable=$false}|ConvertTo-Json

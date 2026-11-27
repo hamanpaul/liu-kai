@@ -15,6 +15,28 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Run readings audit contract
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $canonicalBlob = & git rev-parse 'HEAD:core/src/main/resources/readings.tsv'
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$canonicalBlob)) { throw 'Could not resolve canonical readings blob.' }
+          $windowsBlob = & git rev-parse 'HEAD:windows/assets/readings.tsv'
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$windowsBlob)) { throw 'Could not resolve Windows readings blob.' }
+          if ($canonicalBlob -cne $windowsBlob) { throw 'Readings HEAD blobs are not byte-identical.' }
+          python -m unittest discover -s scripts/tests -p test_audit_readings.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Readings audit tests failed.' }
+          New-Item -ItemType Directory -Path 'build' -Force | Out-Null
+          python scripts/audit-readings.py --repo . --report build/readings-audit.json --check
+          if ($LASTEXITCODE -ne 0) { throw 'Readings audit invariant check failed.' }
+      - name: Preserve readings audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: readings-audit-${{ github.sha }}
+          path: build/readings-audit.json
+          if-no-files-found: warn
       - uses: msys2/setup-msys2@v2
         id: msys
         with:
@@ -57,6 +79,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
           $env:PATH = $toolchain + ';' + $env:PATH
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\native\tests\wix-installer-native-capture-tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Installer native capture tests failed.' }
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\native\tests\wix-installer-scenario-tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Installer scenario contract tests failed.' }
           & .\native\test-release.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\release-tests" -DoctorEphemeralTestUser
           if ($LASTEXITCODE -ne 0) { throw 'Release tests failed.' }
           & .\native\tests\wix-tls-detach-tests.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\wix-tls-test"
@@ -80,6 +106,26 @@ jobs:
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
           $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { '' }
           & .\native\wix\build-platform-release.ps1 -WixExe $env:WIX_EXE -BalExtension $env:WIX_BAL -ToolchainBin $toolchain -R64Msi "$pwd\build\r64-baseline\LiuKai.msi" -OutputDir "$pwd\dist\platform" -Tag $tag
+      - name: Test real installer UI bundles
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $runtimeVersion = (Get-Content -LiteralPath "$pwd\VERSION" -Raw).Trim()
+          & .\native\tests\wix-installer-ui-build-tests.ps1 `
+            -WixExe $env:WIX_EXE `
+            -BalExtension $env:WIX_BAL `
+            -Msi "$pwd\dist\platform\wix\LiuKai.msi" `
+            -MigrationBundle "$pwd\dist\platform\wix\LiuKai-win-setup.exe" `
+            -GuardDll "$pwd\dist\platform\wix\LiuKaiInstallerGuard.dll" `
+            -OutputDir "$pwd\build\installer-ui-build-test" `
+            -RuntimeVersion $runtimeVersion
+      - name: Preserve installer UI build-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-ui-build-test-${{ github.sha }}
+          path: windows/build/installer-ui-build-test/
+          if-no-files-found: warn
       - name: Test early failure diagnostics and staging cleanup
         shell: powershell
         run: |

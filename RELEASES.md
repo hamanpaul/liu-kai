@@ -7,7 +7,7 @@
 | 平台 | 正式版、標籤與來源 | 下載檔 | 系統升級身分 |
 | --- | --- | --- | --- |
 | Android | [android-v0.1.1](https://github.com/hamanpaul/liu-kai/releases/tag/android-v0.1.1) | `liu-kai-android-0.1.1.apk` | `com.hamanpaul.liukai`，versionName 0.1.1、versionCode 3；保留相容簽章 |
-| Windows x64 | [windows-v0.1.1](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.1) | `liu-kai-windows-0.1.1-x64-setup.exe` | MSI／Burn 70.1.3；沿用原 MSI 與 Bundle 的 UpgradeCode |
+| Windows x64 | [windows-v0.1.2](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.2) | `liu-kai-windows-0.1.2-x64-setup.exe` | MSI／Burn 70.1.4；沿用原 MSI 與 Bundle 的 UpgradeCode |
 
 本表隨發行 PR 更新為目前來源的目標版本，成品是否已公開以對應 GitHub Release 為準。Android 公開版號在 [app/VERSION](app/VERSION)，Android 內部安裝序號在 [app/VERSION_CODE](app/VERSION_CODE)，每個正式版須大於所有已分發 APK 的安裝序號。Windows 公開版號在 [windows/VERSION](windows/VERSION)，安裝版號的換算與驗證見 [Windows 發行說明](windows/RELEASE_FLOW.md)。根層 [VERSION](VERSION) 和無平台前綴的 annotated tag 是 paulsha-conventions 的整合批次，例如這次 `v0.1.3`；兩個產品各自使用自己的 lightweight tag 和 GitHub Release。
 
@@ -18,6 +18,12 @@
 ### Windows 0.1.1
 
 批次 `0.1.4` 已正式發布 [Windows Doctor 0.1.1](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.1)，來源為 `a3f2c65cea6db99e1a4cf3e7e468d6296621296f`；Android 維持已發布的 `0.1.1`，沒有重新封裝或移動其標籤。Windows 同一成品已完成沙盒安裝／卸載、本機 R70 升級、Search／Store、Terminal／WSL 與實體 Shift 驗證，範圍及限制見 [Windows 驗證紀錄](windows/VALIDATION.md)。三個公開附件已下載核對；後續文件提交不改變已驗收安裝檔的來源及標籤。
+
+### Windows 0.1.2
+
+批次 `0.1.5` 的目標版本，補齊繁中安裝提示與字形、顯示原生 MSI 作業，並透過官方 WiX BAFunctions 在 Detect 前拒絕同時啟動的新安裝器。MSI 仍負責全部檔案與註冊交易。另增加離線讀音核對與 CI 門禁，兩入口維持主要音規則，未裁定讀音不自動改表。Android 維持 `0.1.1`。
+
+本批依使用者指示只在單一 Windows Sandbox 驗證，不在本機安裝。成品來源與雜湊以 Release 的 `SOURCE.txt`、`SHA256SUMS.txt` 為準；公開與否以對應 Release 為準。實測與保留限制見 [Windows 驗證紀錄](windows/VALIDATION.md)。防重入保護只適用含新 guard 的版本，不能追溯保護舊 EXE；歷史中斷恢復及未裁定讀音仍分別保留在 [安裝議題](https://github.com/hamanpaul/liu-kai/issues/16) 與 [資料議題](https://github.com/hamanpaul/liu-kai/issues/19)。
 
 ### 發行流程
 

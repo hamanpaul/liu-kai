@@ -145,6 +145,9 @@ liu70_jp.* ─────────┘                         └─► neut
 - `liu-kai-cli gen-readings --unihan Unihan_Readings.txt --out core/src/main/resources/readings.tsv`：取 `kMandarin`（有兩個值時第二個為台灣讀音，列為主要讀音），拼音轉注音（`core` 的 `PinyinZhuyin`）後輸出。目前資料為 Unihan 18.0.0，共 44,353 字。
 - 同音字索引在執行期建立：以字表中存在的繁中單字為範圍，按主要讀音分組，依 Unihan `kGradeLevel`（香港小學學習年級，2,632 字）→ 最短碼長 → 字碼排序；`gen-readings --grades` 將年級寫入 `readings.tsv` 第三欄。
 - 已知限制：`kMandarin` 只收主要讀音，多音字不完整；需要時改用其他授權相容的資料源。
+- `scripts/audit-readings.py` 只核對資料：canonical 與 Windows copy、候選分類、active dictionary 的 exact-text 投影及具名裁決，不合併候選、不擴充查詢讀音。Android／Windows runtime 維持現行主要音規則與候選排序。
+- 2026-11-27 Root 原生 Windows 完整 audit 為 invariant PASS、review incomplete：14,172 primary、25 secondary、37 literal、3,738 unresolved、0 missing、4,644 explicit empty。全部 3,738 筆完整保留，機械分為 1,283 tone-only 與 2,455 syllable-difference；這不是正音裁決或 waiver，[issue 19](https://github.com/hamanpaul/liu-kai/issues/19) 仍 open。
+- 基準 `a3f2c65` 的 canonical LF 與 Windows CRLF copy raw hash 不同，實際 audit 為 `copy_byte_mismatch`；`autocrlf` 曾掩蓋此結構差異，但不能宣稱基準 raw-identical。本輪已加入兩條明確 attributes 與 `HEAD` blob guard，working bytes 的 CRLF→LF 格式寫入尚待 Root 完成；不得改 row／欄值／排序。Post-fix GREEN 與原生 C++／Sandbox 回歸仍 pending。細節與代表關聯見 [讀音資料核對](data/readings-audit.md)。
 
 ## 9. 測試策略
 

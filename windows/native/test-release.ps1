@@ -11,6 +11,8 @@ $oldPath=$env:PATH
 try {
     $env:PATH=$bin+';'+$oldPath
     & (Join-Path $PSScriptRoot 'tests\windows-target-tests.ps1') -ToolchainBin $bin -WorkDir (Join-Path $work 'windows-target')
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tests\wix-installer-guard-tests.ps1') -ToolchainBin $bin -WorkDir (Join-Path $work 'wix-installer-guard')
+    if($LASTEXITCODE -ne 0){throw 'WiX installer guard native tests failed.'}
     foreach($name in @('shift_toggle_tests','engine_long_english_tests','engine_homophone_tests','candidate_ui_contract_tests','installer_durable_compensation_projection_tests')) {
         $source=Join-Path $PSScriptRoot ("tests\$name.cpp"); $exe=Join-Path $work ($name+'.exe')
         & $compiler -std=c++17 -O2 -static $source -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $exe

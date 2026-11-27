@@ -1,3 +1,22 @@
+# Windows 0.1.2 安裝流程候選驗證（2026-11-28）
+
+本批依使用者指示只在單一 4 GiB Windows Sandbox 驗證，不在本機安裝或重啟，也不啟動 WSL／Android 模擬器。正式來源及成品以本版 Release 附件為準；以下先記錄私有候選的實測，不將私有 SHA 冒稱為合併後成品。
+
+- 原始控制組的真實重入為 FAIL：第二 MSI 雖回 1618，第二 Burn 客戶端仍刪除共用登錄，第一 MSI 成功 3010 後 Burn 登錄不完整。此反例保留，不能只用退出碼判通過。
+- 私有修正候選來源 `cbb00831482eb3b38b8bc3f5cb1599c1cda22904`、EXE SHA-256 `4dc4b13dd6fe4ac1385a1a2b0a0c6d644971f532b4bcc9b8707f8c3a1d717005`，產品 0.1.2、MSI／Burn 70.1.4。兩種 authoring 的建置／抽取、guard payload／PE／官方 SDK hash、字形及 11 項 UI mutation 均通過。
+- 真實 Reentry repeat：第一 Apply 17:58:35–18:00:43 UTC；第二程序 17:58:36 UTC 回 `-2147023278`／`0x80070652`，完整 log 記錄 early guard busy，零 Detect／Apply／Session／MSI。第一程序真實退出 3010，MSI 提交、Burn Full 登錄完成。先保留 NOT_COVERED 收據；客體重啟後獨立核對 12 個 payload、manifest／owner、HKCU／HKLM COM、MSI／Burn、舊登錄消失、設定／Doctor 指紋及待刪清空，續驗才判 `ACTUAL_SCENARIO_PASS`。
+- 相同候選已由同一 EXE `/uninstall /passive /norestart` 完成卸載 3010；guest 重啟後獨立 MSI inventory、HKCU／HKLM 兩視圖 COM／owner、原生 profile/category 狀態、產品目錄與產品待刪均不存在，設定及 disabled Doctor 歷史保留。原生 GetProfile 在不存在時回 E_FAIL，沒有改寫為 0。
+- 新候選 Progress 的原生 PrintWindow 繪圖已保存：96 DPI、實際 576×439 視窗，logo、繁中套件名、作業標籤、誠實 fallback、等待說明及取消按鈕可讀，原先方框字形已消失。此時 MSI 尚未送出 action，因此沒有把 fallback 當成已收到 action。較早相同 theme／wxl 的候選另有實際 100%／150% 安裝說明、勾選、Tab 與取消；150% 由桌面及 BA 144 DPI 獨立核對，主機縮放已恢復。
+- 新 stock 沙盒沿用預設 EnableLUA=0，沒有變更安全政策；此次完整 Reentry 是既有登入管理員 context。先前普通 token 的 early-rejection preview 有另外的原始證據，但不能稱為完整普通 UAC 升級。檢視器黑畫面限制了互動頁面觀測，不能把靜態 theme／glyph gate 或原生繪圖當成全部互動畫面通過。
+- 第一次新候選的收集器因多個絕對路徑被誤合併而失敗，原收據保留為 FAIL。MAI 先補測試、Root 取得 PS5／PS7 RED，再修正 extractor；兩端各 648 項純契約通過後才重跑上述完整案例。純測試不冒稱安裝實測。
+- 獨立 adversarial review 另找到 Recovery 卸載 absence 與 native 3010 的判定缺口，按負向 TDD 修正。後續差異必須經 PR CI／GitHub review；八輪 Neon 已用完，不再追加或冒稱 Neon 審過新 guard。
+
+真正非提權 BA 在 MSI commit 後中斷的恢復、歷史 `0x800700e8` 根因，以及全部 UI 頁面仍須分別看其實際證據；沒有把競態事故的普通恢復當成 BA 注入。未覆蓋部分保留在 [安裝議題](https://github.com/hamanpaul/liu-kai/issues/16)。讀音核對維持主要音規則，3,738 筆未知關聯仍待裁定，[資料議題](https://github.com/hamanpaul/liu-kai/issues/19) 保持開啟。
+
+## 先前候選與 0.1.1 歷史
+
+以下保留當時的來源、結果與未完成狀態，並非本批最新驗收清單。
+
 # Windows Doctor 0.1.1 正式成品驗證（2026-11-27）
 
 [正式發行](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.1)的來源為 `a3f2c65cea6db99e1a4cf3e7e468d6296621296f`，MSI／Burn 70.1.3、repo 批次 0.1.4。EXE SHA-256 為 `ba32e8e62dd4eddad057ca44218ea96860f94afaec86d026a7471515baef43ae`；EXE、SOURCE.txt 與 SHA256SUMS.txt 在公開前後均下載核對。
@@ -11,6 +30,29 @@
 - Terminal 1.25.3131.0 預設未提供欄位種類，實測 Unknown／逐鍵抑制、共享佇列有效且無 drop。輸入正常不等於具備輸入階段診斷；相容設定另依下方候選及 [README](README.md#terminal-的欄位資訊) 的範圍記錄。
 
 實體裝置及沙盒證據分開保留，原始診斷沒有公開。原新視窗曾共用 R70 程序而不列驗收；另一次測試啟動器的 30 秒逾時曾關閉自建測試視窗，修正觀察工具後才取得上述收據，沒有將其寫為產品故障或通過。八小時長跑、斷電及所有硬體／宿主組合未宣稱完成；舊效能反例保留。
+
+## Task I3：Windows 安裝器 UI（2026-11-27，Root 已驗封裝與 DPI；產品情境進行中）
+
+- Root 於 09:47:14 UTC 以正式 `0.1.1` EXE 的真實抽出 BA 取得已驗證 feature RED：exit 1、`UI020`、Progress 缺少 `ExecuteProgressActionDataText`。來源 BA 穩定，先前 launcher timeout 與 XML 回傳型別錯誤不是 feature RED。
+- 現已從該 WiX 6.0.2 RTF theme/localization 最小衍生 `windows/native/wix/ui/rtf-theme.xml` 與 `zh-TW.wxl`；正式及開發 bundle 共用同一對資源。Progress 顯示原生 action，Failure 保留真實錯誤文字，1618 指引是靜態說明，UI 指引本身不使用自訂 error-code variable 或 BAFunctions callback；後續新增的 BAFunctions 僅負責下一節的前置互斥。
+- Root 於 10:06 UTC 以舊契約已通過的 `ui-source-positive` 取得第二個 feature RED `UI037`：Success close 在不需重啟時仍提示重啟，且正常 uninstall action 4 漏用移除重啟文案。現已把 close 改為無條件「關閉」加 `WixStdBARestartRequired` 的短字串「稍後重啟」，卸載條件同時覆蓋 action 3/4；測試契約未放寬。
+- Root 於 10:41 UTC 在同一 owned Sandbox 取得已驗證 `FONT001`：四個 theme Font face 都是 Segoe UI，樣本「嘸改安裝取消」各漏 6/6 glyph；RichEdit notice 與 OS dialog 正常，preview 只確認後取消、未 Apply。獨立 GDI probe 已確認 Microsoft JhengHei UI 支援全部六字，因此只將四個 face 改為該字型，height/weight/layout/controls/localization/transaction 不變。
+- `rtf-theme.xml` 與 `zh-TW.wxl` 的 upstream 來源為 [WiX 6.0.2 WixStdBA](https://github.com/wixtoolset/wix/tree/v6.0.2/src/ext/Bal/wixstdba)；相鄰 `ui/LICENSE.TXT` 收錄官方 [WiX 6.0.2 MS-RL](https://github.com/wixtoolset/wix/blob/v6.0.2/LICENSE.TXT)。兩份 bundle 都把該檔以 `wix-theme-license.txt` 嵌入 BA，build/verifier 以 SHA-256 綁定。
+- `verify-bundle.ps1` 以 SHA-256 綁定 source/embedded theme 與 wxl，並重用 `wix-installer-ui-tests.ps1` 解析真實抽出資源。UI 本身不改 MSI／TSF 註冊動作；後續因真實重入失敗新增 BAFunctions 前置互斥，範圍及目前證據見下一節。
+- 新增 `wix-installer-ui-build-tests.ps1` 與 workflow step：先對 source theme 執行 font glyph test，再讀 MSI ProductVersion 建立另一個實際 development bundle，抽取 migration/development BA，驗證共同 source、license hash、11 個 mutation，且不安裝 fixture。CI 只追加在 platform build 之後，未改資料 HEAD-blob guard。
+- MAI 實作階段未自行執行 build/install；Root 已獨立完成兩種真實 authoring 的 build/extract、11 項 mutation、CJK glyph gate，以及同一沙盒 100%／150% 安裝說明、同意勾選、Tab 導覽與取消。150% 以桌面及 BA 視窗皆為 144 DPI 核對，保存原始 JPG；測後主機兩顯示器皆還原 96 DPI。未用圖片放大或登錄設定值代替實際 DPI。
+- `wix-installer-native-capture-tests.ps1` 與既有純情境契約均納入 Windows CI。前者實際驗證原生 exit 0/23、空輸出字串、仍開啟 writer 的 live-log 共享讀取、唯讀 MSI 清單，以及含空白 DLL／輸出路徑的兩秒有界模組；後者經第一筆最終狀態的負向 TDD 補強後，PS5／PS7 各通過 505 項純合成斷言。MSI 清單採正式唯讀 [Installer.RelatedProducts](https://learn.microsoft.com/en-us/windows/win32/msi/installer-relatedproducts) 及 indexed ProductInfo，不使用會觸發修復的 Win32_Product。
+- Root 的正式基準快照已核對 12 個 payload、owner／manifest、COM、MSI／Burn 與合成設定；後續控制組已重現重入失敗，普通同 EXE 恢復與卸載／重啟後核對通過，詳見下一節。原子收據、空串流／exit code、路徑引號與 COM 存取的工具錯誤均保留原始 RED；前置工具失敗不列為產品故障，也未計入 BA 注入次數。尚不宣稱 issue 16 完成。
+
+## Task I1/I2：實際重入缺陷與前置防護（2026-11-28，成品實測待完成）
+
+- 原始 0.1.2 控制組第一筆 MSI 執行期間，第二客戶端雖收到 MSI 1618，仍在 SessionEnd None 刪除共同 Burn 登錄；第一筆 MSI 提交 3010，隨後 Full 登錄失敗 0x80070002。guest 重啟後僅 MSI 存在，故 Reentry 判 FAIL。WiX 6.0.2 ApplyLock 的 mutex 程式實際在 `#if 0` 停用，先前「Burn 已提供互斥」的假設已更正，沒有將本例等同歷史 0x800700e8 根因。
+- 普通空參數雙擊同一控制組 EXE 已恢復 Burn 登錄，未重跑 MSI，12 個 payload／COM／owner／版本及合成設定／Doctor 狀態相符。同 EXE 維護介面正常卸載，保留占用程式並稍後 guest 重啟後，MSI/Burn/COM/owner、產品目錄及產品待刪項目皆不存在，設定及 Doctor 歷史保留。GetProfile E_FAIL 是 profile 不存在的原始結果，未冒稱全部查詢回 0；空 TIP 根鍵也未要求消失。這些是控制組證據，不替代真正 BA 故障注入，該次數仍為 0。
+- 新增最小官方 BAFunctions Create 閘門，將非 owning named mutex 的一份 handle 留在 OS 核對的直接 Burn 父程序。早期拒絕返回失敗會走 Burn 尚未 Startup 的 skip-cleanup 路徑；不使用自我 ExitProcess、自製 launcher／交易引擎、服務、lockfile 或遠端程式碼。合法 embedded upgrade 的移除與還原保留；quiet 本身不略過。
+- 七項真正多程序核心案例已在 PS5／PS7、含空白的工作路徑通過，包括 UI helper 結束後仍 busy、keeper 結束後無殘鎖、barrier 競爭、DuplicateHandle 權限失敗清理及同名 Event 型別衝突。只控制測試建立的子程序與 job，不是產品安裝或真正 BA 注入。
+- 真實舊 BA 的封裝測試已在兩種 PowerShell 取得 GUARD101（找不到 BAFunctions 註冊）的有效 RED。更早將 UTF-16 XML 誤當 UTF-8 的 reader 失敗保留原收據，改用遵循 BOM／宣告、禁止 DTD／外部 resolver 的 XML reader 後才取得有效 RED。
+- 新擴充已實際編譯，PE 有兩個官方入口，僅相依 ADVAPI32、KERNEL32、msvcrt、USER32。先前 linker 參數解析與額外 libwinpthread 依賴均保留失敗紀錄，已按既有安裝動作採完整靜態連結及 Windows 10 target；沒有把新擴充的建置缺陷當作舊版故障原因。
+- 尚待新的兩種真封裝、一般／提權重入、正常升級／embedded restore、取消、真正 BA 中斷、進度／占用／失敗／3010／卸載 UI 及註冊輸入驗證，完成前沒有交付 commit 或 release。八輪 Neon 已用完，後續核心與包裝差異沒有冒稱經過 Neon 審查。具體設計與限制見 [防重入設計](../docs/superpowers/plans/installer-reentry-minimal-design.md)。
 
 ## Windows Doctor 候選歷史（2026-11-27，發版前紀錄）
 
