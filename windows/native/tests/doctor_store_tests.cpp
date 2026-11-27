@@ -1257,7 +1257,23 @@ static int test_export_cleanup_removes_expired_raw_before_selection() {
     return 0;
 }
 
-static int test_clear_removes_owned_record_staging_before_success() {
+static bool native_symbolic_link(const fs::path &path) {
+    const DWORD attributes = GetFileAttributesW(path.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) return false;
+    HANDLE file = CreateFileW(path.c_str(), 0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+        OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    FILE_ATTRIBUTE_TAG_INFO tag{};
+    const bool read = GetFileInformationByHandleEx(
+        file, FileAttributeTagInfo, &tag, sizeof(tag)) != FALSE;
+    CloseHandle(file);
+    return read && tag.ReparseTag == IO_REPARSE_TAG_SYMLINK;
+}
+
+static int test_clear_removes_owned_record_staging_before_success(
+    bool require_link = false) {
     TempDirectory temporary;
     StoreContext context(temporary.path());
     auto store = context.open();
@@ -1272,13 +1288,28 @@ static int test_clear_removes_owned_record_staging_before_success() {
     CHECK(write_bytes(outside, "outside sentinel"));
     const bool linked = CreateSymbolicLinkW(link.c_str(), outside.c_str(),
         SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE) != FALSE;
+    const DWORD link_error = linked ? ERROR_SUCCESS : GetLastError();
+    if (require_link && !linked) {
+        std::cerr << "Required symlink fixture unavailable; Win32 error "
+            << link_error << '\n';
+        return 1;
+    }
+    if (linked) CHECK(native_symbolic_link(link));
     const auto old_epoch = store->status().epoch;
     CHECK(store->clear().ok());
     CHECK(store->status().epoch == old_epoch + 1);
     CHECK(!fs::exists(stage));
     CHECK(read_bytes(foreign) == "unrelated user data");
     CHECK(read_bytes(outside) == "outside sentinel");
-    if (linked) CHECK(fs::is_symlink(link));
+    // Some MinGW filesystem implementations report a real Windows symbolic
+    // link as a regular file. Verify the native reparse tag without following it.
+    if (linked) {
+        CHECK(native_symbolic_link(link));
+        std::cout << "clear-staging native symlink preservation exercised\n";
+    } else {
+        std::cout << "SKIP clear-staging symlink fixture; Win32 error "
+            << link_error << '\n';
+    }
     return 0;
 }
 
@@ -1621,6 +1652,8 @@ int main(int argc, char **argv) {
     }
     if (argc == 3) {
         const std::string selected = argv[2];
+        if (selected == "clear-staging-symlink")
+            return test_clear_removes_owned_record_staging_before_success(true);
         if (selected == "numeric-order") return test_numeric_segment_order_after_tenth_rotation();
         if (selected == "pending-clear") return test_pending_clear_blocks_operations_and_retries_same_epoch();
         if (selected == "failed-epoch") return test_failed_epoch_cannot_be_cleared_by_enable_or_disable();

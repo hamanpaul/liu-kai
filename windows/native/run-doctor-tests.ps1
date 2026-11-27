@@ -44,6 +44,13 @@ if ($UseEphemeralTestUser) {
         Get-Content -LiteralPath (Join-Path $work 'stdout.log')
         Get-Content -LiteralPath (Join-Path $work 'stderr.log')
         if ($process.ExitCode -ne 0) { throw "Doctor standard-user tests failed: $($process.ExitCode)" }
+        # A standard account may lack symlink creation permission. Exercise
+        # the real link fixture from this elevated disposable-test entry too;
+        # the selected case fails rather than skipping if it cannot create one.
+        $storeTest = Join-Path $work 'normal-user\store\doctor_store_tests.exe'
+        $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+        & $storeTest $repoRoot 'clear-staging-symlink'
+        if ($LASTEXITCODE -ne 0) { throw 'Required Doctor symlink fixture failed.' }
     } finally {
         if ($created) { Remove-LocalUser -Name $name }
         $secret.Dispose()

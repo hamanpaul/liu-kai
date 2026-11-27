@@ -3,6 +3,7 @@
 目前測試包的執行版本為 `0.1.1-doctor-p0`、MSI `70.1.3`，EXE SHA-256 為 `021a4f295c0aa22dd351ed8e96f59d8a338151aa92049539227bc5df98cd636f`。它是私有驗證產物，尚非正式發行版。
 
 - 最新來源的 `native/test-release.ps1 -DoctorEphemeralTestUser` 在單一沙盒以一般測試帳戶通過，包含19項host、14項真HWND設定測試及完整原生發行檢查。延後讀取named-pipe回覆的真實錯誤233已走RED→GREEN；無讀取客戶端仍須有界結束。
+- 符號連結條件另有強制入口：完整 Doctor 隔離帳戶流程結束後，由具權限的父程序執行 `doctor_store_tests <repo-root> clear-staging-symlink`。它必須成功建立真實連結，再以 Win32 reparse tag 核對清除前後仍為同一類型的符號連結，且外部與無關檔案不變；無法建立連結會失敗。一般帳戶的完整 suite 若缺少此權限，會明確輸出 `SKIP`，不能把它當成已覆蓋。此測試不依賴部分 MinGW 版本會誤報的 `std::filesystem::is_symlink()`。
 - 最新包在同一沙盒完成舊包卸載、重新安裝、已安裝檔案／註冊核對、Doctor歷史保留及登入後collector啟動。兩個私有候選MSI同為70.1.3，這次是卸載後重裝；較早候選另有正式0.1.0升級的證據。最新包最後卸載的Burn與MSI均回傳3010，僅重啟同一沙盒後，程式目錄、MSI／Burn登記、COM／profile、Run、owner及產品待刪項目均清除。獨立核對114項封存檔、16段舊紀錄前綴及52bytes同意控制檔相符；沙盒已關閉，主機安裝未變更。
 - 合成TSF／WM控制可輸出完整中文及英文，並核對Shift切換、匿名事件與提交計數；這不代表實體鍵盤或所有應用程式均已驗證。已完成受控ordinary／private切換、真實AppContainer、跨帳戶拒絕及collector重連；沙盒缺少的Search／Store／WSL仍列未驗。Terminal預設未提供欄位種類及選用相容設定的範圍見 [README](README.md#terminal-的欄位資訊)。
 - 已完成64分22秒、93輪穩定測試，每輪257提交／3089事件、drop0／queue0，32／64MiB限值與retention gap逐輪對帳。依使用者新範圍停止原八小時run，原計時與終止碼保留；八小時記憶體長跑另作非阻擋觀測。
