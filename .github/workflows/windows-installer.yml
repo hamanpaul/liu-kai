@@ -67,6 +67,13 @@ jobs:
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path 'native\tests' $name)
             if ($LASTEXITCODE -ne 0) { throw "Legacy safety test failed: $name" }
           }
+      - name: Preserve Doctor test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-doctor-test-diagnostics-${{ github.sha }}
+          path: windows/build/release-tests/doctor/**/*.log
+          if-no-files-found: warn
       - name: Build installer from Windows version and source commit
         shell: pwsh
         run: |

@@ -52,6 +52,9 @@ if ($UseEphemeralTestUser) {
 }
 
 $bin = (Resolve-Path -LiteralPath $ToolchainBin).Path
+# Start-Process -Credential uses the test account's environment rather than the
+# caller's PATH. GCC's helper executables also need this directory for MSYS2 DLLs.
+$env:PATH = $bin + ';' + $env:PATH
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $previousTemp = $env:TEMP
 $previousTmp = $env:TMP

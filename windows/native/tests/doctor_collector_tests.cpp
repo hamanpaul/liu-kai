@@ -56,6 +56,11 @@ static int test_shared_command_parser() {
 
 int main() {
     if (const int result = test_shared_command_parser()) return result;
+    // A rejected relative path must not consult an unrelated Win32 last error.
+    SetLastError(ERROR_ALREADY_EXISTS);
+    CHECK(poc::Collector(L"relative-doctor-path").run() == 2);
+    SetLastError(ERROR_ACCESS_DENIED);
+    CHECK(poc::Collector(L"relative-doctor-path").run() == 2);
     wchar_t temp[MAX_PATH]{};
     CHECK(GetTempPathW(static_cast<DWORD>(std::size(temp)), temp) > 0);
     const auto directory = std::filesystem::path(temp) /

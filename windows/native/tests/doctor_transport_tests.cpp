@@ -53,7 +53,7 @@ public:
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
         if (!out) return E_POINTER;
         *out = nullptr;
-        if (IsEqualIID(id, IID_IUnknown) || IsEqualIID(id, IID_ITfInputScope)) {
+        if (IsEqualIID(id, IID_IUnknown) || IsEqualIID(id, __uuidof(ITfInputScope))) {
             *out = static_cast<ITfInputScope *>(this);
             AddRef();
             return S_OK;
@@ -115,7 +115,7 @@ public:
     }
     HRESULT STDMETHODCALLTYPE GetType(GUID *type) override {
         if (!type) return E_POINTER;
-        *type = GUID_PROP_INPUTSCOPE;
+        *type = kInputScopeProperty;
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE GetContext(ITfContext **context) override {
@@ -170,7 +170,7 @@ public:
             AddRef();
             return S_OK;
         }
-        if (IsEqualIID(id, IID_ITfInputScope)) ++direct_input_scope_queries;
+        if (IsEqualIID(id, __uuidof(ITfInputScope))) ++direct_input_scope_queries;
         return E_NOINTERFACE;
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return ++refs_; }
@@ -215,7 +215,7 @@ public:
     }
     HRESULT STDMETHODCALLTYPE GetAppProperty(
         REFGUID property_id, ITfReadOnlyProperty **property) override {
-        if (IsEqualGUID(property_id, GUID_PROP_INPUTSCOPE)) {
+        if (IsEqualGUID(property_id, kInputScopeProperty)) {
             ++app_property_queries;
             *property = property_;
             property_->AddRef();
@@ -324,7 +324,7 @@ public:
         DWORD, const GUID **properties, ULONG count,
         IEnumTfRanges **ranges) override {
         if (!properties || !count || !ranges) return E_POINTER;
-        if (!IsEqualGUID(*properties[0], GUID_PROP_INPUTSCOPE))
+        if (!IsEqualGUID(*properties[0], kInputScopeProperty))
             return E_INVALIDARG;
         *ranges = new PropertyRangeFixture(changed_);
         return S_OK;

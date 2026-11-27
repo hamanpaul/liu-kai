@@ -247,7 +247,8 @@ public:
 
     int run() noexcept {
         try {
-            if (!output_.is_absolute() || !CreateDirectoryW(output_.c_str(), nullptr)) {
+            if (!output_.is_absolute()) return 2;
+            if (!CreateDirectoryW(output_.c_str(), nullptr)) {
                 if (GetLastError() != ERROR_ALREADY_EXISTS) return 2;
                 return 3;
             }

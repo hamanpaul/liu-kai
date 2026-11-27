@@ -2,7 +2,6 @@
 #define BOSHIAMY_TSF_DOCTOR_SCOPE_HPP
 
 #include "doctor_transport.hpp"
-#include <initguid.h>
 #include <inputscope.h>
 #include <msctf.h>
 #include "activation_diagnostics.hpp"
@@ -14,6 +13,11 @@
 #include <utility>
 
 namespace boshiamy::doctor {
+
+// Keep the input-scope GUID local to this header. Including initguid.h here
+// changes DEFINE_GUID for every Windows header included by our callers.
+inline constexpr GUID kInputScopeProperty = {
+    0x1713dd5a, 0x68e7, 0x4a5b, {0x9a, 0xf6, 0x59, 0x2a, 0x59, 0x5c, 0x77, 0x8d}};
 
 inline bool sensitive_input_scope(InputScope value) noexcept {
     return value == IS_PASSWORD || value == IS_PRIVATE ||
@@ -59,7 +63,7 @@ inline HRESULT unpack_input_scope(const VARIANT &value, InputScope **scopes,
     if (!unknown) return E_NOINTERFACE;
     ITfInputScope *input_scope = nullptr;
     HRESULT hr = unknown->QueryInterface(
-        IID_ITfInputScope, reinterpret_cast<void **>(&input_scope));
+        __uuidof(ITfInputScope), reinterpret_cast<void **>(&input_scope));
     if (release_unknown) unknown->Release();
     if (FAILED(hr) || !input_scope)
         return FAILED(hr) ? hr : E_NOINTERFACE;
@@ -99,7 +103,7 @@ inline ScopeObservation read_scope_with_cookie(
     }
 
     ITfReadOnlyProperty *property = nullptr;
-    HRESULT hr = context->GetAppProperty(GUID_PROP_INPUTSCOPE, &property);
+    HRESULT hr = context->GetAppProperty(kInputScopeProperty, &property);
     result.app_property_hr = static_cast<std::int32_t>(hr);
     if (FAILED(hr) || !property) {
         if (property) property->Release();
@@ -310,7 +314,7 @@ inline ITfContext *document_context(ITfDocumentMgr *document) noexcept {
 
 inline bool input_scope_property_changed(ITfEditRecord *record) noexcept {
     if (!record) return false;
-    const GUID *properties[] = {&GUID_PROP_INPUTSCOPE};
+    const GUID *properties[] = {&kInputScopeProperty};
     IEnumTfRanges *ranges = nullptr;
     const HRESULT query = record->GetTextAndPropertyUpdates(
         0, properties, 1, &ranges);
