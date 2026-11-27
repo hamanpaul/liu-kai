@@ -17,8 +17,10 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
@@ -39,12 +41,18 @@ import com.hamanpaul.liukai.core.engine.CodeHint
 import com.hamanpaul.liukai.core.engine.InputMode
 import com.hamanpaul.liukai.core.engine.Language
 import com.hamanpaul.liukai.core.engine.ZhuyinStage
+import com.hamanpaul.liukai.core.doctor.DoctorCallbackSource
 import com.hamanpaul.liukai.core.ime.EnterAction
 import com.hamanpaul.liukai.core.ime.SoftKey
 import com.hamanpaul.liukai.core.reading.ZhuyinKeyboard
 import com.hamanpaul.liukai.data.KeyboardSettings
 import com.hamanpaul.liukai.data.KeyboardTheme
 import com.hamanpaul.liukai.data.VoiceMode
+import com.hamanpaul.liukai.doctor.AndroidDoctorController
+import com.hamanpaul.liukai.doctor.DoctorRuntimeListener
+import com.hamanpaul.liukai.doctor.DoctorRuntimeStatus
+import com.hamanpaul.liukai.doctor.DoctorRuntimeSubscription
+import com.hamanpaul.liukai.doctor.DoctorUiResult
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.abs
@@ -103,15 +111,20 @@ private fun ZhuyinStage.showsReadingKeyboard(): Boolean = this == ZhuyinStage.CO
  *   長按「,」彈出 ⚙ 🎤；長按「.'[]」彈出常用標點。
  * - 英文模式字母層：鍵帽小寫；⇧ z–m ⌫；中 ?123 🎤 空白 . Enter（Enter 依欄位動作顯示 Next、Search…）；
  *   麥克風的位置依設定「語音輸入」（主鍵盤、符號鍵盤或關閉，不在的位置為「,」），長按彈出 ⚙ 🎤。
- * - ?123 層與 ALT 層：中文模式最下排為 En 中 , 空白 .'[] ↵（En 切到英文、中 回中文字母層）；
- *   英文模式為 中 ABC , 空白 . Enter。萬用字元 *、反引號 ` 與官方相同放在 ?123／ALT 層，切換鍵盤層不影響組字。
- * - 智慧鍵盤：組字中不能接的鍵留白（不顯示標籤、點了沒有反應），同音鍵留白。打字時只就地更新按鍵內容（見 [rebuildKeyboard]）。
+ * - ?123 層與 ALT 層：從中文模式一律暫時切到英文數符頁並清除未完成組字，回字母層恢復原模式；原英文維持英文。
+ *   符號中的 *、反引號 ` 直接輸出；空白旁按鍵的長按彈出選單不變。
+ * - 智慧鍵盤：組字中不能接的鍵留白（短按沒有反應），空白右側「.'[]」長按仍開常用標點；只開／關不動組字，
+ *   從清單選標點則取消未完成組字、直接輸出並保持中文，其餘留白長按不開放。
  * 候選列照官方橫式畫面：橘色候選、預設字粗體、灰色分隔線；字碼顯示在輸入欄。官方直式畫面不顯示候選列是官方的
  * 問題，liu-kai 直式、橫式都顯示。候選與按鍵都是獨立的標準 View（含 contentDescription），確保點擊判定可靠、
  * 也可被 UiAutomator 定位。
  */
 @SuppressLint("ViewConstructor")
-class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(context) {
+class ImeView internal constructor(
+    context: Context,
+    private val actions: ImeActions,
+    private val doctor: AndroidDoctorController,
+) : LinearLayout(context) {
     private val density = resources.displayMetrics.density
     private fun dp(v: Float) = (v * density).toInt()
 
@@ -138,6 +151,8 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val shifted: Boolean get() = shift != Shift.OFF
     /** 在 ?123／ALT 層打過符號：接著按空白或 Enter 時自動返回字母層（設定「自動返回字元輸入模式」）。 */
     private var typedSymbol = false
+    /** 從中文任意狀態進入 ?123 時暫時切換的原模式；離開符號層前清除並恢復。 */
+    private var modeBeforeSymbols: InputMode? = null
     private var settings = KeyboardSettings()
     /** 目前主題的顏色與樣式（見 [Palettes]）。 */
     private var pal = Palettes.of(KeyboardTheme.GRAY, true)
@@ -161,6 +176,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     private val popupViews = LinkedHashMap<String, View>()
     private val punctViews = LinkedHashMap<String, View>()
     private val voiceKey = ImageView(context)
+    private val doctorStatus = TextView(context)
     private var contextActionId: String? = null
     /** 目前畫出的按鍵配置與排高（見 [rebuildKeyboard]）。 */
     private var builtRows: List<List<KeyDef>> = emptyList()
@@ -184,7 +200,9 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         keyboard.addView(rowsView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
         popupCatcher.visibility = GONE
         popupCatcher.contentDescription = "popup_catcher"
-        popupCatcher.setOnClickListener { dismissPopup() }
+        popupCatcher.setOnClickListener {
+            doctorKeyAction { dismissPopup(); true }
+        }
         keyboard.addView(popupCatcher, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
         popupPanel.orientation = VERTICAL
         popupPanel.visibility = GONE
@@ -217,6 +235,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         autoShifted = false
         typedSymbol = false
         dismissPopup()
+        restoreModeAfterSymbols()
         rebuildKeyboard()
     }
 
@@ -340,11 +359,15 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         val contextAction = if (contextActionAllowed) {
             when {
                 state.zhuyinStage == ZhuyinStage.ENTRY -> {
-                    contextKey.setOnClickListener { actions.onSoftKey(SoftKey.Zhuyin) }
+                    contextKey.setOnClickListener {
+                        doctorKeyAction { actions.onSoftKey(SoftKey.Zhuyin); true }
+                    }
                     "zhuyin"
                 }
                 state.zhuyinStage == ZhuyinStage.INACTIVE && !state.engineIsComposing -> {
-                    contextKey.setOnClickListener { actions.onSoftKey(SoftKey.Homophone) }
+                    contextKey.setOnClickListener {
+                        doctorKeyAction { actions.onSoftKey(SoftKey.Homophone); true }
+                    }
                     "homophone"
                 }
                 else -> null
@@ -385,7 +408,9 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         tv.minWidth = dp(38f)
         tv.contentDescription = "key:punct:$p"
         tv.isClickable = true
-        tv.setOnClickListener { actions.onPunctuation(p) }
+        tv.setOnClickListener {
+            doctorKeyAction { actions.onPunctuation(p); true }
+        }
         tv.background = pressedBackground()
         punctViews["punct:$p"] = tv
         return tv
@@ -459,31 +484,181 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     /** 已處理完的觸控次數（每次放開手指）；測試點擊後等它增加，確認輸入法處理完才進行下一步。
      *  在主執行緒遞增、由 dump 的 binder 執行緒讀取。 */
     @Volatile private var touchesHandled = 0
+    private data class DoctorTouchContext(
+        val operationId: Long,
+        val gestureToken: Long,
+        val pointerCount: Int,
+        val pressed: Boolean,
+    )
+    private data class DoctorClickDispatch(
+        val generation: Long,
+        val context: DoctorTouchContext,
+    )
+    private var doctorOperation = 0L
+    private var doctorGestureToken = 0L
+    private var doctorPointerCount = 0
+    private var doctorPressed = false
+    private var doctorClickGeneration = 0L
+    private var postedDoctorClick: DoctorClickDispatch? = null
+    private var postedDoctorClickContext: DoctorTouchContext? = null
+    private var doctorSubscription: DoctorRuntimeSubscription? = null
+    private val doctorListener = object : DoctorRuntimeListener {
+        override fun onDoctorStatus(status: DoctorRuntimeStatus) {
+            val label = when {
+                status.collecting -> "Doctor 收集中"
+                status.enabled -> "Doctor 中斷"
+                else -> "Doctor 關閉"
+            }
+            if (!TextUtils.equals(doctorStatus.text, label)) doctorStatus.text = label
+        }
+
+        override fun onDoctorResult(result: DoctorUiResult) = Unit
+    }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        val sampleStartedNs = SystemClock.elapsedRealtimeNanos()
         val action = ev.actionMasked
-        TouchDiagnostics.dispatchEvent(ev, this, keyboard, keyViews)
         if (action == MotionEvent.ACTION_DOWN) {
-            touching = true
-            // 按下鍵盤區時的震動與音效（設定「按鍵時震動」「按鍵時播放音效」）
-            if (ev.y >= keyboard.top) keyFeedback()
+            doctorOperation = doctor.beginOperation()
+            doctorGestureToken = doctorOperation
         }
-        val dispatchStartedNs = TouchDiagnostics.startDispatch()
-        val handled = super.dispatchTouchEvent(ev)
-        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-            touching = false
-            // 放開時的點擊（performClick）另外排入佇列執行；延後的重建與觸控計數排在它之後才算處理完
-            post {
-                if (rebuildPending) {
-                    rebuildPending = false
-                    rebuildKeyboard(force = true)
+        doctorPointerCount = if (doctorOperation > 0L) ev.pointerCount else 0
+        doctorPressed = action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL
+        var handled = false
+        val chainStarted = doctor.beginTouchChain(
+            doctorOperation,
+            doctorGestureToken,
+            doctorPointerCount,
+            doctorPressed,
+        )
+        // View schedules performClick during ACTION_UP. Post its context first so its queue slot
+        // precedes that callback and cannot be overwritten by a later gesture dispatched in between.
+        val postedClick = if (action == MotionEvent.ACTION_UP && doctorOperation > 0L) {
+            DoctorClickDispatch(
+                doctorClickGeneration,
+                DoctorTouchContext(
+                    doctorOperation,
+                    doctorGestureToken,
+                    doctorPointerCount,
+                    doctorPressed,
+                ),
+            ).also { click ->
+                post {
+                    postedDoctorClick = click
+                    postedDoctorClickContext =
+                        click.context.takeIf { click.generation == doctorClickGeneration }
                 }
-                touchesHandled++
+            }
+        } else {
+            null
+        }
+        try {
+            return doctor.withOperation(
+                doctorOperation,
+                doctorGestureToken,
+                doctorPointerCount,
+                doctorPressed,
+            ) {
+                TouchDiagnostics.dispatchEvent(ev, this, keyboard, keyViews)
+                if (action == MotionEvent.ACTION_DOWN) {
+                    touching = true
+                    // 按下鍵盤區時的震動與音效（設定「按鍵時震動」「按鍵時播放音效」）
+                    if (ev.y >= keyboard.top) keyFeedback()
+                }
+                val dispatchStartedNs = TouchDiagnostics.startDispatch()
+                handled = super.dispatchTouchEvent(ev)
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                    touching = false
+                    // 放開時的點擊（performClick）另外排入佇列執行；延後的重建與觸控計數排在它之後才算處理完
+                    post {
+                        postedClick?.let { click ->
+                            if (postedDoctorClick === click) {
+                                postedDoctorClick = null
+                                postedDoctorClickContext = null
+                            }
+                        }
+                        if (rebuildPending) {
+                            rebuildPending = false
+                            rebuildKeyboard(force = true)
+                        }
+                        touchesHandled++
+                    }
+                }
+                TouchDiagnostics.endDispatch(ev, dispatchStartedNs, handled)
+                handled
+            }
+        } finally {
+            if (chainStarted) {
+                doctor.finishTouchChain(handled, elapsedUs(sampleStartedNs))
+            }
+            doctor.recordDispatch(sampleStartedNs)
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                clearDoctorTouchContext()
             }
         }
-        TouchDiagnostics.endDispatch(ev, dispatchStartedNs, handled)
-        return handled
     }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        doctorSubscription?.detach()
+        doctorSubscription = doctor.subscribe(doctorListener)
+    }
+
+    override fun onDetachedFromWindow() {
+        doctorSubscription?.detach()
+        doctorSubscription = null
+        doctorClickGeneration++
+        postedDoctorClickContext = null
+        clearDoctorTouchContext()
+        super.onDetachedFromWindow()
+    }
+
+    private inline fun doctorKeyAction(action: () -> Boolean): Boolean {
+        val context = if (postedDoctorClick != null) {
+            postedDoctorClickContext
+        } else {
+            if (doctorOperation <= 0L) return action()
+            DoctorTouchContext(
+                doctorOperation,
+                doctorGestureToken,
+                doctorPointerCount,
+                doctorPressed,
+            )
+        }
+        if (context == null || context.operationId <= 0L) return action()
+        val startedNs = SystemClock.elapsedRealtimeNanos()
+        var handled = false
+        return try {
+            doctor.withOperation(
+                context.operationId,
+                context.gestureToken,
+                context.pointerCount,
+                context.pressed,
+            ) {
+                action().also { handled = it }
+            }
+        } finally {
+            doctor.recordTouch(
+                operationId = context.operationId,
+                gestureToken = context.gestureToken,
+                pointerCount = context.pointerCount,
+                pressed = context.pressed,
+                source = DoctorCallbackSource.KEY_ACTION,
+                handled = handled,
+                durationUs = elapsedUs(startedNs),
+            )
+        }
+    }
+
+    private fun clearDoctorTouchContext() {
+        doctorOperation = 0L
+        doctorGestureToken = 0L
+        doctorPointerCount = 0
+        doctorPressed = false
+    }
+
+    private fun elapsedUs(startedNs: Long): Long =
+        ((SystemClock.elapsedRealtimeNanos() - startedNs) / 1_000L).coerceAtLeast(0L)
 
     private fun keyFeedback() {
         if (settings.vibrate) {
@@ -544,9 +719,23 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         voiceKey.scaleType = ImageView.ScaleType.CENTER
         voiceKey.contentDescription = "key:voice"
         voiceKey.isClickable = true
-        voiceKey.setOnClickListener { actions.onVoice() }
+        voiceKey.setOnClickListener {
+            doctorKeyAction { actions.onVoice(); true }
+        }
         voiceKey.background = pressedBackground()
         bar.addView(voiceKey, LayoutParams(dp(44f), LayoutParams.MATCH_PARENT))
+        doctorStatus.apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+            isSingleLine = true
+            contentDescription = "doctor_status"
+            text = "Doctor 關閉"
+        }
+        bar.addView(
+            doctorStatus,
+            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT).apply {
+                marginEnd = dp(4f)
+            },
+        )
         return bar
     }
 
@@ -570,7 +759,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         tv.isClickable = true
         tv.setOnClickListener {
             TouchDiagnostics.candidateTap(index, tv, candidateScroll)
-            actions.onCandidateTap(index)
+            doctorKeyAction { actions.onCandidateTap(index); true }
         }
         tv.background = pressedBackground()
         return tv
@@ -667,7 +856,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
 
     /**
      * 智慧鍵盤留白的鍵（照官方）：設定開啟、中文模式、組字中，不能接的字母鍵、「,」與「.'[]」，以及同音鍵。
-     * 留白的鍵只剩鍵格，不顯示標籤與數字提示，點了沒有反應。
+     * 留白的鍵只剩鍵格，不顯示標籤與數字提示，短按沒有反應；句點的既有長按 popup 是唯一例外。
      */
     private fun blank(def: KeyDef): Boolean {
         val next = smartKeys
@@ -706,12 +895,31 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             slot.setOnTouchListener { _, event ->
                 val forwarded = MotionEvent.obtain(event)
                 forwarded.offsetLocation(-key.left.toFloat(), -key.top.toFloat())
+                val startedForDoctorNs = SystemClock.elapsedRealtimeNanos()
+                var doctorHandled = false
                 try {
                     val startedNs = TouchDiagnostics.startDispatch()
-                    val handled = key.dispatchTouchEvent(forwarded)
+                    val handled = doctor.withOperation(
+                        doctorOperation,
+                        doctorGestureToken,
+                        doctorPointerCount,
+                        doctorPressed,
+                    ) {
+                        key.dispatchTouchEvent(forwarded)
+                    }
+                    doctorHandled = handled
                     TouchDiagnostics.slotForward(def.id, slot, key, event, startedNs, handled)
                     handled
                 } finally {
+                    doctor.recordTouch(
+                        operationId = doctorOperation,
+                        gestureToken = doctorGestureToken,
+                        pointerCount = doctorPointerCount,
+                        pressed = doctorPressed,
+                        source = DoctorCallbackSource.SLOT_FORWARD,
+                        handled = doctorHandled,
+                        durationUs = elapsedUs(startedForDoctorNs),
+                    )
                     forwarded.recycle()
                 }
             }
@@ -721,7 +929,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
     }
 
     /**
-     * 建立按鍵：監聽器只設一次，在動作當下依目前狀態判斷（留白的鍵點了、長按都沒有反應），
+     * 建立按鍵：監聽器只設一次，在動作當下依目前狀態判斷；留白鍵仍不可短按，只有既有句點 popup 可長按。
      * 內容由 [decorate] 畫，狀態改變時就地重畫。
      */
     private fun buildKey(def: KeyDef): View {
@@ -740,6 +948,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             hint != null -> { { actions.onSoftKey(SoftKey.Text(hint)) } }
             else -> null
         }
+        val allowBlankPeriodPopup = def.id == "." && popup != null
         longPress?.let { action ->
             frame.setOnLongClickListener {
                 val isBlank = blank(def)
@@ -749,12 +958,12 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                     else -> "hint"
                 }
                 TouchDiagnostics.gesture(def.id, "long_press_start", "kind=$kind blank=$isBlank")
-                if (isBlank) {
+                if (isBlank && !allowBlankPeriodPopup) {
                     TouchDiagnostics.gesture(def.id, "long_press_end", "kind=$kind handled=false")
                     false
                 } else {
                     try {
-                        action()
+                        doctorKeyAction { action(); true }
                     } finally {
                         TouchDiagnostics.gesture(def.id, "long_press_end", "kind=$kind handled=true")
                     }
@@ -772,8 +981,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                     var handled = false
                     try {
                         if (!isBlank) {
-                            onKey(def)
-                            handled = true
+                            handled = doctorKeyAction { onKey(def); true }
                         }
                     } finally {
                         TouchDiagnostics.endKeyAction(def.id, isBlank, startedNs, handled)
@@ -1000,8 +1208,11 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                         // Match ordinary key clicks: queue the action so overlapping pointers commit in
                         // UP order. Running this from the space touch listener can overtake a pending key click.
                         v.post {
-                            TouchDiagnostics.gesture(def.id, "space_click", "dx=$dx")
-                            onKey(def)
+                            doctorKeyAction {
+                                TouchDiagnostics.gesture(def.id, "space_click", "dx=$dx")
+                                onKey(def)
+                                true
+                            }
                         }
                     }
                 }
@@ -1058,10 +1269,17 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
             "zhuyin" -> actions.onSoftKey(SoftKey.Zhuyin)
             "mic" -> actions.onVoice()
             "symbols" -> {
-                layer = if (layer == Layer.LETTERS) Layer.SYMBOLS else Layer.LETTERS
                 shift = Shift.OFF
                 autoShifted = false
                 typedSymbol = false
+                if (layer == Layer.LETTERS) {
+                    layer = Layer.SYMBOLS
+                    modeBeforeSymbols = if (chinese) mode else null
+                    if (modeBeforeSymbols != null) actions.onSoftKey(SoftKey.ToggleEnglish)
+                } else {
+                    layer = Layer.LETTERS
+                    restoreModeAfterSymbols()
+                }
                 rebuildKeyboard()
             }
             "alt" -> { layer = if (layer == Layer.ALT) Layer.SYMBOLS else Layer.ALT; rebuildKeyboard() }
@@ -1071,6 +1289,7 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 // 切換中英文一律回到字母層（官方：?123／ALT 層的 En、中 都切到另一模式的字母層）
                 layer = Layer.LETTERS
                 typedSymbol = false
+                modeBeforeSymbols = null
                 actions.onSoftKey(SoftKey.ToggleEnglish)
                 rebuildKeyboard()
             }
@@ -1093,13 +1312,31 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
         actions.onSoftKey(SoftKey.Text(c))
     }
 
+    /** 常用標點從中文模式選取時先清除引擎狀態，再以英文輸入 literal；完成或失敗都恢復中文。 */
+    private fun typePeriodPopupChar(char: Char) {
+        val restoreChinese = mode == InputMode.CHINESE
+        try {
+            if (restoreChinese) actions.onSoftKey(SoftKey.ToggleEnglish)
+            typeChar(char)
+        } finally {
+            if (restoreChinese) actions.onSoftKey(SoftKey.ToggleEnglish)
+        }
+    }
+
     /** 在 ?123／ALT 層打過符號後按空白或 Enter：自動返回字母層（設定「自動返回字元輸入模式」）。 */
     private fun autoReturn() {
         if (settings.autoReturn && typedSymbol) {
             layer = Layer.LETTERS
             typedSymbol = false
+            restoreModeAfterSymbols()
             rebuildKeyboard()
         }
+    }
+
+    private fun restoreModeAfterSymbols() {
+        val originalMode = modeBeforeSymbols ?: return
+        modeBeforeSymbols = null
+        if (mode != originalMode) actions.onSoftKey(SoftKey.ToggleEnglish)
     }
 
     private fun showPopup(anchor: View, popup: List<PopupDef>) {
@@ -1128,11 +1365,14 @@ class ImeView(context: Context, private val actions: ImeActions) : LinearLayout(
                 cell.isClickable = true
                 cell.background = gradientStates(pal.popupKeyTop, pal.popupKeyBottom, pal.pressedTop, pal.pressedBottom)
                 cell.setOnClickListener {
-                    dismissPopup()
-                    when (p.id) {
-                        SETTINGS -> actions.onOpenSettings()
-                        VOICE -> actions.onVoice()
-                        else -> typeChar(p.label[0])
+                    doctorKeyAction {
+                        dismissPopup()
+                        when (p.id) {
+                            SETTINGS -> actions.onOpenSettings()
+                            VOICE -> actions.onVoice()
+                            else -> if (popup === PERIOD_POPUP) typePeriodPopupChar(p.label[0]) else typeChar(p.label[0])
+                        }
+                        true
                     }
                 }
                 popupViews["popup:${p.id}"] = cell

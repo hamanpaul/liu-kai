@@ -81,6 +81,7 @@ def test_ime_state_captures_summary(ex, adb):
     result = run(ex, action="ime_state")
     assert result["captured"] == {
         "mode": "CHINESE",
+        "doctor_input_scope": "UNKNOWN",
         "table_loaded": True,
         "composing": "ba",
         "homophone_of": None,
@@ -955,3 +956,67 @@ def test_swipe_key_moves_horizontally_from_key_center(ex, adb):
     adb.queue(DUMPSYS, state_dump(keys={"space": {"x": 300, "y": 2300, "w": 400, "h": 100}}))
     assert run(ex, action="swipe_key", key="space", dx=-300, duration_ms=800)["success"] is True
     assert adb.of("swipe") == [("swipe", 500, 2350, 200, 2350, 800)]
+
+def test_try_area_scrolls_when_below_visible_settings(ex, adb):
+    missing = '<hierarchy rotation="0"></hierarchy>'
+    visible = '<hierarchy rotation="0"><node text="" content-desc="try_area" bounds="[0,120][1080,240]" /></hierarchy>'
+    adb.shell_outputs[UI_DUMP] = [missing, visible, visible]
+    assert run(ex, action="tap_field", field="try_area")["success"] is True
+    assert adb.of("swipe") == [("swipe", 540, 1920, 540, 800, 400)]
+    assert adb.of("tap") == [("tap", 540, 180)]
+
+
+def test_try_area_does_not_scroll_when_visible(ex, adb):
+    visible = '<hierarchy rotation="0"><node text="" content-desc="try_area" bounds="[0,120][1080,240]" /></hierarchy>'
+    adb.shell_outputs[UI_DUMP] = [visible]
+    assert run(ex, action="tap_field", field="try_area")["success"] is True
+    assert adb.of("swipe") == []
+
+
+def test_try_area_gives_up_after_bounded_scroll(ex, adb):
+    adb.shell_outputs[UI_DUMP] = ['<hierarchy rotation="0"></hierarchy>']
+    result = run(ex, action="tap_field", field="try_area")
+    assert result["success"] is False
+    assert len(adb.of("swipe")) == 4
+
+
+def test_picker_scroll_finds_offscreen_document(ex, adb):
+    missing = '<hierarchy rotation="0"></hierarchy>'
+    visible = '<hierarchy rotation="0"><node text="target.txt" content-desc="" bounds="[0,120][1080,240]" /></hierarchy>'
+    adb.shell_outputs[UI_DUMP] = [missing, visible]
+    result = run(ex, action="wait_text", contains="target.txt", scroll=True)
+    assert result["success"] is True
+    assert result["captured"] == {"text": "target.txt"}
+    assert adb.of("swipe") == [("swipe", 540, 1920, 540, 800, 400)]
+
+
+def test_picker_scroll_stops_at_end_when_document_missing(ex, adb):
+    adb.shell_outputs[UI_DUMP] = ['<hierarchy rotation="0"></hierarchy>']
+    result = run(ex, action="wait_text", contains="missing.txt", scroll=True)
+    assert result["success"] is False
+    assert "missing.txt" in result["output"]
+    assert "捲動後仍找不到文字" in result["output"]
+    assert len(adb.of("swipe")) == 1
+
+
+def test_picker_scroll_tap_uses_found_document(ex, adb):
+    missing = '<hierarchy rotation="0"></hierarchy>'
+    visible = '<hierarchy rotation="0"><node text="target.txt" content-desc="" bounds="[0,120][1080,240]" /></hierarchy>'
+    adb.shell_outputs[UI_DUMP] = [missing, visible]
+    assert run(ex, action="tap_text", text="target.txt", scroll=True)["success"] is True
+    assert adb.of("tap") == [("tap", 540, 180)]
+
+
+def test_picker_scroll_has_absolute_bound_for_changing_pages(ex, adb):
+    adb.shell_outputs[UI_DUMP] = [f'<hierarchy rotation="0"><node text="{i}" content-desc="" bounds="[0,0][1,1]" /></hierarchy>' for i in range(17)]
+    result = run(ex, action="wait_text", contains="missing.txt", scroll=True)
+    assert result["success"] is False
+    assert len(adb.of("swipe")) == 17
+
+
+def test_picker_scroll_tap_rejects_filename_substring(ex, adb):
+    wrong = '<hierarchy rotation="0"><node text="target.txt.backup" content-desc="" bounds="[0,120][1080,240]" /></hierarchy>'
+    right = '<hierarchy rotation="0"><node text="target.txt" content-desc="" bounds="[0,300][1080,400]" /></hierarchy>'
+    adb.shell_outputs[UI_DUMP] = [wrong, right]
+    assert run(ex, action="tap_text", text="target.txt", scroll=True)["success"] is True
+    assert adb.of("tap") == [("tap", 540, 350)]

@@ -1,6 +1,6 @@
 id: soft-wildcard-homophone
-name: 軟鍵盤萬用字元與同音字鍵
-description: a 後切到 ?123 層按 *（萬用字元）點「天」；回字母層打 q，再到 ALT 層按 `（同音字）點「忠」；切換鍵盤層不影響組字。
+name: 組字後符號頁的星號與反引號直接輸出
+description: a 後進 ?123、q 後進 ALT 都取消未完成組字並切英數；* 與反引號直接上屏，不作萬用字元或同音查字，回字母層恢復中文。
 topology:
   devices:
     EMU:
@@ -22,10 +22,9 @@ steps:
   action: tap_key
   target: EMU
   key: '*'
-- id: t1
-  action: tap_candidate
+- id: star_state
+  action: ime_state
   target: EMU
-  text: 天
 - id: abc
   action: tap_key
   target: EMU
@@ -46,15 +45,42 @@ steps:
   action: tap_key
   target: EMU
   key: '`'
-- id: t2
-  action: tap_candidate
+- id: alt_state
+  action: ime_state
   target: EMU
-  text: 忠
 - id: read
   action: read_field
   target: EMU
   field: plain
+- id: letters
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: restored
+  action: ime_state
+  target: EMU
 pass_criteria:
 - field: read.text
   operator: equals
-  value: 天忠
+  value: '*`'
+- field: star_state.mode
+  operator: equals
+  value: ENGLISH
+- field: star_state.composing
+  operator: equals
+  value: ''
+- field: alt_state.mode
+  operator: equals
+  value: ENGLISH
+- field: alt_state.composing
+  operator: equals
+  value: ''
+- field: alt_state.layer
+  operator: equals
+  value: alt
+- field: restored.mode
+  operator: equals
+  value: CHINESE
+- field: restored.layer
+  operator: equals
+  value: letters

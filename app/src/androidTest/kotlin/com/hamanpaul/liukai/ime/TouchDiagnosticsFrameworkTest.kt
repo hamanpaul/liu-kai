@@ -16,16 +16,41 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class TouchDiagnosticsFrameworkTest : Instrumentation() {
+    private var doctorProbe = false
+    private var doctorActions = false
+    private var doctorSafLifetime = false
+    private var doctorStatus = false
+    private var doctorUnit = false
+
     override fun onCreate(arguments: Bundle?) {
         super.onCreate(arguments)
+        doctorProbe = arguments?.getString("mode") == "doctor-p0"
+        doctorActions = arguments?.getString("mode") == "doctor-actions"
+        doctorSafLifetime = arguments?.getString("mode") == "doctor-saf-lifetime"
+        doctorStatus = arguments?.getString("mode") == "doctor-status"
+        doctorUnit = arguments?.getString("mode") == "doctor-unit"
         start()
     }
 
     override fun onStart() {
         super.onStart()
         try {
-            exerciseFrameworkUnsetPressedCallback()
-            finish(Activity.RESULT_OK, Bundle().apply { putString("stream", "Framework callback trace verified.") })
+            val message = if (doctorUnit) {
+                DoctorUnitDeviceProbe.run()
+            } else if (doctorStatus) {
+                DoctorStatusDeviceProbe.run(this)
+            } else if (doctorSafLifetime) {
+                DoctorActionsDeviceProbe.runSafLifetime(this)
+            } else if (doctorActions) {
+                DoctorActionsDeviceProbe.run(this)
+            } else if (doctorProbe) {
+                DoctorProjectionDeviceProbe.run(targetContext) { action -> runOnMainSync(action) }
+            } else {
+                exerciseFrameworkUnsetPressedCallback()
+                "Framework callback trace verified. " + DoctorUnitDeviceProbe.run() + " " + DoctorActionsDeviceProbe.run(this) + " " + DoctorStatusDeviceProbe.run(this)
+            }
+            if (com.hamanpaul.liukai.BuildConfig.DEBUG) dumpCoverage()
+            finish(Activity.RESULT_OK, Bundle().apply { putString("stream", message) })
         } catch (failure: Throwable) {
             finish(
                 Activity.RESULT_CANCELED,
@@ -134,7 +159,9 @@ class TouchDiagnosticsFrameworkTest : Instrumentation() {
 
         stage(keyId, "finish_activity")
         runOnMainSync { targetActivity.finish() }
-        stage(keyId, "dump_coverage")
+    }
+
+    private fun dumpCoverage() {
         repeat(2) { attempt ->
             val dump = uiAutomation.executeShellCommand(
                 "am broadcast -a com.hamanpaul.liukai.DUMP_COVERAGE " +
@@ -143,7 +170,7 @@ class TouchDiagnosticsFrameworkTest : Instrumentation() {
             val output = ParcelFileDescriptor.AutoCloseInputStream(dump).bufferedReader().use { it.readText() }
             requireCondition(
                 output.contains("result=1") && output.contains("OK "),
-                "run=$keyId stage=dump_coverage attempt=$attempt failed: $output",
+                "stage=dump_coverage attempt=$attempt failed: $output",
             )
         }
     }

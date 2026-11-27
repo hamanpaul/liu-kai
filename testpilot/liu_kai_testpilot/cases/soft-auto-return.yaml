@@ -40,6 +40,32 @@ steps:
   action: tap_key
   target: EMU
   key: symbols
+- id: manual_state
+  action: ime_state
+  target: EMU
+- id: focus_multiline
+  action: tap_field
+  target: EMU
+  field: multiline
+- id: enter_symbols
+  action: tap_key
+  target: EMU
+  key: symbols
+- id: enter_one
+  action: tap_key
+  target: EMU
+  key: '1'
+- id: enter_return
+  action: tap_key
+  target: EMU
+  key: enter
+- id: enter_state
+  action: ime_state
+  target: EMU
+- id: read_multiline
+  action: read_field
+  target: EMU
+  field: multiline
 - id: read
   action: read_field
   target: EMU
@@ -48,9 +74,27 @@ pass_criteria:
 - field: st1.layer
   operator: equals
   value: letters
+- field: st1.mode
+  operator: equals
+  value: CHINESE
 - field: st2.layer
   operator: equals
   value: symbols
+- field: st2.mode
+  operator: equals
+  value: ENGLISH
+- field: manual_state.mode
+  operator: equals
+  value: CHINESE
+- field: enter_state.layer
+  operator: equals
+  value: letters
+- field: enter_state.mode
+  operator: equals
+  value: CHINESE
+- field: read_multiline.text
+  operator: equals
+  value: "1\n"
 - field: read.text
   operator: equals
   value: '1  '

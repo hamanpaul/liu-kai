@@ -177,6 +177,16 @@ class StepExecutor:
 
     def _do_tap_field(self, step):
         """點輸入欄；指定 x_ratio 時點在欄位寬度的該比例位置（例如 0.02 為最左側，用來移動游標）。"""
+        if step["field"] == "try_area":
+            # The Doctor section can put the real input below the initial viewport.
+            for _ in range(4):
+                try:
+                    find_node(self.ui_xml(), desc="try_area")
+                    break
+                except LookupError:
+                    width, height = self.adb.screen_size()
+                    self.adb.swipe(width // 2, height * 4 // 5, width // 2, height // 3, 400)
+                    self.settle()
         rect = self._find(desc=step["field"]).rect
         x, y = rect.center
         if "x_ratio" in step:
@@ -231,6 +241,22 @@ class StepExecutor:
                 raise LookupError("取得焦點的視窗一直無法接收觸控")
             self._sleep(0.5)
 
+    def _scroll_to_text(self, text, exact=False):
+        """Find a document in the current picker without scrolling indefinitely."""
+        previous = None
+        for _ in range(17):
+            xml = self.ui_xml()
+            try:
+                return find_node(xml, **({"text": text} if exact else {"text_contains": text}))
+            except LookupError:
+                if xml == previous:
+                    break
+                previous = xml
+                width, height = self.adb.screen_size()
+                self.adb.swipe(width // 2, height * 4 // 5, width // 2, height // 3, 400)
+                self.settle()
+        raise LookupError(f"捲動後仍找不到文字「{text}」")
+
     def _do_tap_text(self, step):
         """點畫面上的文字。指定 until 時確認點擊生效（畫面出現 until 文字）：系統忙碌時點擊可能被丟掉
         （InputDispatcher：No new touched window），等不到且原本的文字還在畫面上就再點一次（最多 TAP_TRIES 次）；
@@ -238,7 +264,8 @@ class StepExecutor:
         tries = 0
         while True:
             self.await_touchable()
-            x, y = self._find(text=step["text"]).rect.center
+            node = self._scroll_to_text(step["text"], exact=True) if step.get("scroll") else self._find(text=step["text"])
+            x, y = node.rect.center
             self.adb.tap(x, y)
             self.settle()
             tries += 1
@@ -545,6 +572,9 @@ class StepExecutor:
 
     def _do_wait_text(self, step):
         """等畫面出現含指定文字的節點（例如系統選單、選檔畫面載入完成），每 0.5 秒檢查一次。"""
+        if step.get("scroll"):
+            node = self._scroll_to_text(step["contains"])
+            return f"found {step['contains']}", {"text": node.text}
         attempts = max(1, step.get("timeout_ms", 5000) // 500)
         while True:
             try:
@@ -601,6 +631,7 @@ class StepExecutor:
         s = self.state()
         captured = {
             "mode": s.mode,
+            "doctor_input_scope": s.doctor_input_scope,
             "table_loaded": s.table_loaded,
             "composing": s.composing,
             "homophone_of": s.homophone_of,

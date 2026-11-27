@@ -1,0 +1,2054 @@
+{
+  "report_sha256": "f8bb9d37ab08dd18502b88a3b91addf648b092bc921d4661ebc9c5825c6ad0cf",
+  "counters": {
+    "INSTRUCTION": {
+      "missed": 835,
+      "covered": 21148
+    },
+    "BRANCH": {
+      "missed": 113,
+      "covered": 1098
+    },
+    "LINE": {
+      "missed": 91,
+      "covered": 3196
+    },
+    "COMPLEXITY": {
+      "missed": 116,
+      "covered": 1276
+    },
+    "METHOD": {
+      "missed": 30,
+      "covered": 742
+    },
+    "CLASS": {
+      "missed": 0,
+      "covered": 73
+    }
+  },
+  "verification_exit": 1,
+  "thresholds_changed": false,
+  "scope": "Android app same-class coverage after JVM/ART68 and popup regressions. Raw private EC, XML session headers and device data remain local.",
+  "method_gaps": [
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView$PreviewDrawable",
+      "source_file": "ImeView.kt",
+      "method": "getText",
+      "descriptor": "()Ljava/lang/String;",
+      "line": "1477",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView$PreviewDrawable",
+      "source_file": "ImeView.kt",
+      "method": "getIcon",
+      "descriptor": "()Landroid/graphics/drawable/Drawable;",
+      "line": "1478",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView$PreviewDrawable",
+      "source_file": "ImeView.kt",
+      "method": "getIconOffset",
+      "descriptor": "()I",
+      "line": "1480",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "onAttachedToWindow",
+      "descriptor": "()V",
+      "line": "602",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 16
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 4
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "onDetachedFromWindow",
+      "descriptor": "()V",
+      "line": "608",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 1,
+          "covered": 25
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 7
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "doctorKeyAction",
+      "descriptor": "(Lkotlin/jvm/functions/Function0;)Z",
+      "line": "617",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 100,
+          "covered": 0
+        },
+        "BRANCH": {
+          "missed": 8,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 26,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 5,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "rowsFor",
+      "descriptor": "(Lcom/hamanpaul/liukai/ime/ImeView$Layer;)Ljava/util/List;",
+      "line": "795",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 6,
+          "covered": 56
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 7
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 8
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 5
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "blank",
+      "descriptor": "(Lcom/hamanpaul/liukai/ime/ImeView$KeyDef;)Z",
+      "line": "862",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 83
+        },
+        "BRANCH": {
+          "missed": 3,
+          "covered": 21
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 8
+        },
+        "COMPLEXITY": {
+          "missed": 3,
+          "covered": 10
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "buildKey",
+      "descriptor": "(Lcom/hamanpaul/liukai/ime/ImeView$KeyDef;)Landroid/view/View;",
+      "line": "936",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 131
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 17
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 24
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 9
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "labelFor",
+      "descriptor": "(Lcom/hamanpaul/liukai/ime/ImeView$KeyDef;)Ljava/lang/String;",
+      "line": "1240",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 74
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 23
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 12
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 13
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "restoreModeAfterSymbols",
+      "descriptor": "()V",
+      "line": "1337",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 20
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 3
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 4
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 2
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "dispatchTouchEvent$lambda$29$lambda$28",
+      "descriptor": "(Lcom/hamanpaul/liukai/ime/ImeView;Lcom/hamanpaul/liukai/ime/ImeView$DoctorClickDispatch;)V",
+      "line": "547",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 25
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 2
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 4
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "dispatchTouchEvent$lambda$32$lambda$31",
+      "descriptor": "(Lcom/hamanpaul/liukai/ime/ImeView$DoctorClickDispatch;Lcom/hamanpaul/liukai/ime/ImeView;)V",
+      "line": "574",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 38
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 5
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 10
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView",
+      "source_file": "ImeView.kt",
+      "method": "showPopup$lambda$93$lambda$92$lambda$90",
+      "descriptor": "(Lcom/hamanpaul/liukai/ime/ImeView;Lcom/hamanpaul/liukai/ime/ImeView$PopupDef;Ljava/util/List;Landroid/view/View;)V",
+      "line": "1368",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 62,
+          "covered": 57
+        },
+        "BRANCH": {
+          "missed": 11,
+          "covered": 7
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 8
+        },
+        "COMPLEXITY": {
+          "missed": 6,
+          "covered": 4
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/LiuKaiImeService",
+      "source_file": "LiuKaiImeService.kt",
+      "method": "onKeyDown",
+      "descriptor": "(ILandroid/view/KeyEvent;)Z",
+      "line": "149",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 55,
+          "covered": 127
+        },
+        "BRANCH": {
+          "missed": 5,
+          "covered": 7
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 15
+        },
+        "COMPLEXITY": {
+          "missed": 3,
+          "covered": 4
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/LiuKaiImeService",
+      "source_file": "LiuKaiImeService.kt",
+      "method": "onSoftKey",
+      "descriptor": "(Lcom/hamanpaul/liukai/core/ime/SoftKey;)V",
+      "line": "182",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 1,
+          "covered": 146
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 5
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 12
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/LiuKaiImeService",
+      "source_file": "LiuKaiImeService.kt",
+      "method": "onCandidateTap",
+      "descriptor": "(I)V",
+      "line": "198",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 41,
+          "covered": 82
+        },
+        "BRANCH": {
+          "missed": 4,
+          "covered": 2
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 11
+        },
+        "COMPLEXITY": {
+          "missed": 3,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/LiuKaiImeService",
+      "source_file": "LiuKaiImeService.kt",
+      "method": "withDoctorOperation",
+      "descriptor": "(Lkotlin/jvm/functions/Function0;)Ljava/lang/Object;",
+      "line": "282",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 37,
+          "covered": 0
+        },
+        "BRANCH": {
+          "missed": 4,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 5,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 3,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView$doctorListener$1",
+      "source_file": "ImeView.kt",
+      "method": "onDoctorResult",
+      "descriptor": "(Lcom/hamanpaul/liukai/doctor/DoctorUiResult;)V",
+      "line": "515",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 4,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView$Layer",
+      "source_file": "ImeView.kt",
+      "method": "getEntries",
+      "descriptor": "()Lkotlin/enums/EnumEntries;",
+      "line": "131",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/ime/ImeView$Shift",
+      "source_file": "ImeView.kt",
+      "method": "getEntries",
+      "descriptor": "()Lkotlin/enums/EnumEntries;",
+      "line": "134",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/DoctorSettingsSection",
+      "source_file": "DoctorSettingsSection.kt",
+      "method": "<init>",
+      "descriptor": "(Landroid/app/Activity;Landroid/widget/LinearLayout;Landroid/os/Bundle;)V",
+      "line": "27",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 185
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 11
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 22
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 6
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/DoctorSettingsSection",
+      "source_file": "DoctorSettingsSection.kt",
+      "method": "request",
+      "descriptor": "(Lkotlin/jvm/functions/Function0;)V",
+      "line": "79",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 1,
+          "covered": 24
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 6
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/DoctorSettingsSection",
+      "source_file": "DoctorSettingsSection.kt",
+      "method": "onDoctorStatus",
+      "descriptor": "(Lcom/hamanpaul/liukai/doctor/DoctorRuntimeStatus;)V",
+      "line": "87",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 4,
+          "covered": 93
+        },
+        "BRANCH": {
+          "missed": 3,
+          "covered": 11
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 14
+        },
+        "COMPLEXITY": {
+          "missed": 3,
+          "covered": 5
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/DoctorSettingsSection",
+      "source_file": "DoctorSettingsSection.kt",
+      "method": "preview",
+      "descriptor": "()V",
+      "line": "178",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 37
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 7
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/DoctorSettingsSection",
+      "source_file": "DoctorSettingsSection.kt",
+      "method": "onActivityResult",
+      "descriptor": "(IILandroid/content/Intent;)Z",
+      "line": "193",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 12,
+          "covered": 40
+        },
+        "BRANCH": {
+          "missed": 3,
+          "covered": 9
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 10
+        },
+        "COMPLEXITY": {
+          "missed": 3,
+          "covered": 4
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/DoctorSettingsSection",
+      "source_file": "DoctorSettingsSection.kt",
+      "method": "mark$lambda$29$lambda$28",
+      "descriptor": "(Landroid/widget/EditText;Landroid/widget/EditText;Lkotlin/jvm/internal/Ref$LongRef;Landroid/widget/TextView;Lcom/hamanpaul/liukai/settings/DoctorSettingsSection;Landroid/app/AlertDialog;Landroid/view/View;)V",
+      "line": "165",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 30
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 3
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 5
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 2
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/SettingsActivity",
+      "source_file": "SettingsActivity.kt",
+      "method": "onActivityResult$lambda$30$lambda$27$lambda$26$lambda$25",
+      "descriptor": "(Ljava/lang/String;)Ljava/io/FileNotFoundException;",
+      "line": "140",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 6,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/settings/SettingsUi",
+      "source_file": "SettingsUi.kt",
+      "method": "getRoot",
+      "descriptor": "()Landroid/widget/LinearLayout;",
+      "line": "23",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInstrumentation",
+      "source_file": "DoctorInstrumentation.kt",
+      "method": "recordWritten",
+      "descriptor": "(J)V",
+      "line": "55",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 14
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 3
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInstrumentation",
+      "source_file": "DoctorInstrumentation.kt",
+      "method": "recordHardware",
+      "descriptor": "(ZZJ)V",
+      "line": "75",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 12
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 3
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 3
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 2
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorUiOperation",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "getEntries",
+      "descriptor": "()Lkotlin/enums/EnumEntries;",
+      "line": "84",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController$Companion",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "get",
+      "descriptor": "(Landroid/content/Context;)Lcom/hamanpaul/liukai/doctor/AndroidDoctorController;",
+      "line": "629",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 36
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 3
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 3
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 2
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "markIssue$default",
+      "descriptor": "(Lcom/hamanpaul/liukai/doctor/AndroidDoctorController;JLcom/hamanpaul/liukai/doctor/DoctorRuntimeSubscription;Lcom/hamanpaul/liukai/core/doctor/DoctorExportWindow;ILjava/lang/Object;)V",
+      "line": "189",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 12,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 2,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "withOperation",
+      "descriptor": "(JJIZLkotlin/jvm/functions/Function0;)Ljava/lang/Object;",
+      "line": "251",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 11,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "awaitWriterIdleForTest",
+      "descriptor": "(J)Z",
+      "line": "378",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 11,
+          "covered": 26
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 2
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 4
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "execute",
+      "descriptor": "(Lcom/hamanpaul/liukai/doctor/DoctorWriterCore;Lcom/hamanpaul/liukai/doctor/AndroidDoctorController$WriterCommand;)V",
+      "line": "429",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 151
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 17
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 39
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 9
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "signalWriter",
+      "descriptor": "()V",
+      "line": "488",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 9
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 2
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "ordinaryMetricsAllowed",
+      "descriptor": "()Z",
+      "line": "555",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 15
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 5
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 2
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/AndroidDoctorController",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "positiveId",
+      "descriptor": "(Ljava/security/SecureRandom;)J",
+      "line": "570",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 13
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 4
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorNumericSnapshot",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "getSequenceGap",
+      "descriptor": "()J",
+      "line": "56",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorNumericSnapshot",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "getIgnoredLines",
+      "descriptor": "()J",
+      "line": "57",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorNumericSnapshot",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "getProducerViolations",
+      "descriptor": "()J",
+      "line": "59",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorNumericSnapshot",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "getLastCommitAttempted",
+      "descriptor": "()I",
+      "line": "70",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorNumericSnapshot",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "getDurationBucketWidthUs",
+      "descriptor": "()J",
+      "line": "72",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorNumericSnapshot",
+      "source_file": "AndroidDoctorController.kt",
+      "method": "getDurationOverflowUs",
+      "descriptor": "()J",
+      "line": "73",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorSpscRing",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "tryWrite",
+      "descriptor": "(Lkotlin/jvm/functions/Function1;)Z",
+      "line": "105",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 45,
+          "covered": 0
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 6,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorSpscRing",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "poll",
+      "descriptor": "(Lkotlin/jvm/functions/Function1;)Z",
+      "line": "114",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 38,
+          "covered": 0
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 5,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorSpscRing",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "discard",
+      "descriptor": "(Lkotlin/jvm/functions/Function1;)V",
+      "line": "122",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 11,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 2,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorSafExportTarget",
+      "source_file": "DoctorSafExportTarget.kt",
+      "method": "validate",
+      "descriptor": "()Z",
+      "line": "19",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 1,
+          "covered": 51
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 6
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 13
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorQueueSlot",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "getMonotonicNs",
+      "descriptor": "()J",
+      "line": "16",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorQueueSlot",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "getWallUtcMs",
+      "descriptor": "()J",
+      "line": "17",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorQueueSlot",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "getTimezoneOffsetMinutes",
+      "descriptor": "()I",
+      "line": "18",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorQueueSlot",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "getResultCode",
+      "descriptor": "()Lcom/hamanpaul/liukai/core/doctor/DoctorResultCode;",
+      "line": "26",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorQueueSlot",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "getDurationUs",
+      "descriptor": "()J",
+      "line": "27",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorQueueSlot",
+      "source_file": "DoctorSpscRing.kt",
+      "method": "toEventRecord",
+      "descriptor": "(JJ)Lcom/hamanpaul/liukai/core/doctor/DoctorEventRecord;",
+      "line": "40",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 261
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 9
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 24
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 5
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "enable",
+      "descriptor": "()Lcom/hamanpaul/liukai/core/doctor/DoctorStoreResult;",
+      "line": "78",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 33
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 5
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 9
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "disable",
+      "descriptor": "()Lcom/hamanpaul/liukai/core/doctor/DoctorStoreResult;",
+      "line": "93",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 28
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 9
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "clear",
+      "descriptor": "()Lcom/hamanpaul/liukai/core/doctor/DoctorStoreResult;",
+      "line": "106",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 41
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 5
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 13
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "encodedLineBytes",
+      "descriptor": "(Lcom/hamanpaul/liukai/core/doctor/DoctorBuildMetadata;Lcom/hamanpaul/liukai/core/doctor/DoctorEventRecord;)J",
+      "line": "155",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 4,
+          "covered": 22
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 4
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "prepareExport",
+      "descriptor": "()Lcom/hamanpaul/liukai/core/doctor/DoctorStoreResult;",
+      "line": "171",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 103
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 7
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 16
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 4
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "saveExport",
+      "descriptor": "(Lcom/hamanpaul/liukai/doctor/DoctorExportHandle;Lcom/hamanpaul/liukai/doctor/DoctorExportTarget;)Lcom/hamanpaul/liukai/core/doctor/DoctorStoreResult;",
+      "line": "196",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 235
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 18
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 40
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 9
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "refresh",
+      "descriptor": "()V",
+      "line": "263",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 11
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 1
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 3
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 1
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorWriterCore",
+      "source_file": "DoctorWriterCore.kt",
+      "method": "refreshState",
+      "descriptor": "(Z)V",
+      "line": "296",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 94
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 20
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 25
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 10
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "getRing$app_debug",
+      "descriptor": "()Lcom/hamanpaul/liukai/doctor/DoctorSpscRing;",
+      "line": "15",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 3,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "isOrdinaryCollecting",
+      "descriptor": "()Z",
+      "line": "48",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 0,
+          "covered": 26
+        },
+        "BRANCH": {
+          "missed": 2,
+          "covered": 6
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 4
+        },
+        "COMPLEXITY": {
+          "missed": 2,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "beginOperation",
+      "descriptor": "()J",
+      "line": "113",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 27
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 5
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 5
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "recordTouch",
+      "descriptor": "(JJIZLcom/hamanpaul/liukai/core/doctor/DoctorCallbackSource;ZJ)Z",
+      "line": "129",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 1,
+          "covered": 131
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 13
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 18
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 7
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "beginTouchChain",
+      "descriptor": "(JJIZ)Z",
+      "line": "155",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 2,
+          "covered": 59
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 11
+        },
+        "LINE": {
+          "missed": 1,
+          "covered": 19
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 6
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "finishTouchChain",
+      "descriptor": "(ZJ)V",
+      "line": "181",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 1,
+          "covered": 104
+        },
+        "BRANCH": {
+          "missed": 4,
+          "covered": 22
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 24
+        },
+        "COMPLEXITY": {
+          "missed": 4,
+          "covered": 10
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "recordHealth",
+      "descriptor": "()Z",
+      "line": "247",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 27,
+          "covered": 50
+        },
+        "BRANCH": {
+          "missed": 1,
+          "covered": 5
+        },
+        "LINE": {
+          "missed": 0,
+          "covered": 11
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 3
+        },
+        "METHOD": {
+          "missed": 0,
+          "covered": 1
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "withOperation",
+      "descriptor": "(JJIZLkotlin/jvm/functions/Function0;)Ljava/lang/Object;",
+      "line": "267",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 51,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 14,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 1,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    },
+    {
+      "class": "com/hamanpaul/liukai/doctor/DoctorInputProducer",
+      "source_file": "DoctorInputProducer.kt",
+      "method": "enqueue",
+      "descriptor": "(ZLkotlin/jvm/functions/Function1;)Z",
+      "line": "301",
+      "counters": {
+        "INSTRUCTION": {
+          "missed": 109,
+          "covered": 0
+        },
+        "BRANCH": {
+          "missed": 22,
+          "covered": 0
+        },
+        "LINE": {
+          "missed": 24,
+          "covered": 0
+        },
+        "COMPLEXITY": {
+          "missed": 12,
+          "covered": 0
+        },
+        "METHOD": {
+          "missed": 1,
+          "covered": 0
+        }
+      }
+    }
+  ],
+  "verification_executed_report_sha256": "9c8f82158ea06b27a452fadd7cd816a4f445535a7cdd52a28bbf5d6bd390a6b8",
+  "latest_report_verification_rerun": false,
+  "latest_report_all_110_class_source_blocks_identical": true
+}

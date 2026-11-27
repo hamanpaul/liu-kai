@@ -1,0 +1,49 @@
+id: doctor-input-scope-p0
+name: Doctor P0 輸入情境投影
+description: Android Release 共用投影對一般、密碼、NO_PERSONALIZED 與 TYPE_NULL 欄位回報固定三分類。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  field: plain
+steps:
+- id: ordinary
+  action: ime_state
+  target: EMU
+- id: focus_password
+  action: tap_field
+  target: EMU
+  field: password
+- id: password
+  action: ime_state
+  target: EMU
+- id: focus_private
+  action: tap_field
+  target: EMU
+  field: private
+- id: private
+  action: ime_state
+  target: EMU
+- id: focus_unknown
+  action: tap_field
+  target: EMU
+  field: unknown
+- id: unknown
+  action: ime_state
+  target: EMU
+pass_criteria:
+- field: ordinary.doctor_input_scope
+  operator: equals
+  value: ORDINARY
+- field: password.doctor_input_scope
+  operator: equals
+  value: SENSITIVE
+- field: private.doctor_input_scope
+  operator: equals
+  value: SENSITIVE
+- field: unknown.doctor_input_scope
+  operator: equals
+  value: UNKNOWN

@@ -1,0 +1,127 @@
+id: soft-root-popup-while-composing
+name: 智慧鍵盤留白時長按句點仍可開標點清單
+description: 智慧鍵盤開啟且 b 組字時，右側「.'[]」保持留白；短按無反應，長按仍顯示既有 14 項常用標點，開啟與點 popup 外收起都不改中文組字。
+topology:
+  devices:
+    EMU:
+      role: dut
+      transport: adb
+      note: Android 模擬器（testbed.yaml 的 serial）
+preconditions:
+  keyboard: soft
+  prefs:
+    smart_keyboard: 'true'
+steps:
+- id: b
+  action: tap_key
+  target: EMU
+  key: b
+- id: blank_state
+  action: ime_state
+  target: EMU
+- id: short_period
+  action: tap_key
+  target: EMU
+  key: .
+- id: short_state
+  action: ime_state
+  target: EMU
+- id: long_period
+  action: long_press_key
+  target: EMU
+  key: .
+- id: popup_state
+  action: ime_state
+  target: EMU
+- id: outside
+  action: tap_key
+  target: EMU
+  key: space
+- id: dismissed_state
+  action: ime_state
+  target: EMU
+- id: read
+  action: read_field
+  target: EMU
+  field: plain
+pass_criteria:
+- field: blank_state.blank
+  operator: contains
+  value: .
+- field: blank_state.blank
+  operator: contains
+  value: ','
+- field: blank_state.blank
+  operator: contains
+  value: q
+- field: blank_state.blank
+  operator: contains
+  value: homophone
+- field: blank_state.composing
+  operator: equals
+  value: b
+- field: blank_state.mode
+  operator: equals
+  value: CHINESE
+- field: blank_state.failure_hint
+  operator: equals
+  value: false
+- field: short_state.blank
+  operator: contains
+  value: .
+- field: short_state.popup
+  operator: equals
+  value: []
+- field: short_state.composing
+  operator: equals
+  value: b
+- field: short_state.mode
+  operator: equals
+  value: CHINESE
+- field: short_state.failure_hint
+  operator: equals
+  value: false
+- field: popup_state.popup
+  operator: equals
+  value:
+  - 'popup::'
+  - popup:/
+  - popup:&
+  - popup:(
+  - popup:)
+  - popup:-
+  - popup:+
+  - popup:;
+  - popup:@
+  - popup:'
+  - popup:"
+  - popup:?
+  - popup:!
+  - popup:,
+- field: popup_state.blank
+  operator: contains
+  value: .
+- field: popup_state.composing
+  operator: equals
+  value: b
+- field: popup_state.mode
+  operator: equals
+  value: CHINESE
+- field: popup_state.failure_hint
+  operator: equals
+  value: false
+- field: dismissed_state.popup
+  operator: equals
+  value: []
+- field: dismissed_state.composing
+  operator: equals
+  value: b
+- field: dismissed_state.mode
+  operator: equals
+  value: CHINESE
+- field: dismissed_state.failure_hint
+  operator: equals
+  value: false
+- field: read.text
+  operator: equals
+  value: B

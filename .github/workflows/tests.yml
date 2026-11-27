@@ -1,6 +1,6 @@
 name: Tests
 
-# - gradle：core／cli 單元測試與 JaCoCo 100%（行＋分支）門檻，並建置 debug APK。
+# - gradle：core／cli 單元測試與 JaCoCo 100%（行＋分支）門檻、app JVM 單元測試，並建置 debug APK。
 # - plugin：TestPilot plugin 的 pytest 與 100% 覆蓋率門檻。
 # app 的覆蓋率需要模擬器，由本機 scripts/emulator-e2e.sh 以 TestPilot 案例量測並驗證 100% 門檻。
 on:
@@ -26,7 +26,7 @@ jobs:
           java-version: "17"
 
       - name: Unit tests, coverage gates and debug build
-        run: ./gradlew --no-daemon :core:check :cli:check assembleDebug
+        run: ./gradlew --no-daemon :core:check :cli:check :app:testDebugUnitTest assembleDebug
 
   plugin:
     runs-on: ubuntu-latest

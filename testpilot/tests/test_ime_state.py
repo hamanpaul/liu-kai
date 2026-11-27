@@ -13,6 +13,7 @@ def dump_with(state: dict) -> str:
 
 STATE = {
     "mode": "CHINESE",
+    "doctorInputScope": "ORDINARY",
     "tableLoaded": True,
     "composing": "ba",
     "homophoneOf": None,
@@ -52,6 +53,7 @@ STATE = {
 def test_parse_dump_decodes_state_line():
     state = parse_dump(dump_with(STATE))
     assert state.mode == "CHINESE"
+    assert state.doctor_input_scope == "ORDINARY"
     assert state.table_loaded is True
     assert state.composing == "ba"
     assert state.homophone_of is None

@@ -25,11 +25,20 @@ steps:
   action: tap_key
   target: EMU
   key: symbols
+- id: back
+  action: ime_state
+  target: EMU
 - id: zh
   action: tap_key
   target: EMU
   key: toggle_english
 pass_criteria:
+- field: back.layer
+  operator: equals
+  value: letters
+- field: back.mode
+  operator: equals
+  value: ENGLISH
 - field: st.row_labels
   operator: equals
   value:

@@ -29,9 +29,18 @@ preflight:
   steps:
     - name: gradle-test
       kind: tests
-      argv: ["./gradlew", "--no-daemon", "test"]
+      argv: ["./gradlew", "--no-daemon", ":core:check", ":cli:check", ":app:testDebugUnitTest", "assembleDebug"]
       when_path_exists: "gradlew"
       timeout_seconds: 1800
+    - name: release-integrity-tests
+      kind: tests
+      argv: ["python3", "-m", "unittest", "discover", "-s", "scripts/tests"]
+      timeout_seconds: 300
+    - name: testpilot-tests
+      kind: tests
+      argv: ["python3", "-m", "pytest"]
+      cwd: "testpilot"
+      timeout_seconds: 600
 tier: personal
 secret_scan:
   allow: []
