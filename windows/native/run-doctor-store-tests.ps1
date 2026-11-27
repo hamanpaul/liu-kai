@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$windowsTargetFlags = & (Join-Path $PSScriptRoot 'windows-target-flags.ps1')
 $compiler = (Resolve-Path -LiteralPath (
     Join-Path $ToolchainBin 'g++.exe')).Path
 $native = (Resolve-Path -LiteralPath $PSScriptRoot).Path
@@ -29,7 +30,7 @@ if (Test-Path -LiteralPath $work) {
 
 foreach ($name in @('doctor_event_tests', 'doctor_store_tests')) {
     $exe = Join-Path $work ($name + '.exe')
-    & $compiler -std=c++17 -O2 -static `
+    & $compiler @windowsTargetFlags -std=c++17 -O2 -static `
         (Join-Path $native ('tests\' + $name + '.cpp')) `
         -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi `
         -o $exe

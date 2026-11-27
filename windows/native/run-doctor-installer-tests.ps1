@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$windowsTargetFlags = & (Join-Path $PSScriptRoot 'windows-target-flags.ps1')
 $compiler = (Resolve-Path -LiteralPath (
     Join-Path $ToolchainBin 'g++.exe')).Path
 $native = (Resolve-Path -LiteralPath $PSScriptRoot).Path
@@ -32,7 +33,7 @@ if (Test-Path -LiteralPath $work) {
 [IO.Directory]::CreateDirectory($work) | Out-Null
 
 $hostExe = Join-Path $work 'doctor_host_tests.exe'
-& $compiler -std=c++17 -O2 -static `
+& $compiler @windowsTargetFlags -std=c++17 -O2 -static `
     $hostSource `
     -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi `
     -lmsi -luserenv -lwtsapi32 `
@@ -42,7 +43,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $installerExe = Join-Path $work 'doctor_installer_tests.exe'
-& $compiler -std=c++17 -O2 -static `
+& $compiler @windowsTargetFlags -std=c++17 -O2 -static `
     $installerSource -municode `
     -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi `
     -lmsi -luserenv -lwtsapi32 `

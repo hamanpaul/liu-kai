@@ -30,7 +30,7 @@ R60 新增明確的 x64 機器層級 COM 註冊，與使用者層級一起處理
 
 ## 原始碼建置
 
-正式安裝程式使用 [WiX 發行流程](RELEASE_FLOW.md#從指定-commit-建置) 的乾淨來源建置與驗證。以下保留手動編譯原生工具的範例，從 `windows/` 目錄執行，需要 Windows x64、w64devkit x64 C++/windres、Python 3.10 以上及 PowerShell 7；產物仍須經完整發行檢查與封裝。
+正式安裝程式使用 [WiX 發行流程](RELEASE_FLOW.md#從指定-commit-建置) 的乾淨來源建置與驗證。以下保留手動編譯原生工具的範例，從 `windows/` 目錄執行，需要 Windows 10／11 x64、w64devkit x64 C++/windres、Python 3.10 以上及 PowerShell 7；產物仍須經完整發行檢查與封裝。正式建置與 Doctor 測試共用 [Windows 目標旗標](native/windows-target-flags.ps1)，明確指定 Windows 10 SDK 目標，不依賴 MSYS2 或 w64devkit 的不同預設值；[編譯回歸](native/tests/windows-target-tests.ps1) 由 release 測試入口執行，驗證 AppContainer API 宣告與匯入。
 
 ```powershell
 New-Item -ItemType Directory -Force build/x64 | Out-Null
@@ -39,13 +39,14 @@ $toolchain = 'C:\tools\w64devkit\bin'
 $compiler = Join-Path $toolchain 'g++.exe'
 $windres = Join-Path $toolchain 'windres.exe'
 $env:PATH = $toolchain + ';' + $env:PATH
+$windowsTargetFlags = & .\native\windows-target-flags.ps1
 python native/toolchain.py --architecture x64 --compiler $compiler --check
 & $windres -I assets native/tsf/resources.rc -O coff -F pe-x86-64 -o build/x64/resources.o
-python native/toolchain.py --architecture x64 --compiler $compiler -- -std=c++17 -shared -static -municode native/tsf/service.cpp native/tsf/service.def build/x64/resources.o -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -o build/x64/BoshiamyTsf.dll
-python native/toolchain.py --architecture x64 --compiler $compiler -- -std=c++17 -static -municode -mwindows native/tools/lookup_main.cpp build/x64/resources.o -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -o build/x64/LiuKaiLookup.exe
-python native/toolchain.py --architecture x64 --compiler $compiler -- -std=c++17 -static -municode -mwindows native/tools/settings_main.cpp build/x64/resources.o -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -ladvapi32 -lbcrypt -o build/x64/LiuKaiSettings.exe
-python native/toolchain.py --architecture x64 --compiler $compiler -- -std=c++17 -static -municode native/tools/register_main.cpp -lole32 -loleaut32 -luuid -ladvapi32 -o build/x64/LiuKaiRegister.exe
-python native/toolchain.py --architecture x64 --compiler $compiler -- -std=c++17 -static -municode native/installer/lifecycle_main.cpp -lole32 -loleaut32 -luuid -ladvapi32 -lbcrypt -lshlwapi -o build/x64/LiuKaiInstaller.exe
+python native/toolchain.py --architecture x64 --compiler $compiler -- @windowsTargetFlags -std=c++17 -shared -static -municode native/tsf/service.cpp native/tsf/service.def build/x64/resources.o -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -o build/x64/BoshiamyTsf.dll
+python native/toolchain.py --architecture x64 --compiler $compiler -- @windowsTargetFlags -std=c++17 -static -municode -mwindows native/tools/lookup_main.cpp build/x64/resources.o -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -o build/x64/LiuKaiLookup.exe
+python native/toolchain.py --architecture x64 --compiler $compiler -- @windowsTargetFlags -std=c++17 -static -municode -mwindows native/tools/settings_main.cpp build/x64/resources.o -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -ladvapi32 -lbcrypt -o build/x64/LiuKaiSettings.exe
+python native/toolchain.py --architecture x64 --compiler $compiler -- @windowsTargetFlags -std=c++17 -static -municode native/tools/register_main.cpp -lole32 -loleaut32 -luuid -ladvapi32 -o build/x64/LiuKaiRegister.exe
+python native/toolchain.py --architecture x64 --compiler $compiler -- @windowsTargetFlags -std=c++17 -static -municode native/installer/lifecycle_main.cpp -lole32 -loleaut32 -luuid -ladvapi32 -lbcrypt -lshlwapi -o build/x64/LiuKaiInstaller.exe
 Get-ChildItem assets -File | Where-Object { $_.Extension -in @('.tsv','.json','.md') } | Copy-Item -Destination build/x64
 pwsh -NoProfile -File native/build-branding.ps1 -Architecture x64 -Compiler $compiler -ResourceCompiler $windres -OutputDll build/x64/branding.dll
 ```

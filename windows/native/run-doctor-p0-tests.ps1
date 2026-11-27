@@ -3,6 +3,7 @@ param(
     [string]$WorkDir = ''
 )
 $ErrorActionPreference='Stop'
+$windowsTargetFlags = & (Join-Path $PSScriptRoot 'windows-target-flags.ps1')
 $compiler=(Resolve-Path -LiteralPath (Join-Path $ToolchainBin 'g++.exe')).Path
 $native=(Resolve-Path -LiteralPath $PSScriptRoot).Path
 if(-not $WorkDir){
@@ -18,16 +19,16 @@ if(Test-Path -LiteralPath $work){throw 'WorkDir must not already exist.'}
 $scopeTest=Join-Path $native 'tests\doctor_scope_link_tests.cpp'
 $scopeObject=Join-Path $work 'doctor_scope_link_second.o'
 $scopeExe=Join-Path $work 'doctor_scope_link_tests.exe'
-& $compiler -std=c++17 -O2 -DDOCTOR_SCOPE_LINK_SECOND_UNIT -c $scopeTest -o $scopeObject
+& $compiler @windowsTargetFlags -std=c++17 -O2 -DDOCTOR_SCOPE_LINK_SECOND_UNIT -c $scopeTest -o $scopeObject
 if($LASTEXITCODE -ne 0){throw 'Doctor scope second translation unit compilation failed.'}
-& $compiler -std=c++17 -O2 -static $scopeTest $scopeObject -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $scopeExe
+& $compiler @windowsTargetFlags -std=c++17 -O2 -static $scopeTest $scopeObject -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $scopeExe
 if($LASTEXITCODE -ne 0){throw 'Doctor scope multiple translation unit link failed.'}
 & $scopeExe
 if($LASTEXITCODE -ne 0){throw 'Doctor scope GUID isolation failed.'}
 
 foreach($name in @('doctor_transport_tests','doctor_collector_tests','doctor_language_menu_tests','legacy_runtime_diagnostics_tests')){
     $exe=Join-Path $work ($name+'.exe')
-    & $compiler -std=c++17 -O2 -static `
+    & $compiler @windowsTargetFlags -std=c++17 -O2 -static `
         (Join-Path $native ('tests\'+$name+'.cpp')) `
         -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -lshlwapi -o $exe
     if($LASTEXITCODE -ne 0){throw "Doctor P0 compilation failed: $name"}

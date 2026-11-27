@@ -6,6 +6,7 @@ param(
     [string]$SourceCommit
 )
 $ErrorActionPreference='Stop'
+$windowsTargetFlags = & (Join-Path $PSScriptRoot 'windows-target-flags.ps1')
 $repo=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $bin=(Resolve-Path -LiteralPath $ToolchainBin).Path
 $compiler=(Resolve-Path -LiteralPath (Join-Path $bin 'g++.exe')).Path
@@ -21,7 +22,7 @@ if($SourceCommit -cnotmatch '^[0-9a-f]{40}$'){throw 'A full source commit is req
 $oldPath=$env:PATH
 try {
     $env:PATH=$bin+';'+$oldPath
-    $target=(& $compiler -dumpmachine | Out-String).Trim()
+    $target=(& $compiler @windowsTargetFlags -dumpmachine | Out-String).Trim()
     if($LASTEXITCODE -ne 0 -or $target -cne 'x86_64-w64-mingw32'){throw 'A working x64 MinGW toolchain is required.'}
     [IO.Directory]::CreateDirectory($work)|Out-Null
     $x64=Join-Path $work 'x64'; [IO.Directory]::CreateDirectory($x64)|Out-Null
@@ -32,17 +33,17 @@ try {
     & $windres -I (Join-Path $repo 'assets') (Join-Path $PSScriptRoot 'tsf\resources.rc') -O coff -F pe-x86-64 -o $resource
     if($LASTEXITCODE -ne 0){throw 'TSF resource compilation failed.'}
     $cpp=@('-std=c++17','-O2','-static','-I',$buildInfo)
-    & $compiler @cpp -shared -municode (Join-Path $PSScriptRoot 'tsf\service.cpp') (Join-Path $PSScriptRoot 'tsf\service.def') $resource -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -o (Join-Path $x64 'BoshiamyTsf.dll')
+    & $compiler @windowsTargetFlags @cpp -shared -municode (Join-Path $PSScriptRoot 'tsf\service.cpp') (Join-Path $PSScriptRoot 'tsf\service.def') $resource -lole32 -loleaut32 -luuid -lgdi32 -ladvapi32 -lbcrypt -o (Join-Path $x64 'BoshiamyTsf.dll')
     if($LASTEXITCODE -ne 0){throw 'TSF DLL compilation failed.'}
     foreach($tool in @('lookup','settings')) {
         $name=if($tool -eq 'lookup'){'LiuKaiLookup.exe'}else{'LiuKaiSettings.exe'}
-        & $compiler @cpp -municode -mwindows (Join-Path $PSScriptRoot ('tools\'+$tool+'_main.cpp')) $resource -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -ladvapi32 -lbcrypt -o (Join-Path $x64 $name)
+        & $compiler @windowsTargetFlags @cpp -municode -mwindows (Join-Path $PSScriptRoot ('tools\'+$tool+'_main.cpp')) $resource -lcomdlg32 -lcomctl32 -lshell32 -lgdi32 -ladvapi32 -lbcrypt -o (Join-Path $x64 $name)
         if($LASTEXITCODE -ne 0){throw "Compilation failed: $name"}
     }
     $cli=Join-Path $work 'LiuKaiInstaller.exe'; $register=Join-Path $work 'LiuKaiRegister.exe'; $branding=Join-Path $work 'branding.dll'
-    & $compiler @cpp -municode (Join-Path $PSScriptRoot 'installer\lifecycle_main.cpp') -lole32 -loleaut32 -luuid -ladvapi32 -lbcrypt -lshlwapi -o $cli
+    & $compiler @windowsTargetFlags @cpp -municode (Join-Path $PSScriptRoot 'installer\lifecycle_main.cpp') -lole32 -loleaut32 -luuid -ladvapi32 -lbcrypt -lshlwapi -o $cli
     if($LASTEXITCODE -ne 0){throw 'Installer CLI compilation failed.'}
-    & $compiler @cpp -municode (Join-Path $PSScriptRoot 'tools\register_main.cpp') -lole32 -loleaut32 -luuid -ladvapi32 -o $register
+    & $compiler @windowsTargetFlags @cpp -municode (Join-Path $PSScriptRoot 'tools\register_main.cpp') -lole32 -loleaut32 -luuid -ladvapi32 -o $register
     if($LASTEXITCODE -ne 0){throw 'Registration tool compilation failed.'}
     & (Join-Path $PSScriptRoot 'build-branding.ps1') -Architecture x64 -Compiler $compiler -ResourceCompiler $windres -OutputDll $branding
     foreach($name in @('dictionary.tsv','readings.tsv','recommended-codes.tsv','recommended-codes-source.json','phonetic-candidates.tsv','phonetic-candidates-source.json','THIRD_PARTY_NOTICES.md')) {
