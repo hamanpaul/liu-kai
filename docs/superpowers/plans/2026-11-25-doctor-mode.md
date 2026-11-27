@@ -14,7 +14,11 @@
 
 ## 0. 工作邊界與證據閘門
 
-### 目前實作狀態（2026-11-27 整合驗證）
+### 正式交付狀態（2026-11-27）
+
+Android 與 Windows 的 0.1.1 已各自正式發布，版本、來源與下載見 [發行版本](../../../RELEASES.md)。Windows 已補齊本機 Search／Store、Terminal／WSL 及實體 Shift 驗證，正式成品與歷史候選的證據分列於 [Windows 驗證紀錄](../../../windows/VALIDATION.md)。Android 的實際覆蓋率、具名條件式接受及既有高速基準反例見 [Android 驗證](../../doctor-validation.md)，不冒稱 app 100% 通過；八小時觀測仍為非阻擋後續工作。
+
+### 發版前整合驗證歷史（2026-11-27）
 
 截至 2026-11-27 本輪完整重驗及使用者調整驗收後，整體尚未驗收，以下最新結果優先於後面的歷史摘要；原始反例均保留。
 
@@ -652,11 +656,11 @@ Windows於2026-11-27使用原未增加QPC metadata的工具，在同一原版宿
 - Modify as required: `README.md`、`docs/plan.md`、`windows/README.md`、`windows/VALIDATION.md`、`RELEASES.md`
 - Version files only at release gate: `VERSION`、`app/VERSION`、`app/VERSION_CODE`、`windows/VERSION`
 
-- [ ] **Step 1: docs alignment**
+- [x] **Step 1: docs alignment**
 
 同步新的設定入口、隱私白名單、ordinary/sensitive/unknown 限制、缺 scope 不推普通、Terminal sudo 可能無法辨識、ZIP／清除／保留上限。
 
-- [ ] **Step 2: full validation**
+- [x] **Step 2: full validation**
 
 ```powershell
 .\gradlew.bat --no-daemon :core:check :cli:check
@@ -665,11 +669,11 @@ bash .\scripts\emulator-e2e.sh
 python -m policy_check --repo .
 ```
 
-Windows 另跑完整 `test-release.ps1` 與 release verification；所有 app line/branch coverage 維持 100%。
+Windows 另跑完整 `test-release.ps1` 與 release verification。core／CLI／TestPilot 的覆蓋閘門不變；Android app 依使用者已核准的[先行計畫](2026-11-27-doctor-android-release.md)及[具名覆蓋對帳](../../doctor-coverage.md)條件式交付，實際為行 97.2%／分支 90.7%，原 100% 驗證失敗保留，不改寫全專案門檻。Windows 未修改 app，沿用同一已驗收 APK 的結果。
 
-- [ ] **Step 3: version only after all gates**
+- [x] **Step 3: version only after all gates**
 
-依 `RELEASES.md` 同步核對最終目標 Android/Windows `0.1.1`、root batch `0.1.3`、Android versionCode `3`、Windows MSI `70.1.3`。保留既有 Android signing identity、Windows COM/product upgrade identity。若發版前實際 docs 或 tag 不一致，停止發版並先更新計畫，不自行覆寫版本。
+依 `RELEASES.md` 同步核對 Android／Windows `0.1.1`、Android versionCode `3`、Windows MSI `70.1.3`。Android 先行批次為 `0.1.3`，後續 Windows 正式交付批次為 `0.1.4`，依[Windows 發行驗證計畫](2026-11-27-doctor-windows-release.md)記錄。保留既有 Android signing identity、Windows COM/product upgrade identity及已發布標籤；文件收尾不重新封裝成品。
 
 ## 8. Self-review checklist
 

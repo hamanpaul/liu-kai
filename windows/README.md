@@ -59,7 +59,7 @@ R60 歷史封裝入口為 `native/package-windows.ps1` 與 .NET Framework 外殼
 背景記錄與停用後的標記、匯出、清除沿用 `LiuKaiSettings.exe` 的同一份儲存處理，只有取得寫入權的程序能操作資料。
 初始為關閉，開啟後才設定這個使用者的登入續記。原始紀錄保留上限為 32 MiB／7 天；敏感與未知欄位只有健康狀態及生命週期。
 標記、預覽、儲存、清除與資料範圍見 [Doctor 使用說明](../docs/doctor.md)。
-設定畫面與 WiX 安裝流程已整合。候選包已完成一小時穩定性及原版工具的三組受控效能對照；正式成品與完整宿主矩陣仍待驗收。實際範圍見 [驗證紀錄](VALIDATION.md) 及 [發行驗證計畫](../docs/superpowers/plans/2026-11-27-doctor-windows-release.md)。
+設定畫面與 WiX 安裝流程已整合，0.1.1 已正式發布。正式 EXE 已完成沙盒安裝／卸載、本機 R70 升級、Search／Store 及 Terminal／WSL 輸入與實體 Shift 驗證；候選的一小時穩定性及三組受控效能對照保留各自來源。實際範圍、成品 SHA 與 Terminal 限制見 [驗證紀錄](VALIDATION.md) 及 [發行驗證計畫](../docs/superpowers/plans/2026-11-27-doctor-windows-release.md)。
 
 ### Terminal 的欄位資訊
 
@@ -102,7 +102,7 @@ $toolchain = 'C:\tools\w64devkit\bin'
 
 此 probe build script 只產生開發產物，不自動註冊或安裝 DLL；每次輸出位於新的 GUID 目錄，不刪既有 build。正式發版使用既有 WiX 發行流程。
 `native/tests/run-doctor-host-probe.ps1` 的 Start／Snapshot／Stop／AccessCheck 供 Terra 以真實 host token
-及不同帳號／AppContainer identity 驗證。已完成的受控宿主、AppContainer 與相容設定測試，不能代表預設 Terminal、SearchHost、Store、WSL 等完整矩陣均已通過；各項限制與結果見 [驗證紀錄](VALIDATION.md)。
+及不同帳號／AppContainer identity 驗證。受控宿主、AppContainer 與相容設定測試保留原本範圍；正式成品另完成本機 SearchHost、Store 及 Terminal／WSL 驗證。預設 Terminal 仍為 Unknown，不把它的輸入正常誤寫成有逐鍵診斷；各項結果見 [驗證紀錄](VALIDATION.md)。
 
 ## R60 系列舊安裝器的解除安裝方式
 
@@ -124,10 +124,10 @@ R60.20 起，安裝或移除發生錯誤時，安裝程式會嘗試自動收集 
 
 此功能不會將舊的失敗交易標成成功，也不會自動抹除歷史來強行重裝。尚未完成乾淨 Windows 的安裝／卸載／重裝實機驗收。
 
-## 測試與來源範圍
+## 歷史匯出基準的測試與來源範圍
 
 `native/tests/` 保留本輪 machine COM、交易／回復、安裝腳本讀回及中英狀態的既有測試來源。部分整合測試需要另外提供受控的完整套件 fixture；私人／官版 fixture 不隨 repo 發布。選用的歷史 baseline 比對標頭亦未附帶。這份匯出未重新執行測試，不將來源測試視為實機驗收。
 
 五個產品入口及其 quoted-include 依賴由來源 commit `2fea4b8` 匯出；`SOURCE-MANIFEST.json` 描述的是該匯出基準。
-本開發分支的 Doctor P0 已直接修改 `native/tsf/service.cpp`、settings entrypoint 及其新增 header，不能再把目前產品 C++ 視為原樣。
+原匯出之後的 Doctor 已修改 `native/tsf/service.cpp`、settings entrypoint 及其新增 header，不能把目前產品 C++ 視為原匯出基準的原樣；正式版來源以 [發行版本](../RELEASES.md) 為準。
 七份資料來自實際 R60 套件，phonetic provenance 已清除私人路徑。第三方來源與聲明見 `THIRD_PARTY_NOTICES.md`。

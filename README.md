@@ -69,15 +69,15 @@ testpilot/.venv/bin/liu-kai-diff --official <IME id>   # 與官方嘸蝦米對�
 ./gradlew :cli:run --args="stats <liu_ibus_final.txt> <lime_liu7.txt>"   # 桌機核對字表區段統計
 ```
 
-### Doctor Mode（Android）
+### Doctor Mode（Android／Windows）
 
 Doctor 在使用者開啟後，把不含輸入文字的診斷保存在本機；可標記問題時間、預覽固定內容的 ZIP、儲存及清除。
 原始紀錄最多 32 MiB、最長 7 天，容量先滿時會提早淘汰。停用會保留已落盤資料，清除才會刪除紀錄與待確認的匯出。
 敏感及未知欄位只保留健康狀態與生命週期，不產生逐鍵事件。判定依應用程式提供的欄位資訊，無法辨識未宣告的密碼提示。
 Android 不要求網路權限；Debug `TouchDiagnostics` 的按鍵與座標資料仍只供原測試，不進 Doctor。
 
-本批先交付 Android 設定與輸入診斷；Windows 另作實測及發版，共用議題保持開啟。
-測試來源與重跑方式見 [Doctor 驗證](docs/doctor-validation.md)，實作順序與驗收範圍見 [Android 先行計畫](docs/superpowers/plans/2026-11-27-doctor-android-release.md)。
+Android 與 Windows 的 0.1.1 已分別正式發布，下載入口見 [發行版本](RELEASES.md)。Windows 從右下角圖示的右鍵選單開啟版本、Doctor 路徑及設定。
+Android 測試來源與重跑方式見 [Doctor 驗證](docs/doctor-validation.md)；Windows 的成品雜湊、本機宿主與安裝／卸載範圍見 [Windows 驗證紀錄](windows/VALIDATION.md)。一小時穩定性與八小時非阻擋觀測分開記錄，不將未完成的長跑寫成通過。
 操作、匯出與保存範圍見 [Doctor 使用說明](docs/doctor.md)。
 
 端對端測試由 `testpilot/` 內的 TestPilot plugin（`liu_kai`）執行：案例為 `testpilot/liu_kai_testpilot/cases/*.yaml`（環境前置條件、步驟、通過條件），以 adb 驅動模擬器上的 liu-kai 與 testhost，報告輸出到 `testpilot/reports/<時間>/report.{md,json}`。測試環境設定見 `testpilot/liu_kai_testpilot/testbed.yaml.example`（`scripts/emulator-e2e.sh` 會依此範本自動產生實際使用的設定檔）。`real-*` 案例需要 `~/prj_pri/liu-kai-data/` 內的真實字表。

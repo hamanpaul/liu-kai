@@ -13,11 +13,11 @@
 
 ### Android 0.1.1
 
-本批次 `0.1.3` 先交付 Android Doctor 與標點輸入修正。Windows 仍使用上表的 `0.1.0`，其 Doctor 功能另行驗收發版；[共用議題](https://github.com/hamanpaul/liu-kai/issues/11) 保持開啟。
+批次 `0.1.3` 先交付 Android Doctor 與標點輸入修正；該批次沒有升級 Windows。後續 Windows Doctor 的交付見下節，雙端驗收結果共用[同一議題](https://github.com/hamanpaul/liu-kai/issues/11)。
 
 ### Windows 0.1.1
 
-本批次 `0.1.4` 準備交付 Windows Doctor；Android 維持已發布的 `0.1.1`，不重新封裝或移動它的標籤。Windows 的正式包與完整宿主驗收仍待完成，[共用議題](https://github.com/hamanpaul/liu-kai/issues/11) 保持開啟。候選範圍見 [Windows 驗證紀錄](windows/VALIDATION.md)。
+批次 `0.1.4` 已正式發布 [Windows Doctor 0.1.1](https://github.com/hamanpaul/liu-kai/releases/tag/windows-v0.1.1)，來源為 `a3f2c65cea6db99e1a4cf3e7e468d6296621296f`；Android 維持已發布的 `0.1.1`，沒有重新封裝或移動其標籤。Windows 同一成品已完成沙盒安裝／卸載、本機 R70 升級、Search／Store、Terminal／WSL 與實體 Shift 驗證，範圍及限制見 [Windows 驗證紀錄](windows/VALIDATION.md)。三個公開附件已下載核對；後續文件提交不改變已驗收安裝檔的來源及標籤。
 
 ### 發行流程
 
