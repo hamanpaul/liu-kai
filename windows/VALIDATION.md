@@ -1,4 +1,18 @@
-# Issue 16：正式防重入 DLL 補充回歸（2026-11-28）
+# Issue 16：真實 BA 中斷與查核工具補強（2026-11-28）
+
+本輪只在一個 4 GiB Windows Sandbox 串行測試。沒有主機安裝、主機重啟、WSL 操作或 Android 模擬器。產品原始碼及版號未改；正式 baseline 0.1.1 與 candidate 0.1.2 分別核對 SHA-256 `ba32e8e62dd4eddad057ca44218ea96860f94afaec86d026a7471515baef43ae`、`56a986f5332b65bfc9fdfddbcd076c1fbb5835a5831584bee6e1b02964e1f23e`。
+
+- 真正 MSI 提交並回原生 3010 後，僅終止已核對 hash／PID／建立時間／ancestry 的獨立 `wixstdba.exe`，以同一 held native handle 再核對身份後退出 23063。未終止 Burn engine、msiexec 或服務。此輪真正 BA stop 為一次；較早的空日誌參數錯誤及程序樹 lookup 漏報沒有終止 BA，不列為故障注入。
+- 原 engine 自行退出 0，實際 Burn 日誌有 `0x800700e8` 回呼錯誤。獨立讀回新版 MSI／Burn 70.1.4、12 個 manifest payload、COM／TSF、owner 及舊登錄清除皆一致；Burn 為 `Installed=1 / Resume=3 (ARP)`。因此**沒有形成 MSI 存在而 Burn 登錄不完整的前提**，原始 Recovery 收據保持 `NOT_COVERED`，沒有改寫為 PASS，也未宣稱歷史事故唯一原因已定位。
+- guest 重啟後，以同一 EXE、空參數普通開啟維護介面，選修復；遇真實檔案占用選擇延後替換，成功退出 3010。再次只重啟 guest 並核對完整狀態後，同一 EXE 空參數選解除安裝，成功退出 3010；最後只重啟 guest。
+- 最後獨立讀回 MSI／ARP 均為空、COM／profile absence、產品目錄不存在、產品相關 pending deletes 為零、`Program Files` 同層專屬退休 DLL 為零。合成設定、disabled Doctor 的一筆歷史及完整指紋均保留。補強退休檔觀測後另重讀相符；沒有用原本較窄的產品目錄檢查代替同層退休檔檢查。
+- PS5／PS7 的 scenario 契約、219 項逐階段重啟契約、22 項 Burn 三態登錄契約、25 項實際退休檔 snapshot 契約、程序樹及 absence snapshot 串接均通過。原生 helper 另在 PATH 不含 g++、只指定絕對 ToolchainBin 時兩端通過，包含持有 handle 的負向身份檢查及一個自有 benign fixture 的終止；沒有把 fixture 終止算成產品 BA 注入。
+- post-exit 契約先重現「summary 0 尚未寫 native 3010」的缺口，再修為原 engine 退出後重讀該次明確日誌。最新實作另以不可變的本次真實 MSI／Burn 日誌重放，兩端均讀到恰一筆候選 commit、native 3010 及已知重啟要求。這是唯讀真實日誌重放，不是第二次安裝或故障注入。
+- 獨立審查發現並修正退休 DLL 漏報、首次日誌取樣過早及 dot-source 覆寫 ToolchainBin。未經真缺登錄情境 E2E 的自動續跑 runner 已移出交付範圍；純函式 GREEN 沒有冒稱為完整安裝 E2E。
+
+上述證明新版在這次真實 BA 中斷後自行維持完整登錄，且能普通維護與卸載。使用者於 2026-11-28 明確接受此結果作為新版驗收，要求完成 PR 並關閉 [issue 16](https://github.com/hamanpaul/liu-kai/issues/16)。原計畫的「先形成缺登錄再恢復」仍未重現，原始 NOT_COVERED 收據保持不變；後續驗收使用明確 `AcceptRetainedBundle` 模式，全部版本／完整性／原生結果／重啟／清理／保留條件仍須通過。測試入口及證據界線見[恢復測試說明](../docs/windows-installer-recovery.md)。以下保留先前測試的歷史狀態。
+
+## 正式防重入 DLL 補充回歸（先前紀錄）
 
 本輪只新增測試與 CI，產品碼及版本未改。使用者已確認 #18 並要求結案，#19 也依已完成範圍結案；兩單已補上對應 PR，不再把額外資料裁定列為本次門檻。
 
