@@ -40,12 +40,47 @@ $setupAst = $ast.Find({
         $node.Name -ceq 'Start-WixInstallerScenarioSetup'
 }, $false)
 if ($null -eq $setupAst) { throw '[SCN000] Missing synthetic setup helper.' }
+$nativeAst = $ast.Find({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -ceq 'Ensure-WixInstallerScenarioProcessNative'
+}, $false)
+if ($null -eq $nativeAst) { throw '[SCN000] Missing native process helper.' }
+. ([scriptblock]::Create($nativeAst.Extent.Text))
 $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
 $work = Join-Path $tempBase ('liukai-native-capture-' + [Guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($work)
 $failures = [Collections.Generic.List[string]]::new()
 $pathBefore = $env:PATH
 try {
+    foreach ($name in @('Get-WixInstallerScenarioProperty', 'Test-WixInstallerScenarioProperty',
+        'Get-WixInstallerScenarioMsiPathsFromBurn',
+        'Get-WixInstallerScenarioDiscoveredLogFiles', 'Get-WixInstallerScenarioMsiLogEntries',
+        'Copy-WixInstallerScenarioRawLogs')) {
+        $definition = $ast.Find({
+            param($node)
+            $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq $name
+        }, $false)
+        if ($null -eq $definition) { throw "[SCN007] Missing log helper: $name" }
+        Set-Item -Path ('function:' + $name) -Value ($definition.Body.GetScriptBlock())
+    }
+    if (@(Get-WixInstallerScenarioMsiPathsFromBurn '').Count -ne 0) {
+        throw '[SCN007] An empty Burn log invented MSI paths.'
+    }
+    $missingLog = Join-Path $work 'not-yet-created.log'
+    $emptyLog = Join-Path $work 'created-but-empty.log'
+    [IO.File]::WriteAllText($emptyLog, '')
+    foreach ($logPath in @($missingLog, $emptyLog)) {
+        $entries = Get-WixInstallerScenarioMsiLogEntries -StartedUtc ([DateTime]::UtcNow) `
+            -ExplicitBurnLog $logPath -Run first
+        if (@($entries.entries).Count -ne 0 -or @($entries.unattributed_paths).Count -ne 0) {
+            throw '[SCN007] Missing or empty Burn log invented MSI evidence.'
+        }
+    }
+    if (@(Copy-WixInstallerScenarioRawLogs -Logs @() -OutputDir $work).Count -ne 0) {
+        throw '[SCN007] An empty source collection invented copied logs.'
+    }
     & {
         param([string]$SetupFunctionSource)
 
@@ -152,7 +187,45 @@ try {
         throw '[SCN003] Spaced-path DLL identity was not observed.'
     }
     if (-not $mapped.process.WaitForExit(5000)) { throw '[SCN003] Bounded fixture did not exit.' }
-    'wix_installer_native_capture_passed=true; spaced_path_module_passed=true; installer_runs=0; kill_actions=0; registry_writes=0'
+    Ensure-WixInstallerScenarioProcessNative
+    if ($null -eq [WixInstallerScenarioProcessNative].GetMethod('TryTerminateVerifiedHandle')) {
+        throw '[SCN006] Verified process-handle termination API is missing.'
+    }
+    $heldOutput = Join-Path $work 'held-handle'; [void][IO.Directory]::CreateDirectory($heldOutput)
+    $held = Start-WixInstallerScenarioMappedModule -FixtureExe $fixture -DllPath $dll -OutputDir $heldOutput -HoldSeconds 30
+    try {
+        $handle = $held.process.Handle
+        $childPid = $held.process.Id
+        $created = $held.process.StartTime.ToUniversalTime().ToFileTimeUtc()
+        $errorCode = 0
+        foreach ($identity in @(
+            @{ pid = $childPid + 1; created = $created },
+            @{ pid = $childPid; created = $created + 1 }
+        )) {
+            if ([WixInstallerScenarioProcessNative]::TryTerminateVerifiedHandle(
+                    $handle, $identity.pid, $identity.created, 23063, [ref]$errorCode)) {
+                throw '[SCN006] A mismatched held process identity was terminated.'
+            }
+            $held.process.Refresh()
+            if ($held.process.HasExited) { throw '[SCN006] Rejected identity still stopped the fixture.' }
+        }
+        if ([WixInstallerScenarioProcessNative]::TryTerminateVerifiedHandle(
+                [IntPtr]::Zero, $childPid, $created, 23063, [ref]$errorCode)) {
+            throw '[SCN006] A null process handle was accepted.'
+        }
+        if (-not [WixInstallerScenarioProcessNative]::TryTerminateVerifiedHandle(
+                $handle, $childPid, $created, 23063, [ref]$errorCode)) {
+            throw "[SCN006] Exact held fixture could not stop: $errorCode."
+        }
+        if (-not $held.process.WaitForExit(5000) -or $held.process.ExitCode -ne 23063) {
+            throw '[SCN006] Held fixture did not report the exact native stop exit.'
+        }
+    }
+    finally {
+        if (-not $held.process.HasExited) { $held.process.Kill(); $held.process.WaitForExit(5000) | Out-Null }
+        $held.process.Dispose()
+    }
+    'wix_installer_native_capture_passed=true; spaced_path_module_passed=true; verified_handle_stop_passed=true; installer_runs=0; fixture_kill_actions=1; registry_writes=0'
 }
 finally {
     $env:PATH = $pathBefore

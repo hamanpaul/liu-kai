@@ -79,6 +79,28 @@ function Copy-ContractObject {
     return [pscustomobject]$copy
 }
 
+function Invoke-ContractKillEligibility {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$ExpectedTarget,
+        [Parameter(Mandatory = $true)][pscustomobject]$ObservedProcess,
+        [switch]$AllowElevatedBaUi
+    )
+
+    $killEligibleCommand = Get-Command `
+        -Name 'Test-WixInstallerScenarioKillEligible' `
+        -CommandType Function
+    if ($AllowElevatedBaUi -and
+        $killEligibleCommand.Parameters.ContainsKey('AllowElevatedBaUi')) {
+        return Test-WixInstallerScenarioKillEligible `
+            -ExpectedTarget $ExpectedTarget `
+            -ObservedProcess $ObservedProcess `
+            -AllowElevatedBaUi
+    }
+    return Test-WixInstallerScenarioKillEligible `
+        -ExpectedTarget $ExpectedTarget `
+        -ObservedProcess $ObservedProcess
+}
+
 function Get-ContractHash {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -235,6 +257,7 @@ try {
         registration_status_ok = $true
         product_directory_absent = $true
         owned_pending_deletes = @()
+        owned_retired_files = @()
     }
     Require-ContractEqual (
         Test-WixInstallerScenarioInstalledAbsent $cleanAbsentSnapshot
@@ -246,7 +269,7 @@ try {
         'registration_absent',
         'registration',
         'product_directory_absent',
-        'owned_pending_deletes'
+        'owned_pending_deletes', 'owned_retired_files'
     )) {
         $missingUnknown = Copy-ContractObject $cleanAbsentSnapshot
         $missingUnknown.PSObject.Properties.Remove($unknownField) | Out-Null
@@ -292,7 +315,8 @@ try {
         @{ field = 'product_directory_absent'; value = $false },
         @{ field = 'owned_pending_deletes'; value = @(
             [pscustomobject]@{ path = 'C:\LiuKai\pending.bin' }
-        ) }
+        ) },
+        @{ field = 'owned_retired_files'; value = @('C:\Program Files\.liukai-retired-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-tsf.dll') }
     )) {
         $remnant = Copy-ContractObject $cleanAbsentSnapshot
         $remnant.PSObject.Properties[$remnantCase.field].Value = $remnantCase.value
@@ -593,6 +617,43 @@ try {
         'MSI (s) (6C:0C) [11:00:12]: 產品: 嘸．改 -- 成功完成安裝。',
         'MSI (s) (6C:0C) [11:00:12]: Windows Installer 已安裝該產品。產品名稱: 嘸．改。產品版本: 70.1.0。產品語言: 0。製造商: LiuKai。安裝成功或錯誤狀態: 0。',
         'MSI (s) (6C:0C) [11:00:12]: Property(S): ProductVersion = 70.1.0'
+    )
+
+    # Real MSI major upgrades can log summary status 0 but return native 3010.
+    $summaryZeroNative3010 = New-ContractLog first @(
+        $candidateMsiZhTw.text.Replace('MainEngineThread is returning 0', 'MainEngineThread is returning 3010')
+    )
+    $nativeRestartEvidence = ConvertFrom-WixInstallerScenarioLogs Recovery @() `
+        @($summaryZeroNative3010) (New-ContractReadback) synthetic_contract_only
+    Require-ContractEqual $nativeRestartEvidence.first_msi_commits 1 'Summary status 0 lost its committed MSI evidence.'
+    Require-ContractEqual $nativeRestartEvidence.restart_required $true 'Native MSI exit 3010 was lost behind summary status 0.'
+    $oldNativeRestart = New-ContractLog first @(
+        $historicalBaselineMsi.text,
+        'MSI (s) (AA:AA) [11:00:09]: MainEngineThread is returning 3010'
+    )
+    $currentNativeZero = New-ContractLog first @(
+        'MSI (s) (AA:AA) [11:00:09]: MainEngineThread is returning 3010',
+        $candidateMsiZhTw.text
+    )
+    $nativeZeroEvidence = ConvertFrom-WixInstallerScenarioLogs Recovery @() `
+        @($oldNativeRestart, $currentNativeZero) (New-ContractReadback) synthetic_contract_only
+    Require-ContractEqual $nativeZeroEvidence.restart_required $false 'A historical/nested MSI exit poisoned the final candidate exit 0.'
+
+    $pendingRecovery = ConvertFrom-WixInstallerScenarioLogs -Scenario Recovery `
+        -BurnLogs @() -MsiLogs @() -Readback (New-ContractReadback) `
+        -EvidenceClass synthetic_contract_only
+    Require-ContractEqual $pendingRecovery.first_msi_commits 0 (
+        'Polling before log creation must retain zero commit evidence.'
+    )
+    Require-ContractEqual (Get-WixInstallerScenarioVerdict -Scenario Recovery `
+        -Evidence $pendingRecovery).verdict 'NOT_COVERED' (
+        'Empty recovery logs must not prove a recovery.'
+    )
+    $msiOnlyRecovery = ConvertFrom-WixInstallerScenarioLogs -Scenario Recovery `
+        -BurnLogs @() -MsiLogs @($firstMsi) -Readback (New-ContractReadback) `
+        -EvidenceClass synthetic_contract_only
+    Require-ContractEqual $msiOnlyRecovery.first_msi_commits 1 (
+        'The recovery observer must recognize the committed MSI before Burn completes.'
     )
 
     $realHeaderEvidence = ConvertFrom-WixInstallerScenarioLogs `
@@ -1750,13 +1811,107 @@ try {
         -not (Test-WixInstallerScenarioKillEligible -ExpectedTarget $expectedBa -ObservedProcess $nameOnly).eligible
     ) 'A name-only process observation became kill eligible.'
 
+    $expectedElevatedBa = [pscustomobject]@{
+        process_kind = 'elevated_burn_ba'
+        process_name = 'wixstdba.exe'
+        path = 'C:\test\ba\wixstdba.exe'
+        sha256 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+        pid = 6161
+        parent_pid = 6100
+        root_pid = 6100
+        ancestry_pids = @(6100, 6161)
+        creation_time_utc = '2026-11-28T02:00:01Z'
+        root_creation_time_utc = '2026-11-28T02:00:00Z'
+        elevated = $true
+        alive = $true
+        trusted_ba_hash = $true
+        setup_hash_match = $false
+    }
+    $observedElevatedBa = Copy-ContractObject $expectedElevatedBa
+
+    $defaultElevatedDecision = Invoke-ContractKillEligibility `
+        -ExpectedTarget $expectedElevatedBa `
+        -ObservedProcess $observedElevatedBa
+    Require-Contract (-not $defaultElevatedDecision.eligible) `
+        'An elevated independent WixStdBA became eligible without the explicit opt-in.'
+
+    $optedInElevatedDecision = Invoke-ContractKillEligibility `
+        -ExpectedTarget $expectedElevatedBa `
+        -ObservedProcess $observedElevatedBa `
+        -AllowElevatedBaUi
+    Require-Contract $optedInElevatedDecision.eligible `
+        'An exact, trusted, live elevated independent WixStdBA was rejected despite explicit opt-in.'
+
+    $elevatedBaRejectCases = @(
+        @{ name = 'process_kind=elevated_burn_engine'; field = 'process_kind'; value = 'elevated_burn_engine'; remove = $false },
+        @{ name = 'process_kind=burn_engine'; field = 'process_kind'; value = 'burn_engine'; remove = $false },
+        @{ name = 'process_kind=windows_installer'; field = 'process_kind'; value = 'windows_installer'; remove = $false },
+        @{ name = 'process_kind=other'; field = 'process_kind'; value = 'other'; remove = $false },
+        @{ name = 'process_kind=unknown_elevation'; field = 'process_kind'; value = 'unknown_elevation'; remove = $false },
+        @{ name = 'process_kind=candidate_ba_ui'; field = 'process_kind'; value = 'candidate_ba_ui'; remove = $false },
+        @{ name = 'process_kind missing'; field = 'process_kind'; value = $null; remove = $true },
+        @{ name = 'setup_hash_match=true'; field = 'setup_hash_match'; value = $true; remove = $false },
+        @{ name = 'setup_hash_match missing'; field = 'setup_hash_match'; value = $null; remove = $true },
+        @{ name = 'trusted_ba_hash=false'; field = 'trusted_ba_hash'; value = $false; remove = $false },
+        @{ name = 'trusted_ba_hash missing'; field = 'trusted_ba_hash'; value = $null; remove = $true },
+        @{ name = 'elevated=false'; field = 'elevated'; value = $false; remove = $false },
+        @{ name = 'elevated=null'; field = 'elevated'; value = $null; remove = $false },
+        @{ name = 'elevated missing'; field = 'elevated'; value = $null; remove = $true },
+        @{ name = 'alive=false'; field = 'alive'; value = $false; remove = $false },
+        @{ name = 'alive=null'; field = 'alive'; value = $null; remove = $false },
+        @{ name = 'alive missing'; field = 'alive'; value = $null; remove = $true },
+        @{ name = 'path changed'; field = 'path'; value = 'C:\test\ba\other.exe'; remove = $false },
+        @{ name = 'path missing'; field = 'path'; value = $null; remove = $true },
+        @{ name = 'sha256 changed'; field = 'sha256'; value = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210'; remove = $false },
+        @{ name = 'sha256 missing'; field = 'sha256'; value = $null; remove = $true },
+        @{ name = 'pid changed'; field = 'pid'; value = 6162; remove = $false },
+        @{ name = 'pid missing'; field = 'pid'; value = $null; remove = $true },
+        @{ name = 'creation_time_utc changed'; field = 'creation_time_utc'; value = '2026-11-28T02:00:02Z'; remove = $false },
+        @{ name = 'creation_time_utc missing'; field = 'creation_time_utc'; value = $null; remove = $true },
+        @{ name = 'parent_pid changed'; field = 'parent_pid'; value = 6101; remove = $false },
+        @{ name = 'parent_pid missing'; field = 'parent_pid'; value = $null; remove = $true },
+        @{ name = 'root_pid changed'; field = 'root_pid'; value = 6101; remove = $false },
+        @{ name = 'root_pid missing'; field = 'root_pid'; value = $null; remove = $true },
+        @{ name = 'root_creation_time_utc changed'; field = 'root_creation_time_utc'; value = '2026-11-28T01:59:59Z'; remove = $false },
+        @{ name = 'root_creation_time_utc missing'; field = 'root_creation_time_utc'; value = $null; remove = $true },
+        @{ name = 'ancestry_pids changed'; field = 'ancestry_pids'; value = @(6101, 6161); remove = $false },
+        @{ name = 'ancestry_pids missing'; field = 'ancestry_pids'; value = $null; remove = $true }
+    )
+    foreach ($side in @('expected', 'observed')) {
+        foreach ($rejectCase in $elevatedBaRejectCases) {
+            $changedExpected = Copy-ContractObject $expectedElevatedBa
+            $changedObserved = Copy-ContractObject $observedElevatedBa
+            $changedTarget = if ($side -ceq 'expected') {
+                $changedExpected
+            }
+            else {
+                $changedObserved
+            }
+            if ($rejectCase.remove) {
+                $changedTarget.PSObject.Properties.Remove($rejectCase.field) | Out-Null
+            }
+            else {
+                $changedTarget.PSObject.Properties[$rejectCase.field].Value = $rejectCase.value
+            }
+
+            $rejectedElevatedDecision = Invoke-ContractKillEligibility `
+                -ExpectedTarget $changedExpected `
+                -ObservedProcess $changedObserved `
+                -AllowElevatedBaUi
+            Require-Contract (-not $rejectedElevatedDecision.eligible) `
+                "Unsafe elevated BA target was accepted for $side $($rejectCase.name)."
+            Require-Contract (-not [string]::IsNullOrWhiteSpace([string]$rejectedElevatedDecision.reason)) `
+                "A rejected elevated BA target did not explain the $side $($rejectCase.name) decision."
+        }
+    }
+
     $bundleIdentity = [pscustomobject]@{ msi_version = '70.1.1' }
     $bundleSnapshot = [pscustomobject]@{
         uninstall_registry_issues = @()
         uninstall_entries = @([pscustomobject]@{
             kind = 'burn_bundle'
             display_version = '70.1.1'
-            values = [pscustomobject]@{ Installed = 1 }
+            values = [pscustomobject]@{ Installed = 1; Resume = 3 }
         })
     }
     Require-Contract (Test-WixInstallerScenarioBundleMatches -Snapshot $bundleSnapshot -Identity $bundleIdentity) 'An installed matching bundle was rejected.'

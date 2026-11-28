@@ -79,10 +79,24 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $toolchain = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'mingw64\bin'
           $env:PATH = $toolchain + ';' + $env:PATH
-          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\native\tests\wix-installer-native-capture-tests.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'Installer native capture tests failed.' }
+          $nativeShells = @((Get-Command powershell.exe).Source, (Get-Command pwsh.exe).Source)
+          $savedPath = $env:PATH
+          try {
+            foreach ($nativeShell in $nativeShells) {
+              $env:PATH = "$env:WINDIR\System32;$env:WINDIR;$env:WINDIR\System32\WindowsPowerShell\v1.0"
+              & $nativeShell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\native\tests\wix-installer-native-capture-tests.ps1 -ToolchainBin $toolchain
+              if ($LASTEXITCODE -ne 0) { throw "Installer native capture tests failed with isolated PATH: $nativeShell" }
+            }
+          }
+          finally { $env:PATH = $savedPath }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\native\tests\wix-installer-scenario-tests.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Installer scenario contract tests failed.' }
+          foreach ($test in @('wix-installer-process-tree-tests.ps1', 'wix-installer-bundle-state-tests.ps1', 'wix-installer-recovery-continuation-tests.ps1', 'wix-installer-recovery-post-exit-tests.ps1', 'wix-installer-retained-recovery-tests.ps1')) {
+            foreach ($shell in @('powershell.exe', 'pwsh.exe')) {
+              & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path 'native\tests' $test)
+              if ($LASTEXITCODE -ne 0) { throw "Installer recovery contract failed: $test ($shell)" }
+            }
+          }
           & .\native\test-release.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\release-tests" -DoctorEphemeralTestUser
           if ($LASTEXITCODE -ne 0) { throw 'Release tests failed.' }
           & .\native\tests\wix-tls-detach-tests.ps1 -ToolchainBin $toolchain -WorkDir "$pwd\build\wix-tls-test"

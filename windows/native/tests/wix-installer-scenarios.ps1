@@ -26,6 +26,16 @@ param(
     [ValidateRange(1, 600)]
     [int]$MappedModuleHoldSeconds = 600,
 
+    [Parameter(ParameterSetName = 'Runtime')]
+    [switch]$AllowElevatedBaUi,
+
+    [Parameter(ParameterSetName = 'Runtime')]
+    [ValidateRange(1, 2)]
+    [int]$RecoveryAttempts = 2,
+
+    [Parameter(ParameterSetName = 'Runtime')]
+    [switch]$AcceptRetainedBundle,
+
     [Parameter(Mandatory = $true, ParameterSetName = 'Contract')]
     [switch]$ContractOnly
 )
@@ -326,7 +336,7 @@ function ConvertFrom-WixInstallerScenarioLogs {
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Upgrade', 'Reentry', 'Recovery')]
         [string]$Scenario,
-        [Parameter(Mandatory = $true, Position = 1)][object[]]$BurnLogs,
+        [Parameter(Mandatory = $true, Position = 1)][AllowEmptyCollection()][object[]]$BurnLogs,
         [Parameter(Mandatory = $true, Position = 2)][AllowEmptyCollection()][object[]]$MsiLogs,
         [Parameter(Mandatory = $true, Position = 3)]$Readback,
         [Parameter(Mandatory = $true, Position = 4)]
@@ -347,6 +357,7 @@ function ConvertFrom-WixInstallerScenarioLogs {
     $secondMsiTransactionCount = 0
     $firstCommitCount = 0
     $secondCommitCount = 0
+    $firstMsiNativeExit = $null
     $msiVersion = $null
     $restartRequired = $false
     foreach ($entry in @($MsiLogs)) {
@@ -398,7 +409,11 @@ function ConvertFrom-WixInstallerScenarioLogs {
         else {
             Get-WixInstallerScenarioLogValue $text 'Installation success or error status:\s*(0|3010)\.'
         }
-        if ($status -ceq '3010') {
+        $nativeExits = [regex]::Matches($text,
+            '(?im)^MSI [^\r\n]*MainEngineThread is returning (?<exit>[0-9]+)\s*$')
+        $nativeRestart = $nativeExits.Count -gt 0 -and
+            $nativeExits[$nativeExits.Count - 1].Groups['exit'].Value -ceq '3010'
+        if ($status -ceq '3010' -or $nativeRestart) {
             $restartRequired = $true
         }
         $completed = if ($null -ne $candidateSummary) {
@@ -414,6 +429,30 @@ function ConvertFrom-WixInstallerScenarioLogs {
         $run = [string](Get-WixInstallerScenarioProperty $entry 'run')
         if ($run -ceq 'first') {
             $firstMsiTransactionCount++
+            $nativeStart = 0
+            foreach ($summary in @($summaryMatches)) {
+                if ($summary.Groups['version'].Value -ceq $expectedMsiVersion) {
+                    $nativeStart = $summary.Index + $summary.Length
+                }
+            }
+            $productVersions = [regex]::Matches($text,
+                '(?i)ProductVersion\s*=\s*(?<version>[0-9]+(?:\.[0-9]+){1,3})')
+            if ($null -eq $candidateSummary -and $productVersions.Count -gt 0) {
+                $lastVersion = $productVersions[$productVersions.Count - 1]
+                $nativeStart = $lastVersion.Index + $lastVersion.Length
+            }
+            $nativeEnd = $text.Length
+            foreach ($marker in @($summaryMatches) + @($productVersions)) {
+                if ($marker.Index -ge $nativeStart -and
+                    $marker.Groups['version'].Value -cne $expectedMsiVersion) {
+                    $nativeEnd = [Math]::Min($nativeEnd, $marker.Index)
+                }
+            }
+            $candidateNativeExits = [regex]::Matches($text.Substring($nativeStart, $nativeEnd - $nativeStart),
+                '(?im)^MSI [^\r\n]*MainEngineThread is returning (?<exit>[0-9]+)\s*$')
+            $firstMsiNativeExit = if ($candidateNativeExits.Count -gt 0) {
+                $candidateNativeExits[$candidateNativeExits.Count - 1].Groups['exit'].Value
+            } else { $null }
         }
         elseif ($run -ceq 'second') {
             $secondMsiTransactionCount++
@@ -510,6 +549,7 @@ function ConvertFrom-WixInstallerScenarioLogs {
         second_msi_transactions = $secondMsiTransactionCount
         first_msi_commits = $firstCommitCount
         second_msi_commits = $secondCommitCount
+        first_msi_native_exit = $firstMsiNativeExit
         restart_required = [bool]$restartRequired
         burn_version = Get-WixInstallerScenarioLogValue $firstBurnText `
             'Variable:\s*WixBundleVersion\s*=\s*([0-9]+(?:\.[0-9]+){1,3})'
@@ -522,12 +562,105 @@ function ConvertFrom-WixInstallerScenarioLogs {
     }
 }
 
+function Get-WixInstallerScenarioRecoveryPostExitState {
+    param([AllowNull()]$Evidence)
+
+    $nativeExit = Get-WixInstallerScenarioProperty $Evidence 'first_msi_native_exit' $null
+    $known = (Get-WixInstallerScenarioProperty $Evidence 'first_msi_commits' 0) -eq 1 -and
+        [string]$nativeExit -cin @('0', '3010')
+    return [pscustomobject]@{
+        known = [bool]$known
+        native_exit = $nativeExit
+        restart_required = if ($known) { [string]$nativeExit -ceq '3010' } else { $null }
+    }
+}
+
+function Test-WixInstallerScenarioRecoveryRebootProof {
+    param(
+        [AllowNull()]$Readback,
+        [AllowNull()]$Process,
+        [AllowNull()]$Reboot,
+        [AllowNull()]$NextProcess = $null
+    )
+
+    foreach ($name in @('owned_sandbox_id', 'sentinel_path', 'sentinel_sha256')) {
+        $expected = [string](Get-WixInstallerScenarioProperty $Readback $name)
+        $observed = [string](Get-WixInstallerScenarioProperty $Reboot $name)
+        if ([string]::IsNullOrWhiteSpace($expected) -or $observed -cne $expected) {
+            return $false
+        }
+    }
+    if ([string](Get-WixInstallerScenarioProperty $Readback 'sentinel_sha256') -cnotmatch '^[0-9a-f]{64}$') {
+        return $false
+    }
+    try {
+        $sentinel = [IO.Path]::GetFullPath([string](Get-WixInstallerScenarioProperty $Readback 'sentinel_path'))
+        if (-not $sentinel.StartsWith('C:\', [StringComparison]::OrdinalIgnoreCase) -or
+            $sentinel -match '^C:\\(?:PolicyWork|PolicyOutput)(?:\\|$)') {
+            return $false
+        }
+    }
+    catch [ArgumentException] { return $false }
+    catch [NotSupportedException] { return $false }
+    catch [IO.IOException] { return $false }
+
+    $exited = Get-WixInstallerScenarioProperty $Process 'exited' $null
+    $exitText = [string](Get-WixInstallerScenarioProperty $Process 'exit_code')
+    if ($exited -isnot [bool] -or -not $exited -or [string]::IsNullOrWhiteSpace($exitText)) {
+        return $false
+    }
+    try {
+        if ($exitText.StartsWith('0x', [StringComparison]::OrdinalIgnoreCase)) {
+            [void][Convert]::ToInt64($exitText.Substring(2), 16)
+        }
+        else {
+            [void][Convert]::ToInt64($exitText, 10)
+        }
+    }
+    catch [FormatException] { return $false }
+    catch [OverflowException] { return $false }
+    catch [ArgumentException] { return $false }
+
+    $fields = @(
+        @{ key = 'ended'; object = $Process; name = 'ended_utc' },
+        @{ key = 'proof_ended'; object = $Reboot; name = 'process_ended_utc' },
+        @{ key = 'before'; object = $Reboot; name = 'before_boot_utc' },
+        @{ key = 'after'; object = $Reboot; name = 'after_boot_utc' },
+        @{ key = 'observed'; object = $Reboot; name = 'observed_utc' }
+    )
+    if ($null -ne $NextProcess) {
+        $fields += @{ key = 'next_started'; object = $NextProcess; name = 'started_utc' }
+        $fields += @{ key = 'next_ended'; object = $NextProcess; name = 'ended_utc' }
+    }
+    $dates = @{}
+    foreach ($field in $fields) {
+        $value = [string](Get-WixInstallerScenarioProperty $field.object $field.name)
+        $parsed = [DateTimeOffset]::MinValue
+        if ($value -cnotmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,7})?(?:Z|[+-][0-9]{2}:[0-9]{2})$' -or
+            -not [DateTimeOffset]::TryParse($value, [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
+            return $false
+        }
+        $dates[$field.key] = $parsed.UtcDateTime
+    }
+    if ($dates.ended -ne $dates.proof_ended -or $dates.before -gt $dates.ended -or
+        $dates.after -le $dates.ended -or $dates.observed -lt $dates.after) {
+        return $false
+    }
+    if ($null -ne $NextProcess -and
+        ($dates.next_started -lt $dates.after -or $dates.next_ended -lt $dates.next_started)) {
+        return $false
+    }
+    return $true
+}
+
 function Get-WixInstallerScenarioVerdict {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Upgrade', 'Reentry', 'Recovery')]
         [string]$Scenario,
-        [Parameter(Mandatory = $true, Position = 1)]$Evidence
+        [Parameter(Mandatory = $true, Position = 1)]$Evidence,
+        [switch]$AcceptRetainedBundle
     )
 
     $readback = Get-WixInstallerScenarioProperty $Evidence 'readback'
@@ -740,10 +873,17 @@ function Get-WixInstallerScenarioVerdict {
     }
     elseif ($Scenario -ceq 'Recovery') {
         $attempts = [int](Get-WixInstallerScenarioProperty $readback 'injection_attempts' 0)
+        $bundleConsistent = Get-WixInstallerScenarioProperty $readback 'bundle_consistent_at_interrupt' $null
+        $verifiedStop = Get-WixInstallerScenarioProperty $readback 'verified_ba_stop' $null
+        $engineExited = Get-WixInstallerScenarioProperty $readback 'original_engine_exited' $null
+        $retainedAccepted = $AcceptRetainedBundle -and
+            $bundleConsistent -is [bool] -and $bundleConsistent -and
+            $verifiedStop -is [bool] -and $verifiedStop -and
+            $engineExited -is [bool] -and $engineExited
         $formed = (
             (Get-WixInstallerScenarioProperty $Evidence 'first_msi_commits' 0) -gt 0 -and
             (Get-WixInstallerScenarioProperty $readback 'injection_origin') -ceq 'candidate_ba_ui' -and
-            (Get-WixInstallerScenarioProperty $readback 'bundle_consistent_at_interrupt' $null) -eq $false
+            ($bundleConsistent -eq $false -or $retainedAccepted)
         )
         if ($attempts -gt 2) {
             $result = 'FAIL'
@@ -753,13 +893,17 @@ function Get-WixInstallerScenarioVerdict {
             $result = 'NOT_COVERED'
             $reason = 'A candidate-BA interruption after real MSI commit and bundle inconsistency was not formed.'
         }
-        elseif (Get-WixInstallerScenarioProperty $Evidence 'restart_required' $false) {
-            $result = 'NOT_COVERED'
-            $reason = 'The formed recovery state requires a Root-owned guest reboot before convergence can be observed.'
-        }
         else {
             $missing = $false
             $contradicted = $false
+            $processRestartRequired = $false
+            if (Get-WixInstallerScenarioProperty $Evidence 'restart_required' $false) {
+                $processRestartRequired = -not (Test-WixInstallerScenarioRecoveryRebootProof `
+                    -Readback $readback `
+                    -Process (Get-WixInstallerScenarioProperty $readback 'recovery_process') `
+                    -Reboot (Get-WixInstallerScenarioProperty $readback 'recovery_reboot') `
+                    -NextProcess (Get-WixInstallerScenarioProperty $readback 'normal_rerun_process'))
+            }
             $expectedRuntime = [string](Get-WixInstallerScenarioProperty $readback 'expected_runtime_version')
             $expectedMsi = [string](Get-WixInstallerScenarioProperty $readback 'expected_msi_version')
             foreach ($field in @(
@@ -794,7 +938,6 @@ function Get-WixInstallerScenarioVerdict {
                     $contradicted = $true
                 }
             }
-            $processRestartRequired = $false
             foreach ($processField in @('normal_rerun_process', 'normal_uninstall_process')) {
                 $process = Get-WixInstallerScenarioProperty $readback $processField $null
                 $processExited = Get-WixInstallerScenarioProperty $process 'exited' $null
@@ -827,7 +970,16 @@ function Get-WixInstallerScenarioVerdict {
                         $contradicted = $true
                     }
                     elseif ($processExitValue -eq 3010) {
-                        $processRestartRequired = $true
+                        $rebootField = $processField -replace '_process$', '_reboot'
+                        $nextProcess = if ($processField -ceq 'normal_rerun_process') {
+                            Get-WixInstallerScenarioProperty $readback 'normal_uninstall_process'
+                        } else { $null }
+                        if (-not (Test-WixInstallerScenarioRecoveryRebootProof `
+                            -Readback $readback -Process $process `
+                            -Reboot (Get-WixInstallerScenarioProperty $readback $rebootField) `
+                            -NextProcess $nextProcess)) {
+                            $processRestartRequired = $true
+                        }
                     }
                 }
                 else {
@@ -873,7 +1025,11 @@ function Get-WixInstallerScenarioVerdict {
             }
             else {
                 $result = 'PASS'
-                $reason = 'A real candidate-BA interruption after MSI commit converged through ordinary UI and preserved user state.'
+                $reason = if ($retainedAccepted) {
+                    'A verified candidate-BA interruption after MSI commit retained the Full bundle and completed ordinary UI maintenance and uninstall while preserving user state.'
+                } else {
+                    'A real candidate-BA interruption after MSI commit repaired the inconsistent bundle through ordinary UI and preserved user state.'
+                }
             }
         }
     }
@@ -881,7 +1037,7 @@ function Get-WixInstallerScenarioVerdict {
     $evidenceClass = [string](Get-WixInstallerScenarioProperty $Evidence 'evidence_class')
     $synthetic = $evidenceClass -ceq 'synthetic_contract_only'
     $actualPass = -not $synthetic -and $evidenceClass -ceq 'runtime_observed' -and $result -ceq 'PASS'
-    return [pscustomobject]@{
+    $verdict = [pscustomobject]@{
         scenario = $Scenario
         verdict = $result
         evidence_class = $evidenceClass
@@ -897,6 +1053,11 @@ function Get-WixInstallerScenarioVerdict {
         actual_scenario_pass = [bool]$actualPass
         reason = $reason
     }
+    if ($Scenario -ceq 'Recovery') {
+        $verdict | Add-Member -NotePropertyName acceptance_mode -NotePropertyValue $(
+            if ($AcceptRetainedBundle) { 'retained_or_repaired' } else { 'repair_required' })
+    }
+    return $verdict
 }
 
 function Test-WixInstallerScenarioRebootContinuation {
@@ -983,7 +1144,8 @@ function Test-WixInstallerScenarioRebootContinuation {
 function Test-WixInstallerScenarioKillEligible {
     param(
         [Parameter(Mandatory = $true, Position = 0)]$ExpectedTarget,
-        [Parameter(Mandatory = $true, Position = 1)]$ObservedProcess
+        [Parameter(Mandatory = $true, Position = 1)]$ObservedProcess,
+        [switch]$AllowElevatedBaUi
     )
 
     $required = @('path', 'sha256', 'pid', 'creation_time_utc')
@@ -998,13 +1160,48 @@ function Test-WixInstallerScenarioKillEligible {
             return [pscustomobject]@{ eligible = $false; reason = "Empty verified identity field: $name." }
         }
     }
-    if ((Get-WixInstallerScenarioProperty $ObservedProcess 'process_kind') -cne 'candidate_ba_ui') {
+    $kind = [string](Get-WixInstallerScenarioProperty $ObservedProcess 'process_kind')
+    $elevatedBa = $AllowElevatedBaUi -and $kind -ceq 'elevated_burn_ba' -and
+        (Get-WixInstallerScenarioProperty $ExpectedTarget 'process_kind') -ceq 'elevated_burn_ba'
+    if ($elevatedBa) {
+        foreach ($target in @($ExpectedTarget, $ObservedProcess)) {
+            foreach ($rule in @(
+                @{ name = 'elevated'; expected = $true },
+                @{ name = 'alive'; expected = $true },
+                @{ name = 'trusted_ba_hash'; expected = $true },
+                @{ name = 'setup_hash_match'; expected = $false }
+            )) {
+                $value = Get-WixInstallerScenarioProperty $target $rule.name $null
+                if ($value -isnot [bool] -or $value -ne $rule.expected) {
+                    return [pscustomobject]@{ eligible = $false; reason = "Standalone BA proof is absent or contradicted: $($rule.name)." }
+                }
+            }
+        }
+        foreach ($name in @('parent_pid', 'root_pid', 'root_creation_time_utc')) {
+            $expected = [string](Get-WixInstallerScenarioProperty $ExpectedTarget $name)
+            $observed = [string](Get-WixInstallerScenarioProperty $ObservedProcess $name)
+            if ([string]::IsNullOrWhiteSpace($expected) -or $observed -cne $expected) {
+                return [pscustomobject]@{ eligible = $false; reason = "Standalone BA ancestry changed: $name." }
+            }
+        }
+        $expectedAncestry = @(Get-WixInstallerScenarioProperty $ExpectedTarget 'ancestry_pids' @())
+        $observedAncestry = @(Get-WixInstallerScenarioProperty $ObservedProcess 'ancestry_pids' @())
+        if ($expectedAncestry.Count -lt 2 -or
+            ($expectedAncestry -join ',') -cne ($observedAncestry -join ',') -or
+            [string]$expectedAncestry[0] -cne [string]$ExpectedTarget.root_pid -or
+            [string]$expectedAncestry[-1] -cne [string]$ExpectedTarget.pid -or
+            [string]$expectedAncestry[-2] -cne [string]$ExpectedTarget.parent_pid -or
+            [string]$ExpectedTarget.root_pid -ceq [string]$ExpectedTarget.pid) {
+            return [pscustomobject]@{ eligible = $false; reason = 'Standalone BA ancestry is incomplete or changed.' }
+        }
+    }
+    elseif ($kind -cne 'candidate_ba_ui') {
         return [pscustomobject]@{
             eligible = $false
             reason = 'Only an explicitly classified candidate BA/UI process is eligible.'
         }
     }
-    if ((Get-WixInstallerScenarioProperty $ObservedProcess 'elevated' $null) -ne $false) {
+    if (-not $elevatedBa -and (Get-WixInstallerScenarioProperty $ObservedProcess 'elevated' $null) -ne $false) {
         return [pscustomobject]@{ eligible = $false; reason = 'The BA/UI process is elevated or elevation is unknown.' }
     }
     $observedPath = [string](Get-WixInstallerScenarioProperty $ObservedProcess 'path')
@@ -1036,7 +1233,7 @@ function Test-WixInstallerScenarioKillEligible {
     }
     return [pscustomobject]@{
         eligible = $true
-        reason = 'Exact verified, non-elevated candidate BA/UI identity.'
+        reason = if ($elevatedBa) { 'Exact trusted standalone BA/UI identity with explicit opt-in.' } else { 'Exact verified, non-elevated candidate BA/UI identity.' }
     }
 }
 
@@ -1635,6 +1832,38 @@ function Get-WixInstallerScenarioSnapshot {
         [Parameter(Mandatory = $true)][string]$OutputDir
     )
 
+    function Test-WixInstallerScenarioOwnedCleanupPath {
+        param(
+            [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Path,
+            [Parameter(Mandatory = $true)][string]$ProductRoot,
+            [switch]$RetiredOnly
+        )
+
+        if ([string]::IsNullOrEmpty($Path)) { return $false }
+        $candidate = $Path.TrimStart('!')
+        foreach ($prefix in @('\??\', '\\?\')) {
+            if ($candidate.StartsWith($prefix, [StringComparison]::Ordinal)) {
+                $candidate = $candidate.Substring($prefix.Length)
+                break
+            }
+        }
+        try {
+            if (-not [IO.Path]::IsPathRooted($candidate)) { return $false }
+            $candidate = [IO.Path]::GetFullPath($candidate)
+            $productPath = [IO.Path]::GetFullPath($ProductRoot).TrimEnd('\')
+            if (-not $RetiredOnly -and
+                ($candidate.Equals($productPath, [StringComparison]::OrdinalIgnoreCase) -or
+                 $candidate.StartsWith($productPath + '\', [StringComparison]::OrdinalIgnoreCase))) {
+                return $true
+            }
+            $parent = [IO.Path]::GetDirectoryName($productPath)
+            return [string]::Equals([IO.Path]::GetDirectoryName($candidate), $parent,
+                [StringComparison]::OrdinalIgnoreCase) -and
+                [IO.Path]::GetFileName($candidate) -match '^\.liukai-retired-[0-9a-f]{32}-(tsf|branding)\.dll$'
+        }
+        catch { return $false }
+    }
+
     $root = (Get-WixInstallerScenarioProductRoot)
     $issues = @()
     $owner = $null
@@ -1648,6 +1877,10 @@ function Get-WixInstallerScenarioSnapshot {
     $manifestIntegrityOk = $null
     $registration = $null
     $registrationStatusOk = $null
+    $registrationAbsent = $null
+    $productDirectoryAbsent = $null
+    $ownedPendingDeletes = $null
+    $ownedRetiredFiles = $null
     $msiIdentity = $null
     $identityIntegrityOk = $null
     $identityBase = $null
@@ -1765,6 +1998,27 @@ function Get-WixInstallerScenarioSnapshot {
         )
         if ((Test-Path -LiteralPath $dll -PathType Leaf) -and
             (Test-Path -LiteralPath $register -PathType Leaf)) {
+            # Keep a verified, read-only observer outside the product tree so
+            # the same runtime snapshot can query TSF after ordinary uninstall.
+            if ($manifestIntegrityOk -eq $true) {
+                $observer = Join-Path $OutputDir 'registration-status.exe'
+                $observerHashFile = $observer + '.sha256'
+                try {
+                    if (-not (Test-Path -LiteralPath $observer)) {
+                        $observerHash = (Get-FileHash -LiteralPath $register -Algorithm SHA256).Hash.ToLowerInvariant()
+                        [IO.File]::Copy($register, $observer, $false)
+                        [IO.File]::WriteAllText($observerHashFile, $observerHash)
+                    }
+                    if (-not (Test-Path -LiteralPath $observerHashFile -PathType Leaf) -or
+                        (Get-FileHash -LiteralPath $observer -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+                            [IO.File]::ReadAllText($observerHashFile).Trim()) {
+                        throw 'Cached registration observer hash is not verified.'
+                    }
+                }
+                catch {
+                    $issues += "Registration observer cache failed: $($_.Exception.Message)"
+                }
+            }
             $registrationText = ''
             $registrationExit = 1
             $registrationAttempted = $false
@@ -1814,6 +2068,133 @@ function Get-WixInstallerScenarioSnapshot {
         }
     }
 
+    try {
+        $productDirectoryAbsent = -not (Test-Path -LiteralPath $root -ErrorAction Stop)
+    }
+    catch {
+        $issues += "Product-directory absence could not be read: $($_.Exception.Message)"
+    }
+
+    # Observe both registry views explicitly; merged HKCR and a missing product
+    # identity alone cannot prove that COM or a disabled TSF profile is absent.
+    if (-not $installed) {
+        $comViews = @()
+        $profileViews = @()
+        foreach ($hive in @('CurrentUser', 'LocalMachine')) {
+            foreach ($view in @('Registry32', 'Registry64')) {
+                foreach ($entry in @(
+                    @{ kind = 'com'; key = 'SOFTWARE\Classes\CLSID\{5D7C4291-2B34-4CE8-8A11-39627105C42E}' },
+                    @{ kind = 'profile'; key = 'SOFTWARE\Microsoft\CTF\TIP\{5D7C4291-2B34-4CE8-8A11-39627105C42E}\LanguageProfile\0x00000404\{7254A21F-6EB1-4217-A42C-C27301175D90}' }
+                )) {
+                    $base = $null; $key = $null; $absent = $null
+                    try {
+                        $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+                            [Microsoft.Win32.RegistryHive]$hive, [Microsoft.Win32.RegistryView]$view)
+                        $key = $base.OpenSubKey($entry.key, $false)
+                        $absent = $null -eq $key
+                    }
+                    catch {
+                        $issues += "Absence registry read failed ($hive/$view/$($entry.kind)): $($_.Exception.Message)"
+                    }
+                    finally {
+                        if ($null -ne $key) { $key.Dispose() }
+                        if ($null -ne $base) { $base.Dispose() }
+                    }
+                    $row = [pscustomobject]@{ hive = $hive; view = $view; absent = $absent }
+                    if ($entry.kind -ceq 'com') { $comViews += $row } else { $profileViews += $row }
+                }
+            }
+        }
+        $comAbsent = if (@($comViews | Where-Object { $_.absent -eq $false }).Count) { $false }
+            elseif (@($comViews | Where-Object { $null -eq $_.absent }).Count) { $null } else { $true }
+        $profileRegistryAbsent = if (@($profileViews | Where-Object { $_.absent -eq $false }).Count) { $false }
+            elseif (@($profileViews | Where-Object { $null -eq $_.absent }).Count) { $null } else { $true }
+        $nativeAbsent = $null
+        $nativeReadKnown = $false
+        $observer = Join-Path $OutputDir 'registration-status.exe'
+        $observerHashFile = $observer + '.sha256'
+        try {
+            if (-not (Test-Path -LiteralPath $observer -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $observerHashFile -PathType Leaf) -or
+                (Get-FileHash -LiteralPath $observer -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+                    [IO.File]::ReadAllText($observerHashFile).Trim()) {
+                throw 'A verified external registration observer is unavailable.'
+            }
+            # --status only reads registration; its DLL argument need not exist.
+            $statusDll = Join-Path $root 'versions\absence\x64\BoshiamyTsf.dll'
+            $nativeText = (& $observer --status $statusDll 2>&1 | Out-String).Trim()
+            $nativeStatus = $nativeText | ConvertFrom-Json -ErrorAction Stop
+            if ((Get-WixInstallerScenarioProperty $nativeStatus 'result' $null) -ne 0 -or
+                (Get-WixInstallerScenarioProperty $nativeStatus 'cleanup_result' $null) -ne 0) {
+                throw 'The native registration observer did not initialize successfully.'
+            }
+            $nativeAbsent = $true
+            foreach ($name in @('profile', 'keyboard_category', 'system_tray_category', 'immersive_category', 'input_mode_category')) {
+                $status = Get-WixInstallerScenarioProperty $nativeStatus $name $null
+                if ($null -eq $status -or $status -notin @(0, 1)) {
+                    throw "Native registration observation is missing or failed: $name."
+                }
+                if ($status -eq 0) { $nativeAbsent = $false }
+            }
+            $nativeReadKnown = $true
+        }
+        catch {
+            $nativeAbsent = $null
+            $issues += "Native registration absence could not be read: $($_.Exception.Message)"
+        }
+        $profileAbsent = if ($profileRegistryAbsent -eq $false -or $nativeAbsent -eq $false) { $false }
+            elseif ($profileRegistryAbsent -eq $true -and $nativeAbsent -eq $true) { $true } else { $null }
+        $registrationAbsent = if ($comAbsent -eq $false -or $profileAbsent -eq $false) { $false }
+            elseif ($comAbsent -eq $true -and $profileAbsent -eq $true) { $true } else { $null }
+        $registrationStatusOk = if ($nativeReadKnown) { $true } else { $null }
+        $registration = [pscustomobject]@{
+            absent = $registrationAbsent
+            profile = [pscustomobject]@{ absent = $profileAbsent; views = @($profileViews); native_absent = $nativeAbsent }
+            com_server = [pscustomobject]@{ absent = $comAbsent; views = @($comViews) }
+        }
+    }
+
+    $pendingBase = $null; $pendingKey = $null
+    try {
+        $pendingBase = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+            [Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64)
+        $pendingKey = $pendingBase.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager', $false)
+        if ($null -eq $pendingKey) { throw 'Session Manager registry key is unavailable.' }
+        $ownedPendingDeletes = @()
+        foreach ($name in @('PendingFileRenameOperations', 'PendingFileRenameOperations2')) {
+            $pairs = $pendingKey.GetValue($name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            if ($null -eq $pairs) { continue }
+            if ($pairs -isnot [string[]] -or $pairs.Count % 2 -ne 0) { throw "Malformed pending-file operations: $name." }
+            for ($index = 0; $index -lt $pairs.Count; $index += 2) {
+                $owned = $false
+                foreach ($rawPath in @($pairs[$index], $pairs[$index + 1])) {
+                    if (Test-WixInstallerScenarioOwnedCleanupPath -Path $rawPath -ProductRoot $root) {
+                        $owned = $true
+                    }
+                }
+                if ($owned) { $ownedPendingDeletes += [pscustomobject]@{ value = $name; source = $pairs[$index]; destination = $pairs[$index + 1] } }
+            }
+        }
+    }
+    catch {
+        $ownedPendingDeletes = $null
+        $issues += "Owned pending-file operations could not be read: $($_.Exception.Message)"
+    }
+    finally {
+        if ($null -ne $pendingKey) { $pendingKey.Dispose() }
+        if ($null -ne $pendingBase) { $pendingBase.Dispose() }
+    }
+    try {
+        $retiredParent = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($root).TrimEnd('\'))
+        $ownedRetiredFiles = @(Get-ChildItem -LiteralPath $retiredParent -Force -ErrorAction Stop |
+            Where-Object {
+                Test-WixInstallerScenarioOwnedCleanupPath -Path $_.FullName -ProductRoot $root -RetiredOnly
+            } | ForEach-Object { $_.FullName } | Sort-Object)
+    }
+    catch {
+        $ownedRetiredFiles = $null
+        $issues += "Owned retirement files could not be read: $($_.Exception.Message)"
+    }
     $msi = Get-WixInstallerScenarioMsiProducts
     $uninstall = Get-WixInstallerScenarioUninstallEntries
     $retention = Get-WixInstallerScenarioStateRetention -FixtureExe $StateFixture -OutputDir $OutputDir
@@ -1834,6 +2215,10 @@ function Get-WixInstallerScenarioSnapshot {
         identity_integrity_ok = $identityIntegrityOk
         registration = $registration
         registration_status_ok = $registrationStatusOk
+        registration_absent = $registrationAbsent
+        product_directory_absent = $productDirectoryAbsent
+        owned_pending_deletes = $ownedPendingDeletes
+        owned_retired_files = $ownedRetiredFiles
         msi_identity = $msiIdentity
         msi_products = @($msi.products)
         msi_product_issues = @($msi.issues)
@@ -1866,6 +2251,48 @@ public static class WixInstallerScenarioProcessNative
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool GetTokenInformation(
         IntPtr token, int information, out uint elevation, int size, out int returned);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetProcessId(IntPtr process);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetProcessTimes(IntPtr process,
+        out long created, out long exited, out long kernel, out long user);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(IntPtr process, uint milliseconds);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateProcess(IntPtr process, uint exitCode);
+
+    public static bool TryTerminateVerifiedHandle(
+        IntPtr process, int expectedPid, long expectedCreated, uint exitCode, out int error)
+    {
+        error = 0;
+        if (process == IntPtr.Zero || process == new IntPtr(-1) || expectedPid <= 0) {
+            error = 6;
+            return false;
+        }
+        uint pid = GetProcessId(process);
+        long created, exited, kernel, user;
+        if (pid == 0 || !GetProcessTimes(process, out created, out exited, out kernel, out user)) {
+            error = Marshal.GetLastWin32Error();
+            return false;
+        }
+        if (pid != (uint)expectedPid || created != expectedCreated) {
+            error = 13;
+            return false;
+        }
+        if (WaitForSingleObject(process, 0) != 258) {
+            error = 1168;
+            return false;
+        }
+        if (!TerminateProcess(process, exitCode)) {
+            error = Marshal.GetLastWin32Error();
+            return false;
+        }
+        return true;
+    }
 
     public static bool TryIsElevated(int processId, out bool elevated, out int error)
     {
@@ -2070,10 +2497,11 @@ function Get-WixInstallerScenarioProcessTree {
             -SetupHash $SetupHash `
             -TrustedBaHashes $TrustedBaHashes `
             -ParentPid ([int]$item.parent_pid)
+        if ([int]$item.pid -eq $RootPid -and
+            ($null -eq $observation -or $observation.setup_hash_match -ne $true)) {
+            return @()
+        }
         if ($null -ne $observation) {
-            if ([int]$item.pid -eq $RootPid -and $observation.setup_hash_match -ne $true) {
-                return @()
-            }
             $observation | Add-Member -NotePropertyName root_pid -NotePropertyValue $RootPid
             $observation | Add-Member -NotePropertyName root_creation_time_utc `
                 -NotePropertyValue $RootCreationTimeUtc
@@ -2081,7 +2509,8 @@ function Get-WixInstallerScenarioProcessTree {
                 -NotePropertyValue @($item.ancestry_pids)
             $observations += $observation
         }
-        foreach ($child in @(Get-WixInstallerScenarioProperty $children ([int]$item.pid) @())) {
+        $childRows = if ($children.ContainsKey([int]$item.pid)) { $children[[int]$item.pid] } else { @() }
+        foreach ($child in $childRows) {
             $queue.Enqueue([pscustomobject]@{
                 pid = [int]$child.ProcessId
                 parent_pid = [int]$item.pid
@@ -2299,7 +2728,7 @@ function Start-WixInstallerScenarioMappedModule {
 }
 
 function Get-WixInstallerScenarioMsiPathsFromBurn {
-    param([Parameter(Mandatory = $true)][string]$BurnText)
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$BurnText)
 
     $paths = @()
     foreach ($match in [regex]::Matches(
@@ -2342,7 +2771,7 @@ function Get-WixInstallerScenarioDiscoveredLogFiles {
 
 function Copy-WixInstallerScenarioRawLogs {
     param(
-        [Parameter(Mandatory = $true)][object[]]$Logs,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Logs,
         [Parameter(Mandatory = $true)][string]$OutputDir
     )
 
@@ -2444,11 +2873,25 @@ function Test-WixInstallerScenarioBundleMatches {
         [Parameter(Mandatory = $true)]$Identity
     )
 
-    if (@(Get-WixInstallerScenarioProperty $Snapshot 'uninstall_registry_issues' @()).Count -ne 0) {
-        return $false
+    # Read raw arrays so a complete empty observation stays distinct from unknown.
+    $observations = @{}
+    foreach ($name in @('uninstall_registry_issues', 'uninstall_entries')) {
+        $observations[$name] = $null
+        if ($Snapshot -is [System.Collections.IDictionary]) {
+            if ($Snapshot.Contains($name)) { $observations[$name] = $Snapshot[$name] }
+        }
+        elseif ($null -ne $Snapshot.PSObject.Properties[$name]) {
+            $observations[$name] = $Snapshot.PSObject.Properties[$name].Value
+        }
     }
-    $entries = @(Get-WixInstallerScenarioProperty $Snapshot 'uninstall_entries' @())
+    if ($null -eq $observations['uninstall_registry_issues'] -or
+        $null -eq $observations['uninstall_entries'] -or
+        @($observations['uninstall_registry_issues']).Count -ne 0) {
+        return $null
+    }
+    $entries = @($observations['uninstall_entries'])
     $expectedVersion = [string](Get-WixInstallerScenarioProperty $Identity 'msi_version')
+    if ([string]::IsNullOrWhiteSpace($expectedVersion)) { return $null }
     $bundleMatches = @($entries | Where-Object {
         (Get-WixInstallerScenarioProperty $_ 'kind') -ceq 'burn_bundle' -and
         (Get-WixInstallerScenarioProperty $_ 'display_version') -ceq $expectedVersion -and
@@ -2458,7 +2901,24 @@ function Test-WixInstallerScenarioBundleMatches {
         (Get-WixInstallerScenarioProperty $_ 'kind') -ceq 'burn_bundle' -and
         (Get-WixInstallerScenarioProperty $_ 'display_version') -cne $expectedVersion
     })
-    return $bundleMatches.Count -ge 1 -and $bundleMismatch.Count -eq 0
+    if ($bundleMatches.Count -eq 0 -or $bundleMismatch.Count -ne 0) { return $false }
+
+    $unknownResume = $false
+    foreach ($entry in $bundleMatches) {
+        $resume = Get-WixInstallerScenarioProperty (
+            Get-WixInstallerScenarioProperty $entry 'values') 'Resume' $null
+        $resumeCode = 0
+        if ($null -eq $resume -or -not [int]::TryParse([string]$resume, [ref]$resumeCode)) {
+            $unknownResume = $true
+            continue
+        }
+        # WiX 6.0.2: Active=1, Suspend=2, ARP=3, RebootPending=4.
+        # The caller must establish that the original engine has exited.
+        if ($resumeCode -eq 1 -or $resumeCode -eq 2) { return $false }
+        if ($resumeCode -ne 3) { $unknownResume = $true }
+    }
+    if ($unknownResume) { return $null }
+    return $true
 }
 
 function Test-WixInstallerScenarioSnapshotMatches {
@@ -2646,7 +3106,7 @@ function Test-WixInstallerScenarioInstalledAbsent {
     # Keep empty observed arrays distinct from null; pipeline-returned arrays unroll.
     $arrays = @{}
     foreach ($name in @('msi_products', 'msi_product_issues', 'uninstall_entries',
-                       'uninstall_registry_issues', 'owned_pending_deletes')) {
+                       'uninstall_registry_issues', 'owned_pending_deletes', 'owned_retired_files')) {
         $arrays[$name] = $null
         if ($Snapshot -is [System.Collections.IDictionary]) {
             if ($Snapshot.Contains($name)) { $arrays[$name] = $Snapshot[$name] }
@@ -2733,12 +3193,14 @@ function Test-WixInstallerScenarioInstalledAbsent {
     elseif ($directoryAbsent -ne $true) {
         $remnant = $true
     }
-    $pendingDeletes = $arrays['owned_pending_deletes']
-    if ($null -eq $pendingDeletes) {
-        $missing = $true
-    }
-    elseif (@($pendingDeletes).Count -gt 0) {
-        $remnant = $true
+    foreach ($name in @('owned_pending_deletes', 'owned_retired_files')) {
+        $cleanupRemnants = $arrays[$name]
+        if ($null -eq $cleanupRemnants) {
+            $missing = $true
+        }
+        elseif (@($cleanupRemnants).Count -gt 0) {
+            $remnant = $true
+        }
     }
     if ($remnant) { return $false }
     if ($missing) { return $null }
@@ -2967,7 +3429,8 @@ function Get-WixInstallerScenarioSingleBaTarget {
         [Parameter(Mandatory = $true)][string]$RootCreationTimeUtc,
         [Parameter(Mandatory = $true)]$RootProcess,
         [Parameter(Mandatory = $true)][string]$SetupHash,
-        [Parameter(Mandatory = $true)][string[]]$TrustedBaHashes
+        [Parameter(Mandatory = $true)][string[]]$TrustedBaHashes,
+        [switch]$AllowElevatedBaUi
     )
 
     $observations = @(
@@ -2979,8 +3442,8 @@ function Get-WixInstallerScenarioSingleBaTarget {
             -TrustedBaHashes $TrustedBaHashes
     )
     $eligible = @($observations | Where-Object {
-        $_.process_kind -ceq 'candidate_ba_ui' -and
-        $_.elevated -eq $false -and
+        (Test-WixInstallerScenarioKillEligible -ExpectedTarget $_ -ObservedProcess $_ `
+            -AllowElevatedBaUi:$AllowElevatedBaUi).eligible -and
         $_.alive -eq $true -and
         $_.root_pid -eq $RootPid -and
         $_.root_creation_time_utc -ceq $RootCreationTimeUtc
@@ -2991,6 +3454,22 @@ function Get-WixInstallerScenarioSingleBaTarget {
     }
     else {
         $null
+    }
+    if ($null -ne $targetProcess) {
+        try {
+            [void]$targetProcess.Handle
+            if ($targetProcess.HasExited -or $targetProcess.Id -ne [int]$target.pid -or
+                $targetProcess.StartTime.ToUniversalTime().ToString('o') -cne
+                    [string]$target.creation_time_utc) {
+                $targetProcess.Dispose(); $targetProcess = $null; $target = $null
+            }
+        }
+        catch [System.ComponentModel.Win32Exception] {
+            $targetProcess.Dispose(); $targetProcess = $null; $target = $null
+        }
+        catch [InvalidOperationException] {
+            $targetProcess.Dispose(); $targetProcess = $null; $target = $null
+        }
     }
     return [pscustomobject]@{
         observations = @($observations)
@@ -3012,7 +3491,8 @@ function Wait-WixInstallerScenarioRecoveryCommitTarget {
         [Parameter(Mandatory = $true)]$RootProcess,
         [Parameter(Mandatory = $true)][string]$RootCreationTimeUtc,
         [Parameter(Mandatory = $true)][string]$SetupHash,
-        [Parameter(Mandatory = $true)][string]$ExpectedMsiVersion
+        [Parameter(Mandatory = $true)][string]$ExpectedMsiVersion,
+        [switch]$AllowElevatedBaUi
     )
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -3040,7 +3520,7 @@ function Wait-WixInstallerScenarioRecoveryCommitTarget {
             -RootCreationTimeUtc $RootCreationTimeUtc `
             -RootProcess $RootProcess `
             -SetupHash $SetupHash `
-            -TrustedBaHashes $TrustedBaHashes
+            -TrustedBaHashes $TrustedBaHashes -AllowElevatedBaUi:$AllowElevatedBaUi
         if ($evidence.first_msi_commits -gt 0 -and $null -ne $tree.target) {
             Write-WixInstallerScenarioProgress -OutputDir $OutputDir -Phase 'recovery_inject' `
                 -Status 'msi_committed_ba_identity_available' -Detail @{
@@ -3074,6 +3554,7 @@ function Wait-WixInstallerScenarioRecoveryCommitTarget {
                 ambiguous_target = $true
             }
         }
+        if ($null -ne $tree.target_process) { $tree.target_process.Dispose() }
         $RootProcess.Refresh()
         if ($RootProcess.HasExited) {
             return [pscustomobject]@{
@@ -3121,7 +3602,8 @@ function Stop-WixInstallerScenarioVerifiedBa {
         [Parameter(Mandatory = $true)]$HeldTargetProcess,
         [Parameter(Mandatory = $true)]$RootProcess,
         [Parameter(Mandatory = $true)][string]$SetupHash,
-        [Parameter(Mandatory = $true)][string[]]$TrustedBaHashes
+        [Parameter(Mandatory = $true)][string[]]$TrustedBaHashes,
+        [switch]$AllowElevatedBaUi
     )
 
     $HeldTargetProcess.Refresh()
@@ -3154,7 +3636,7 @@ function Stop-WixInstallerScenarioVerifiedBa {
     $fresh = $fresh[0]
     $decision = Test-WixInstallerScenarioKillEligible `
         -ExpectedTarget $ExpectedTarget `
-        -ObservedProcess $fresh
+        -ObservedProcess $fresh -AllowElevatedBaUi:$AllowElevatedBaUi
     if ($fresh.root_pid -ne $ExpectedTarget.root_pid -or
         [string]$fresh.root_creation_time_utc -cne [string]$ExpectedTarget.root_creation_time_utc) {
         $decision = [pscustomobject]@{
@@ -3180,7 +3662,8 @@ function Stop-WixInstallerScenarioVerifiedBa {
     $final = @($finalTree | Where-Object { [int]$_.pid -eq [int]$ExpectedTarget.pid })
     if ($final.Count -ne 1 -or
         -not (Test-WixInstallerScenarioKillEligible `
-            -ExpectedTarget $ExpectedTarget -ObservedProcess $final[0]).eligible) {
+            -ExpectedTarget $ExpectedTarget -ObservedProcess $final[0] `
+            -AllowElevatedBaUi:$AllowElevatedBaUi).eligible) {
         return [pscustomobject]@{
             stopped = $false
             reason = 'Final BA identity, elevation, or ancestry changed before the stop.'
@@ -3198,7 +3681,19 @@ function Stop-WixInstallerScenarioVerifiedBa {
             observed = $final
         }
     }
-    $HeldTargetProcess.Kill()
+    Ensure-WixInstallerScenarioProcessNative
+    $nativeError = 0
+    $expectedCreated = [DateTimeOffset]::Parse(
+        [string]$ExpectedTarget.creation_time_utc).UtcDateTime.ToFileTimeUtc()
+    if (-not [WixInstallerScenarioProcessNative]::TryTerminateVerifiedHandle(
+            $HeldTargetProcess.Handle, [int]$ExpectedTarget.pid, $expectedCreated,
+            23063, [ref]$nativeError)) {
+        return [pscustomobject]@{
+            stopped = $false
+            reason = "Held BA native identity check or stop failed: $nativeError."
+            observed = $final
+        }
+    }
     $exited = $HeldTargetProcess.WaitForExit(5000)
     return [pscustomobject]@{
         stopped = [bool]$exited
@@ -3277,7 +3772,10 @@ function Invoke-WixInstallerScenarioRecovery {
         [Parameter(Mandatory = $true)]$Preflight,
         [Parameter(Mandatory = $true)]$Fixtures,
         [Parameter(Mandatory = $true)][string]$OutputDir,
-        [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+        [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
+        [switch]$AllowElevatedBaUi,
+        [ValidateRange(1, 2)][int]$MaxAttempts = 2,
+        [switch]$AcceptRetainedBundle
     )
 
     Initialize-WixInstallerScenarioState -FixtureExe $Fixtures.state_fixture_exe -OutputDir $OutputDir | Out-Null
@@ -3319,7 +3817,7 @@ function Invoke-WixInstallerScenarioRecovery {
     $attemptReceipts = @()
     $unexpectedProcessPid = $null
 
-    for ($attempt = 1; $attempt -le 2 -and $null -eq $formed; $attempt++) {
+    for ($attempt = 1; $attempt -le $MaxAttempts -and $null -eq $formed; $attempt++) {
         $attempts++
         Write-WixInstallerScenarioProgress -OutputDir $OutputDir -Phase 'recovery_attempt' `
             -Status 'starting_normal_candidate_ui' -Detail @{
@@ -3338,12 +3836,16 @@ function Invoke-WixInstallerScenarioRecovery {
             -RootProcess $started.process `
             -RootCreationTimeUtc $started.creation_time_utc `
             -SetupHash $Preflight.candidate.setup_sha256 `
-            -ExpectedMsiVersion $Preflight.candidate.msi_version
-        $allAttemptLogs += @($observation.all_logs)
+            -ExpectedMsiVersion $Preflight.candidate.msi_version `
+            -AllowElevatedBaUi:$AllowElevatedBaUi
+        $attemptLogs = @($observation.all_logs)
+        $firstObservation = $observation | Select-Object -Property * -ExcludeProperty target_process, root_process
         $stop = $null
         $interrupted = $null
         $bundleConsistent = $null
         $bundleRegistryVerified = $null
+        $interruptedProcess = $null
+        $postExit = $null
         if ($observation.commit_observed -and $null -ne $observation.target -and
             $null -ne $observation.target_process) {
             $stop = Stop-WixInstallerScenarioVerifiedBa `
@@ -3351,8 +3853,37 @@ function Invoke-WixInstallerScenarioRecovery {
                 -HeldTargetProcess $observation.target_process `
                 -RootProcess $observation.root_process `
                 -SetupHash $Preflight.candidate.setup_sha256 `
-                -TrustedBaHashes $trustedBaHashes
+                -TrustedBaHashes $trustedBaHashes -AllowElevatedBaUi:$AllowElevatedBaUi
             if ($stop.stopped) {
+                $interruptedProcess = Wait-WixInstallerScenarioProcess -Process $started.process `
+                    -TimeoutSeconds $TimeoutSeconds -OutputDir $OutputDir -Phase 'recovery_original_engine_exit'
+                if (-not $interruptedProcess.exited) {
+                    $unexpectedProcessPid = $started.pid
+                }
+                else {
+                    $attemptLogs = @(Get-WixInstallerScenarioLiveLogs `
+                        -StartedUtc ([DateTimeOffset]::Parse($started.started_utc).UtcDateTime) `
+                        -ExplicitBurnLog $injectionBurn)
+                    $postExitMsiLogs = @($attemptLogs | Where-Object { $_.kind -ceq 'msi' } | ForEach-Object {
+                        [pscustomobject]@{ run = 'first'; kind = 'msi'; path = $_.path; text = $_.text }
+                    })
+                    $postExitBurnLogs = @($attemptLogs | Where-Object { $_.kind -ceq 'burn' } | ForEach-Object {
+                        [pscustomobject]@{ run = 'first'; kind = 'burn'; path = $_.path; text = $_.text }
+                    })
+                    $postExitEvidence = ConvertFrom-WixInstallerScenarioLogs -Scenario Recovery `
+                        -BurnLogs $postExitBurnLogs -MsiLogs $postExitMsiLogs `
+                        -Readback ([pscustomobject]@{ expected_msi_version = $Preflight.candidate.msi_version }) `
+                        -EvidenceClass runtime_observed
+                    $postExit = [pscustomobject]@{
+                        collected_utc = [DateTime]::UtcNow.ToString('o')
+                        explicit_burn_log = $injectionBurn
+                        evidence = $postExitEvidence
+                        state = Get-WixInstallerScenarioRecoveryPostExitState -Evidence $postExitEvidence
+                        msi_logs = @($postExitMsiLogs)
+                    }
+                    Write-WixInstallerScenarioJson (
+                        Join-Path $OutputDir ("recovery-$attempt-post-exit.json")) $postExit
+                }
                 Write-WixInstallerScenarioProgress -OutputDir $OutputDir -Phase 'recovery_attempt' `
                     -Status 'verified_ba_stopped_reading_state' -Detail @{
                         attempt = $attempt
@@ -3360,6 +3891,8 @@ function Invoke-WixInstallerScenarioRecovery {
                     }
                 $interrupted = Get-WixInstallerScenarioSnapshot `
                     -StateFixture $Fixtures.state_fixture_exe -OutputDir $OutputDir
+                Write-WixInstallerScenarioJson (
+                    Join-Path $OutputDir ("recovery-$attempt-interrupted.json")) $interrupted
                 $bundleRegistryVerified = @($interrupted.uninstall_registry_issues).Count -eq 0
                 $bundleConsistent = if ($bundleRegistryVerified) {
                     Test-WixInstallerScenarioBundleMatches `
@@ -3368,21 +3901,29 @@ function Invoke-WixInstallerScenarioRecovery {
                 else {
                     $null
                 }
-                if ((Test-WixInstallerScenarioSnapshotMatches `
+                if ($interruptedProcess.exited -and $null -ne $postExit -and $postExit.state.known -and
+                    (Test-WixInstallerScenarioSnapshotMatches `
                     -Snapshot $interrupted -Identity $Preflight.candidate) -and
-                    $bundleRegistryVerified -and -not $bundleConsistent) {
+                    $bundleRegistryVerified -and ($bundleConsistent -eq $false -or
+                        ($AcceptRetainedBundle -and $bundleConsistent -eq $true))) {
                     $formed = [pscustomobject]@{
                         attempt = $attempt
                         started = $started
                         observation = $observation
                         stop = $stop
                         snapshot = $interrupted
+                        original_process = $interruptedProcess
+                        post_exit = $postExit
+                        bundle_consistent = $bundleConsistent
                     }
                     Write-WixInstallerScenarioJson (Join-Path $OutputDir 'formed-state.json') ([ordered]@{
                         attempt = $formed.attempt
                         target = $formed.observation.target
                         stop = $formed.stop
                         snapshot = $formed.snapshot
+                        original_process = $formed.original_process
+                        post_exit = $formed.post_exit
+                        bundle_consistent = $formed.bundle_consistent
                     })
                 }
             }
@@ -3393,6 +3934,9 @@ function Invoke-WixInstallerScenarioRecovery {
                 }
             }
         }
+        Write-WixInstallerScenarioJson (
+            Join-Path $OutputDir ("recovery-$attempt-first-observation.json")) $firstObservation
+        $allAttemptLogs += @($attemptLogs)
         $attemptReceipts += [pscustomobject]@{
             attempt = $attempt
             candidate_pid = $started.pid
@@ -3401,6 +3945,9 @@ function Invoke-WixInstallerScenarioRecovery {
             target_observed = $null -ne $observation.target
             ambiguous_target = $observation.ambiguous_target
             stop = $stop
+            original_process = $interruptedProcess
+            first_observation = $firstObservation
+            post_exit = $postExit
             bundle_consistent_at_interrupt = $bundleConsistent
             bundle_registry_verified = $bundleRegistryVerified
             timed_out = [bool](Get-WixInstallerScenarioProperty $observation 'timed_out' $false)
@@ -3417,7 +3964,12 @@ function Invoke-WixInstallerScenarioRecovery {
         if ($null -ne $unexpectedProcessPid) {
             break
         }
-        if ($attempt -lt 2) {
+        if ($null -ne $postExit -and -not $postExit.state.known) {
+            Write-WixInstallerScenarioProgress -OutputDir $OutputDir -Phase 'recovery_post_exit' `
+                -Status 'candidate_native_result_unknown'
+            break
+        }
+        if ($attempt -lt $MaxAttempts) {
             $reset = Reset-WixInstallerScenarioToBaseline -Preflight $Preflight -Fixtures $Fixtures `
                 -OutputDir $OutputDir -TimeoutSeconds $TimeoutSeconds -Label ("retry-$attempt")
             if (-not $reset.ready) {
@@ -3451,7 +4003,7 @@ function Invoke-WixInstallerScenarioRecovery {
         $injectionOrigin = 'candidate_ba_ui'
     }
     if ($null -ne $formed -and
-        -not (Get-WixInstallerScenarioProperty $formed.observation 'restart_required' $false)) {
+        -not $formed.post_exit.state.restart_required) {
         Write-WixInstallerScenarioProgress -OutputDir $OutputDir -Phase 'recovery_normal_rerun' `
             -Status 'manual_normal_ui_required' -Detail @{
                 manual_action = 'Double-click the same candidate and complete the ordinary UI with no passive, repair, or hidden arguments.'
@@ -3467,7 +4019,7 @@ function Invoke-WixInstallerScenarioRecovery {
         }
         if ($null -ne $converged -and (Test-WixInstallerScenarioSnapshotMatches `
             -Snapshot $converged -Identity $Preflight.candidate `
-            -RequireConsistentBundle -RequireConsistentPayload)) {
+            -RequireConsistentBundle -RequireConsistentPayload) -and $rerunWait.exit_code -eq 0) {
             Write-WixInstallerScenarioProgress -OutputDir $OutputDir -Phase 'recovery_uninstall' `
                 -Status 'manual_normal_ui_required' -Detail @{
                     manual_action = 'Use the ordinary same-candidate EXE UI to uninstall; the harness passes zero arguments.'
@@ -3514,11 +4066,15 @@ function Invoke-WixInstallerScenarioRecovery {
     }
     $readback = New-WixInstallerScenarioReadback -Before $before -After $readbackSource -Preflight $Preflight `
         -InjectionAttempts $attempts -InjectionOrigin $injectionOrigin `
-        -BundleConsistentAtInterrupt $(if ($null -ne $formed) { $false } else { $null }) `
+        -BundleConsistentAtInterrupt $(if ($null -ne $formed) { $formed.bundle_consistent } else { $null }) `
         -NormalUiRerunMode $(if ($null -ne $rerun) { 'normal_double_click' } else { '' }) `
         -RerunArguments $(if ($null -ne $rerun) { @($rerun.arguments) } else { @() }) `
         -RerunConverged ([bool]$convergedValid) `
         -UninstallSucceeded ([bool]$uninstallSucceeded)
+    if ($null -ne $formed) {
+        $readback | Add-Member -NotePropertyName verified_ba_stop -NotePropertyValue ([bool]$formed.stop.stopped)
+        $readback | Add-Member -NotePropertyName original_engine_exited -NotePropertyValue ([bool]$formed.original_process.exited)
+    }
     if ((Test-WixInstallerScenarioProperty $readback 'rerun_converged')) {
         $readback.rerun_converged = $convergedValid
     }
@@ -3529,7 +4085,10 @@ function Invoke-WixInstallerScenarioRecovery {
         foreach ($unobserved in @(
             'normal_ui_rerun_mode',
             'rerun_converged',
-            'uninstall_succeeded'
+            'uninstall_succeeded',
+            'observed_runtime_version', 'observed_payload_version', 'observed_com_version',
+            'manifest_integrity_ok', 'registration_status_ok', 'new_bundle_registered',
+            'old_bundle_and_msi_registrations_absent'
         )) {
             $readback.PSObject.Properties.Remove($unobserved) | Out-Null
         }
@@ -3565,12 +4124,7 @@ function Invoke-WixInstallerScenarioRecovery {
             text = $_.text
         }
     })
-    $formedMsiLogs = if ($null -ne $formed) {
-        @($formed.observation.msi_logs)
-    }
-    else {
-        @()
-    }
+    $formedMsiLogs = @(if ($null -ne $formed) { $formed.post_exit.msi_logs })
     $burnEvidence = @($allAttemptLogs | Where-Object { $_.kind -ceq 'burn' } | ForEach-Object {
         [pscustomobject]@{ run = 'first'; kind = 'burn'; path = $_.path; text = $_.text }
     })
@@ -3578,7 +4132,11 @@ function Invoke-WixInstallerScenarioRecovery {
         -BurnLogs @($burnEvidence) -MsiLogs @(
             if ($formedMsiLogs.Count -gt 0) { $formedMsiLogs } else { $allMsiLogs }
         ) -Readback $readback -EvidenceClass runtime_observed
-    $verdict = Get-WixInstallerScenarioVerdict -Scenario Recovery -Evidence $evidence
+    if ($null -ne $formed) {
+        $evidence.restart_required = [bool]$formed.post_exit.state.restart_required
+    }
+    $verdict = Get-WixInstallerScenarioVerdict -Scenario Recovery -Evidence $evidence `
+        -AcceptRetainedBundle:$AcceptRetainedBundle
     $rawLogs = @($allAttemptLogs + @(Get-WixInstallerScenarioLiveLogs -StartedUtc $scenarioStartedUtc) |
         Sort-Object path -Unique)
     $rawReceipt = Copy-WixInstallerScenarioRawLogs -Logs $rawLogs -OutputDir $OutputDir
@@ -3612,7 +4170,7 @@ function Invoke-WixInstallerScenarioRecovery {
         }
         root_guest_reboot_required =
             ($null -ne $formed -and
-                (Get-WixInstallerScenarioProperty $formed.observation 'restart_required' $false)) -or
+                $formed.post_exit.state.restart_required) -or
             ($null -ne $rerunWait -and $rerunWait.exited -eq $true -and
                 ([string]$rerunWait.exit_code -ceq '3010' -or
                  [string]$rerunWait.exit_code -ieq '0x0BC2')) -or
@@ -3642,7 +4200,7 @@ if ($runtimeOutput.Equals($fixedRoot, [StringComparison]::OrdinalIgnoreCase) -or
     $runtimeOutput.StartsWith($fixedRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
     throw '[SC013] OutputDir must not overlap the fixed LiuKai product root.'
 }
-if ($Scenario -ceq 'Recovery' -and (Test-WixInstallerScenarioRuntimeElevated)) {
+if ($Scenario -ceq 'Recovery' -and (Test-WixInstallerScenarioRuntimeElevated) -and -not $AllowElevatedBaUi) {
     throw '[SC010] Recovery requires the normal interactive WDAGUtilityAccount token; an elevated harness shell is not eligible to launch or stop the BA/UI.'
 }
 
@@ -3655,8 +4213,14 @@ Write-WixInstallerScenarioJson (Join-Path $runtimeOutput 'input-proof.json') ([o
     candidate = $runtimePreflight.candidate
     owned_authorization_kind = $runtimePreflight.owned_instance.authorization_kind
     owned_sandbox_id = $runtimePreflight.owned_instance.sandbox_id
+    sentinel_path = $runtimeGuest.sentinel_path
+    sentinel_sha256 = $runtimeGuest.sentinel_sha256
+    guest_boot_utc = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')
     guest_account = $runtimeGuest.account_name
     observation_timeout_seconds = $ObservationTimeoutSeconds
+    allow_elevated_ba_ui = [bool]$AllowElevatedBaUi
+    recovery_attempt_limit = $RecoveryAttempts
+    accept_retained_bundle = [bool]$AcceptRetainedBundle
 })
 Write-WixInstallerScenarioProgress -OutputDir $runtimeOutput -Phase 'guard' -Status 'owned_guest_verified'
 
@@ -3677,7 +4241,8 @@ try {
             -Preflight $runtimePreflight `
             -Fixtures $runtimeFixtures `
             -OutputDir $runtimeOutput `
-            -TimeoutSeconds $ObservationTimeoutSeconds
+            -TimeoutSeconds $ObservationTimeoutSeconds -AllowElevatedBaUi:$AllowElevatedBaUi `
+            -MaxAttempts $RecoveryAttempts -AcceptRetainedBundle:$AcceptRetainedBundle
     }
     Write-WixInstallerScenarioJson (Join-Path $runtimeOutput 'receipt.json') $receipt
     Write-WixInstallerScenarioProgress -OutputDir $runtimeOutput -Phase 'complete' `
