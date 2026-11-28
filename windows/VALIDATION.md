@@ -1,3 +1,14 @@
+# Issue 16：正式防重入 DLL 補充回歸（2026-11-28）
+
+本輪只新增測試與 CI，產品碼及版本未改。使用者已確認 #18 並要求結案，#19 也依已完成範圍結案；兩單已補上對應 PR，不再把額外資料裁定列為本次門檻。
+
+- 直接載入正式 0.1.2 建置抽出的 `LiuKaiInstallerGuard.dll`（來源 `2d3693111dc20b8d8fadc3f14cee6a43ffb02264`，DLL SHA-256 `55dd006e34a4f506f906edc64dcf7eea62a925e649c44da781803bf2f160800d`），呼叫官方 BAFunctionsCreate／Destroy，沒有以 include 產品 cpp 代替 DLL。
+- 單一 4 GiB Windows 沙盒中，PS5／PS7 各通過 19 個呼叫案例及三組 keeper 生命週期。涵蓋 malformed args、callback／Log、合法 embedded UNINSTALL／INSTALL、quiet 與錯 relation/action 的拒絕，以及 BA 正常結束或強制結束後保持 busy、keeper 結束後可重新取得保護。
+- 私有 mutation 只移除 embedded INSTALL 例外，測試實際得到 1618／`0x80070652`、缺 callback 與 marker 的語意 RED；正式 DLL GREEN。較早 fixture 的 include／MinGW IID 編譯錯誤另行保留，沒有計為功能 RED。
+- 既有 PS5／PS7 各 749 項純情境斷言與七項原生 guard 案例亦通過。CI 改為對每次正式建置的實際 guard DLL 執行同一組新測試，保留失敗診斷。
+
+這些是 DLL 元件及真實 fixture 程序生命週期測試：`installer_runs=0`、`msi_actions=0`。**不能代替真正 MSI 已提交、BA 中斷後普通雙擊恢復的端到端驗證，也未宣稱完整 Burn rollback 或歷史 `0x800700e8` 根因已解決。** [Issue 16](https://github.com/hamanpaul/liu-kai/issues/16) 因此仍保持開啟。沒有主機安裝、主機重啟或 WSL 操作。
+
 # Windows 0.1.2 安裝流程候選驗證（2026-11-28）
 
 本批依使用者指示只在單一 4 GiB Windows Sandbox 驗證，不在本機安裝或重啟，也不啟動 WSL／Android 模擬器。正式來源及成品以本版 Release 附件為準；以下先記錄私有候選的實測，不將私有 SHA 冒稱為合併後成品。
