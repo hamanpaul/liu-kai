@@ -433,23 +433,26 @@ bool load_exports(
     dll.module = LoadLibraryW(dll_path);
     if (!dll.module) {
         const DWORD error = GetLastError();
-        return fail(test, "LoadLibraryW", error, HRESULT_FROM_WIN32(error)) == 0;
+        fail(test, "LoadLibraryW", error, HRESULT_FROM_WIN32(error));
+        return false;
     }
     *create = reinterpret_cast<PFN_BA_FUNCTIONS_CREATE>(
         GetProcAddress(dll.module, "BAFunctionsCreate"));
     if (!*create) {
         const DWORD error = GetLastError();
-        return fail(
+        fail(
             test, "BAFunctionsCreate export", error,
-            HRESULT_FROM_WIN32(error)) == 0;
+            HRESULT_FROM_WIN32(error));
+        return false;
     }
     *destroy = reinterpret_cast<PFN_BA_FUNCTIONS_DESTROY>(
         GetProcAddress(dll.module, "BAFunctionsDestroy"));
     if (!*destroy) {
         const DWORD error = GetLastError();
-        return fail(
+        fail(
             test, "BAFunctionsDestroy export", error,
-            HRESULT_FROM_WIN32(error)) == 0;
+            HRESULT_FROM_WIN32(error));
+        return false;
     }
     return true;
 }

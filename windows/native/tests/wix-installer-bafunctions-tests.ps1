@@ -10,10 +10,10 @@ Set-StrictMode -Version Latest
 
 $compiler = (Resolve-Path -LiteralPath (
     Join-Path $ToolchainBin 'g++.exe')).Path
-$guardDllPath = (Resolve-Path -LiteralPath $GuardDll).Path
-if (-not (Test-Path -LiteralPath $guardDllPath -PathType Leaf)) {
+if (-not (Test-Path -LiteralPath $GuardDll -PathType Leaf)) {
     throw 'GuardDll must be an existing DLL file.'
 }
+$guardDllPath = (Resolve-Path -LiteralPath $GuardDll).Path
 $source = (Resolve-Path -LiteralPath (
     Join-Path $PSScriptRoot 'wix-installer-bafunctions-tests.cpp')).Path
 $work = [IO.Path]::GetFullPath($WorkDir)
